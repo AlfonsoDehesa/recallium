@@ -144,6 +144,19 @@ class SQLiteMemoryStore:
 
         return self.get_memory(memory_id)
 
+    def touch_last_accessed_at(self, memory_id: str) -> Memory | None:
+        timestamp = utc_now_iso()
+        with self._connect() as connection:
+            result = connection.execute(
+                "UPDATE memories SET last_accessed_at = ? WHERE id = ?",
+                (timestamp, memory_id),
+            )
+
+        if result.rowcount == 0:
+            return None
+
+        return self.get_memory(memory_id)
+
     def archive_memory(self, memory_id: str) -> Memory:
         timestamp = utc_now_iso()
         with self._connect() as connection:

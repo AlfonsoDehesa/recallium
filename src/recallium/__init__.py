@@ -1,5 +1,6 @@
 """Recallium Core package."""
 
+from recallium.core import RecalliumCore
 from recallium.errors import NotFoundError, RecalliumError, ValidationError
 from recallium.models import (
     SPACE_USER,
@@ -14,6 +15,7 @@ __all__ = [
     "__version__",
     "Memory",
     "SearchResult",
+    "RecalliumCore",
     "RecalliumError",
     "ValidationError",
     "NotFoundError",
