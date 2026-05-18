@@ -12,6 +12,7 @@ from recallium.models import (
     SPACE_WORKSPACE,
     Memory,
     SearchResult,
+    validate_limit,
     validate_memory_create_input,
     validate_memory_update_input,
 )
@@ -126,7 +127,7 @@ class RecalliumCore:
             query=query,
             candidates=candidates,
             embedding_provider=self.embedding_provider,
-            limit=limit,
+            limit=validate_limit(limit),
         )
 
     def search_workspace_memories(
@@ -152,7 +153,7 @@ class RecalliumCore:
             query=query,
             candidates=candidates,
             embedding_provider=self.embedding_provider,
-            limit=limit,
+            limit=validate_limit(limit),
         )
 
     def list_memories(
@@ -177,7 +178,7 @@ class RecalliumCore:
             status=status,
             workspace_id=resolved_workspace_id,
             include_archived=include_archived,
-            limit=limit,
+            limit=validate_limit(limit),
         )
 
     def get_memory(self, memory_id: str) -> Memory:

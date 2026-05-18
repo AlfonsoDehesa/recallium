@@ -32,7 +32,22 @@ def _validate_metadata(metadata: Any) -> dict[str, Any]:
         return {}
     if not isinstance(metadata, dict):
         raise ValidationError("metadata must be an object")
-    return dict(metadata)
+    normalized = dict(metadata)
+    try:
+        json.dumps(normalized)
+    except (TypeError, ValueError) as exc:
+        raise ValidationError("metadata must be JSON-serializable") from exc
+    return normalized
+
+
+def validate_limit(limit: Any) -> int | None:
+    if limit is None:
+        return None
+    if not isinstance(limit, int) or isinstance(limit, bool):
+        raise ValidationError("limit must be a positive integer")
+    if limit < 1:
+        raise ValidationError("limit must be a positive integer")
+    return limit
 
 
 def _validate_confidence(confidence: Any) -> float | None:

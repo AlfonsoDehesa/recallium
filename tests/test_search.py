@@ -44,7 +44,7 @@ def test_ranking_includes_score_and_rank_order() -> None:
     provider = LocalEmbeddingProvider()
 
     primary = build_memory("mem-1", "buy groceries and fruit")
-    secondary = build_memory("mem-2", "write release notes")
+    secondary = build_memory("mem-2", "purchase household supplies")
     candidates = [
         (secondary, provider.embed(secondary.content)),
         (primary, provider.embed(primary.content)),
@@ -63,6 +63,31 @@ def test_rank_memory_candidates_rejects_empty_query() -> None:
 
     with pytest.raises(ValidationError, match="query"):
         rank_memory_candidates(query="   ", candidates=[], embedding_provider=provider)
+
+
+def test_rank_memory_candidates_excludes_zero_score_results() -> None:
+    provider = LocalEmbeddingProvider()
+    unrelated = build_memory("mem-1", "apples oranges bananas")
+
+    results = rank_memory_candidates(
+        query="repair defect",
+        candidates=[(unrelated, provider.embed(unrelated.content))],
+        embedding_provider=provider,
+    )
+
+    assert results == []
+
+
+def test_rank_memory_candidates_rejects_invalid_limit() -> None:
+    provider = LocalEmbeddingProvider()
+
+    with pytest.raises(ValidationError, match="positive integer"):
+        rank_memory_candidates(
+            query="repair defect",
+            candidates=[],
+            embedding_provider=provider,
+            limit=0,
+        )
 
 
 def test_archived_filter_is_respected_by_candidate_selection(tmp_path: Path) -> None:

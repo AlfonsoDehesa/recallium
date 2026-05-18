@@ -120,3 +120,10 @@ def test_workspace_methods_reject_mixed_workspace_id_and_workspace_path(tmp_path
             workspace_id="workspace-alpha",
             workspace_path=str(tmp_path / "alpha"),
         )
+
+
+def test_core_rejects_invalid_list_limit(tmp_path: Path) -> None:
+    core = RecalliumCore(db_path=tmp_path / "limit.db")
+
+    with pytest.raises(ValidationError, match="positive integer"):
+        core.list_memories(limit=0)

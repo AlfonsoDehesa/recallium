@@ -10,6 +10,7 @@ from recallium.models import (
     STATUS_ACTIVE,
     Memory,
     SearchResult,
+    validate_limit,
     validate_memory_create_input,
     validate_memory_update_input,
 )
@@ -69,6 +70,25 @@ def test_validate_memory_create_input_rejects_invalid_fields() -> None:
             content="hello",
             confidence=float("nan"),
         )
+
+    with pytest.raises(ValidationError, match="JSON-serializable"):
+        validate_memory_create_input(
+            space=SPACE_USER,
+            memory_type="fact",
+            content="hello",
+            metadata={"bad": object()},
+        )
+
+
+def test_validate_limit_requires_positive_integer() -> None:
+    assert validate_limit(None) is None
+    assert validate_limit(3) == 3
+
+    with pytest.raises(ValidationError, match="positive integer"):
+        validate_limit(0)
+
+    with pytest.raises(ValidationError, match="positive integer"):
+        validate_limit(True)
 
 
 def test_validate_memory_update_input_requires_at_least_one_field() -> None:
