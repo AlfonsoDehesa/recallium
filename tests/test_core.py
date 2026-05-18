@@ -7,7 +7,9 @@ from recallium.errors import NotFoundError, ValidationError
 from recallium.models import SPACE_WORKSPACE, STATUS_ARCHIVED
 
 
-def test_core_user_memory_flow_add_get_search_list_update_archive(tmp_path: Path) -> None:
+def test_core_user_memory_flow_add_get_search_list_update_archive(
+    tmp_path: Path,
+) -> None:
     core = RecalliumCore(db_path=tmp_path / "core.db")
 
     created = core.add_memory(
@@ -48,7 +50,9 @@ def test_core_user_memory_flow_add_get_search_list_update_archive(tmp_path: Path
     assert [result.memory.id for result in archived_results] == [created.id]
 
 
-def test_core_workspace_search_isolation_and_canonical_workspace_path(tmp_path: Path) -> None:
+def test_core_workspace_search_isolation_and_canonical_workspace_path(
+    tmp_path: Path,
+) -> None:
     core = RecalliumCore(db_path=tmp_path / "workspace.db")
 
     workspace_a_path = tmp_path / "projects" / "alpha"
@@ -69,10 +73,14 @@ def test_core_workspace_search_isolation_and_canonical_workspace_path(tmp_path: 
 
     assert workspace_a.workspace_path == str(workspace_a_path.resolve())
 
-    search_a = core.search_workspace_memories("buy milk", workspace_path=str(workspace_a_path))
+    search_a = core.search_workspace_memories(
+        "buy milk", workspace_path=str(workspace_a_path)
+    )
     assert [result.memory.id for result in search_a] == [workspace_a.id]
 
-    search_b = core.search_workspace_memories("buy milk", workspace_path=str(workspace_b_path))
+    search_b = core.search_workspace_memories(
+        "buy milk", workspace_path=str(workspace_b_path)
+    )
     assert [result.memory.id for result in search_b] == [workspace_b.id]
 
     combined = core.search_workspace_memories("buy")
@@ -85,7 +93,9 @@ def test_core_workspace_search_isolation_and_canonical_workspace_path(tmp_path: 
 def test_core_persistence_across_instances_and_not_found(tmp_path: Path) -> None:
     db_path = tmp_path / "persist.db"
     first_core = RecalliumCore(db_path=db_path)
-    created = first_core.add_memory(space="user", type="fact", content="Kaylee likes tea")
+    created = first_core.add_memory(
+        space="user", type="fact", content="Kaylee likes tea"
+    )
 
     second_core = RecalliumCore(db_path=db_path)
     loaded = second_core.get_memory(created.id)
@@ -95,7 +105,9 @@ def test_core_persistence_across_instances_and_not_found(tmp_path: Path) -> None
         second_core.get_memory("missing-id")
 
 
-def test_workspace_methods_reject_mixed_workspace_id_and_workspace_path(tmp_path: Path) -> None:
+def test_workspace_methods_reject_mixed_workspace_id_and_workspace_path(
+    tmp_path: Path,
+) -> None:
     core = RecalliumCore(db_path=tmp_path / "mixed-workspace.db")
 
     with pytest.raises(ValidationError, match="both workspace_id and workspace_path"):

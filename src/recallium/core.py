@@ -122,12 +122,16 @@ class RecalliumCore:
         limit: int = 10,
         include_archived: bool = False,
     ) -> list[SearchResult]:
-        candidates = self.store.list_candidates(space=SPACE_USER, include_archived=include_archived)
+        candidates = self.store.list_candidates(
+            space=SPACE_USER, include_archived=include_archived
+        )
+        validated_limit = validate_limit(limit)
+        assert validated_limit is not None
         return rank_memory_candidates(
             query=query,
             candidates=candidates,
             embedding_provider=self.embedding_provider,
-            limit=validate_limit(limit),
+            limit=validated_limit,
         )
 
     def search_workspace_memories(
@@ -149,11 +153,13 @@ class RecalliumCore:
             workspace_id=resolved_workspace_id,
             include_archived=include_archived,
         )
+        validated_limit = validate_limit(limit)
+        assert validated_limit is not None
         return rank_memory_candidates(
             query=query,
             candidates=candidates,
             embedding_provider=self.embedding_provider,
-            limit=validate_limit(limit),
+            limit=validated_limit,
         )
 
     def list_memories(
@@ -198,7 +204,9 @@ class RecalliumCore:
         confidence: float | None = None,
         sensitivity: str | None = None,
     ) -> Memory:
-        has_model_updates = any(value is not None for value in (type, content, metadata, confidence))
+        has_model_updates = any(
+            value is not None for value in (type, content, metadata, confidence)
+        )
         validated: dict[str, object]
         if has_model_updates:
             validated = validate_memory_update_input(
@@ -213,11 +221,14 @@ class RecalliumCore:
         if source is not None:
             validated["source"] = _validate_optional_string("source", source)
         if sensitivity is not None:
-            validated["sensitivity"] = _validate_optional_string("sensitivity", sensitivity)
+            validated["sensitivity"] = _validate_optional_string(
+                "sensitivity", sensitivity
+            )
         if not validated:
             raise ValidationError("at least one update field is required")
-        if "content" in validated:
-            validated["embedding"] = self.embedding_provider.embed(validated["content"])
+        content_update = validated.get("content")
+        if isinstance(content_update, str):
+            validated["embedding"] = self.embedding_provider.embed(content_update)
 
         return self.store.update_memory(memory_id, **validated)
 

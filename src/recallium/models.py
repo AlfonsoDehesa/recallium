@@ -80,13 +80,19 @@ def validate_memory_create_input(
     if validated_space not in {SPACE_USER, SPACE_WORKSPACE}:
         raise ValidationError("space must be one of: user, workspace")
 
-    validated_workspace_id = _validate_optional_non_empty_string("workspace_id", workspace_id)
-    validated_workspace_path = _validate_optional_non_empty_string("workspace_path", workspace_path)
+    validated_workspace_id = _validate_optional_non_empty_string(
+        "workspace_id", workspace_id
+    )
+    validated_workspace_path = _validate_optional_non_empty_string(
+        "workspace_path", workspace_path
+    )
 
     if validated_space == SPACE_WORKSPACE and not (
         validated_workspace_id or validated_workspace_path
     ):
-        raise ValidationError("workspace_id or workspace_path is required for workspace memories")
+        raise ValidationError(
+            "workspace_id or workspace_path is required for workspace memories"
+        )
 
     return {
         "space": validated_space,
@@ -153,15 +159,25 @@ class Memory:
         if self.status not in {STATUS_ACTIVE, STATUS_ARCHIVED}:
             raise ValidationError("status must be one of: active, archived")
 
-        self.workspace_id = _validate_optional_non_empty_string("workspace_id", self.workspace_id)
-        self.workspace_path = _validate_optional_non_empty_string("workspace_path", self.workspace_path)
-        if self.space == SPACE_WORKSPACE and not (self.workspace_id or self.workspace_path):
-            raise ValidationError("workspace_id or workspace_path is required for workspace memories")
+        self.workspace_id = _validate_optional_non_empty_string(
+            "workspace_id", self.workspace_id
+        )
+        self.workspace_path = _validate_optional_non_empty_string(
+            "workspace_path", self.workspace_path
+        )
+        if self.space == SPACE_WORKSPACE and not (
+            self.workspace_id or self.workspace_path
+        ):
+            raise ValidationError(
+                "workspace_id or workspace_path is required for workspace memories"
+            )
 
         self.metadata = _validate_metadata(self.metadata)
         self.confidence = _validate_confidence(self.confidence)
         self.source = _validate_optional_non_empty_string("source", self.source)
-        self.sensitivity = _validate_optional_non_empty_string("sensitivity", self.sensitivity)
+        self.sensitivity = _validate_optional_non_empty_string(
+            "sensitivity", self.sensitivity
+        )
 
         self.created_at = _validate_non_empty_string("created_at", self.created_at)
         self.updated_at = _validate_non_empty_string("updated_at", self.updated_at)
@@ -214,6 +230,8 @@ class SearchResult:
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> SearchResult:
         memory_payload = payload.get("memory")
+        if not isinstance(memory_payload, dict):
+            raise ValidationError("memory must be an object")
         return cls(
             memory=Memory.from_dict(memory_payload),
             score=payload["score"],

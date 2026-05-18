@@ -100,6 +100,9 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the Recallium CLI."""
     parser = _build_parser()
+    if argv == [] or (argv is None and len(sys.argv) == 1):
+        parser.print_help()
+        return 0
     args = parser.parse_args(argv)
     core = RecalliumCore(db_path=args.db_path)
 

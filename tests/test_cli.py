@@ -93,7 +93,9 @@ def test_cli_full_workflow(tmp_path, capsys) -> None:
     assert len(list_payload) == 1
     assert list_payload[0]["id"] == workspace_memory_id
 
-    get_code, get_out, _ = _run_cli(["--db", str(db_path), "get", user_memory_id], capsys)
+    get_code, get_out, _ = _run_cli(
+        ["--db", str(db_path), "get", user_memory_id], capsys
+    )
     assert get_code == 0
     get_payload = json.loads(get_out)
     assert get_payload["id"] == user_memory_id

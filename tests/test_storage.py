@@ -3,7 +3,13 @@ from pathlib import Path
 import pytest
 
 from recallium.errors import NotFoundError
-from recallium.models import SPACE_USER, SPACE_WORKSPACE, STATUS_ACTIVE, STATUS_ARCHIVED, Memory
+from recallium.models import (
+    SPACE_USER,
+    SPACE_WORKSPACE,
+    STATUS_ACTIVE,
+    STATUS_ARCHIVED,
+    Memory,
+)
 from recallium.storage import SQLiteMemoryStore
 
 
@@ -22,7 +28,9 @@ def build_memory(memory_id: str, **overrides: object) -> Memory:
     return Memory(**payload)
 
 
-def test_store_creates_parent_directories_and_persists_across_instances(tmp_path: Path) -> None:
+def test_store_creates_parent_directories_and_persists_across_instances(
+    tmp_path: Path,
+) -> None:
     db_path = tmp_path / "nested" / "db" / "recallium.db"
     store = SQLiteMemoryStore(db_path)
     memory = build_memory("mem-1")
@@ -122,7 +130,9 @@ def test_archive_excluded_from_default_list_and_includable(tmp_path: Path) -> No
 
 def test_list_memories_filters_by_space_type_status_workspace(tmp_path: Path) -> None:
     store = SQLiteMemoryStore(tmp_path / "filters.db")
-    store.insert_memory(build_memory("u1", space=SPACE_USER, type="fact"), embedding=[0.1])
+    store.insert_memory(
+        build_memory("u1", space=SPACE_USER, type="fact"), embedding=[0.1]
+    )
     store.insert_memory(
         build_memory(
             "w1",
@@ -145,7 +155,9 @@ def test_list_memories_filters_by_space_type_status_workspace(tmp_path: Path) ->
     )
     store.archive_memory("w2")
 
-    workspace_results = store.list_memories(space=SPACE_WORKSPACE, workspace_id="workspace-a")
+    workspace_results = store.list_memories(
+        space=SPACE_WORKSPACE, workspace_id="workspace-a"
+    )
     assert [memory.id for memory in workspace_results] == ["w1"]
 
     task_results = store.list_memories(memory_type="task", include_archived=True)

@@ -27,7 +27,9 @@ def rank_memory_candidates(
         if score > 0.0:
             scored.append((memory, score))
 
-    scored.sort(key=lambda item: (-item[1], item[0].updated_at, item[0].id), reverse=False)
+    scored.sort(
+        key=lambda item: (-item[1], item[0].updated_at, item[0].id), reverse=False
+    )
 
     results: list[SearchResult] = []
     for rank, (memory, score) in enumerate(scored[:validated_limit], start=1):

@@ -32,7 +32,9 @@ def test_semantic_search_matches_synonym_without_exact_term(tmp_path: Path) -> N
     store.insert_memory(memory, embedding=provider.embed(memory.content))
 
     candidates = store.list_candidates(space=SPACE_USER)
-    results = rank_memory_candidates(query="repair defect", candidates=candidates, embedding_provider=provider)
+    results = rank_memory_candidates(
+        query="repair defect", candidates=candidates, embedding_provider=provider
+    )
 
     assert results
     assert results[0].memory.id == "mem-1"
@@ -50,7 +52,9 @@ def test_ranking_includes_score_and_rank_order() -> None:
         (primary, provider.embed(primary.content)),
     ]
 
-    results = rank_memory_candidates(query="purchase fruit", candidates=candidates, embedding_provider=provider)
+    results = rank_memory_candidates(
+        query="purchase fruit", candidates=candidates, embedding_provider=provider
+    )
 
     assert [result.memory.id for result in results] == ["mem-1", "mem-2"]
     assert results[0].rank == 1

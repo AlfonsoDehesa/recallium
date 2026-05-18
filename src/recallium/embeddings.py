@@ -41,7 +41,11 @@ class LocalEmbeddingProvider:
     def _normalize_tokens(self, text: str) -> list[str]:
         lowered = text.lower()
         tokens = TOKEN_PATTERN.findall(lowered)
-        return [self._synonym_map.get(token, token) for token in tokens]
+        normalized_tokens: list[str] = []
+        for token in tokens:
+            canonical = self._synonym_map.get(token)
+            normalized_tokens.append(canonical if canonical is not None else token)
+        return normalized_tokens
 
     def _token_index(self, token: str) -> int:
         digest = hashlib.sha256(token.encode("utf-8")).digest()
@@ -63,7 +67,7 @@ class LocalEmbeddingProvider:
         buckets = {
             "buy": {"buy", "purchase", "acquire", "obtain", "get"},
             "fix": {"fix", "repair", "patch", "resolve"},
-            "bug": {"bug", "issue", "problem", "defect"},
+            "bug": {"bug", "issue", "problem", "defect", "fail", "fails", "failure"},
             "quick": {"quick", "fast", "rapid", "speedy"},
             "idea": {"idea", "concept", "notion", "thought"},
             "meeting": {"meeting", "sync", "standup", "checkin"},

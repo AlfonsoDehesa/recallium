@@ -13,7 +13,7 @@ from recallium.models import Memory, SPACE_WORKSPACE, STATUS_ARCHIVED
 
 
 def utc_now_iso() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 class SQLiteMemoryStore:
@@ -60,7 +60,9 @@ class SQLiteMemoryStore:
                 ON memories(space, workspace_id, status)
                 """
             )
-            connection.execute("CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type)")
+            connection.execute(
+                "CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type)"
+            )
             connection.execute(
                 "CREATE INDEX IF NOT EXISTS idx_memories_updated_at ON memories(updated_at)"
             )
@@ -101,7 +103,9 @@ class SQLiteMemoryStore:
 
     def get_memory(self, memory_id: str) -> Memory:
         with self._connect() as connection:
-            row = connection.execute("SELECT * FROM memories WHERE id = ?", (memory_id,)).fetchone()
+            row = connection.execute(
+                "SELECT * FROM memories WHERE id = ?", (memory_id,)
+            ).fetchone()
 
         if row is None:
             raise NotFoundError(f"memory not found: {memory_id}")
@@ -252,7 +256,10 @@ class SQLiteMemoryStore:
                 values,
             ).fetchall()
 
-        return [(self._row_to_memory(row), json.loads(row["embedding_json"])) for row in rows]
+        return [
+            (self._row_to_memory(row), json.loads(row["embedding_json"]))
+            for row in rows
+        ]
 
     def _row_to_memory(self, row: sqlite3.Row) -> Memory:
         return Memory(
