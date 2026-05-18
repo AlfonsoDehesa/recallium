@@ -71,8 +71,7 @@ def validate_memory_create_input(
     space: Any,
     memory_type: Any,
     content: Any,
-    workspace_id: Any = None,
-    workspace_path: Any = None,
+    workspace_uid: Any = None,
     metadata: Any = None,
     confidence: Any = None,
 ) -> dict[str, Any]:
@@ -80,26 +79,21 @@ def validate_memory_create_input(
     if validated_space not in {SPACE_USER, SPACE_WORKSPACE}:
         raise ValidationError("space must be one of: user, workspace")
 
-    validated_workspace_id = _validate_optional_non_empty_string(
-        "workspace_id", workspace_id
-    )
-    validated_workspace_path = _validate_optional_non_empty_string(
-        "workspace_path", workspace_path
+    validated_workspace_uid = _validate_optional_non_empty_string(
+        "workspace_uid", workspace_uid
     )
 
-    if validated_space == SPACE_WORKSPACE and not (
-        validated_workspace_id or validated_workspace_path
-    ):
-        raise ValidationError(
-            "workspace_id or workspace_path is required for workspace memories"
-        )
+    if validated_space == SPACE_USER and validated_workspace_uid is not None:
+        raise ValidationError("user memories must not include workspace_uid")
+
+    if validated_space == SPACE_WORKSPACE and validated_workspace_uid is None:
+        raise ValidationError("workspace_uid is required for workspace memories")
 
     return {
         "space": validated_space,
         "type": _validate_non_empty_string("type", memory_type),
         "content": _validate_non_empty_string("content", content),
-        "workspace_id": validated_workspace_id,
-        "workspace_path": validated_workspace_path,
+        "workspace_uid": validated_workspace_uid,
         "metadata": _validate_metadata(metadata),
         "confidence": _validate_confidence(confidence),
     }
@@ -136,8 +130,7 @@ class Memory:
     type: str
     content: str
     status: str = STATUS_ACTIVE
-    workspace_id: str | None = None
-    workspace_path: str | None = None
+    workspace_uid: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     source: str | None = None
     confidence: float | None = None
@@ -159,18 +152,13 @@ class Memory:
         if self.status not in {STATUS_ACTIVE, STATUS_ARCHIVED}:
             raise ValidationError("status must be one of: active, archived")
 
-        self.workspace_id = _validate_optional_non_empty_string(
-            "workspace_id", self.workspace_id
+        self.workspace_uid = _validate_optional_non_empty_string(
+            "workspace_uid", self.workspace_uid
         )
-        self.workspace_path = _validate_optional_non_empty_string(
-            "workspace_path", self.workspace_path
-        )
-        if self.space == SPACE_WORKSPACE and not (
-            self.workspace_id or self.workspace_path
-        ):
-            raise ValidationError(
-                "workspace_id or workspace_path is required for workspace memories"
-            )
+        if self.space == SPACE_USER and self.workspace_uid is not None:
+            raise ValidationError("user memories must not include workspace_uid")
+        if self.space == SPACE_WORKSPACE and self.workspace_uid is None:
+            raise ValidationError("workspace_uid is required for workspace memories")
 
         self.metadata = _validate_metadata(self.metadata)
         self.confidence = _validate_confidence(self.confidence)

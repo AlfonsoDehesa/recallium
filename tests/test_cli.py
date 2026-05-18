@@ -46,7 +46,7 @@ def test_cli_full_workflow(tmp_path, capsys) -> None:
             "add",
             "--space",
             "workspace",
-            "--workspace-id",
+            "--workspace-uid",
             "ws-123",
             "--type",
             "note",
@@ -74,7 +74,7 @@ def test_cli_full_workflow(tmp_path, capsys) -> None:
             str(db_path),
             "search-workspace",
             "mechanical stress issue",
-            "--workspace-id",
+            "--workspace-uid",
             "ws-123",
         ],
         capsys,
@@ -148,7 +148,7 @@ def test_cli_validation_error_returns_2(tmp_path, capsys) -> None:
     assert exit_code == 2
     assert stdout == ""
     assert "ValidationError:" in stderr
-    assert "workspace_id or workspace_path is required" in stderr
+    assert "workspace_uid is required" in stderr
 
 
 def test_cli_not_found_returns_1(tmp_path, capsys) -> None:

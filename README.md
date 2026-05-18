@@ -76,7 +76,7 @@ Add a workspace memory:
 ```bash
 recallium --db /tmp/recallium.db add \
   --space workspace \
-  --workspace-path . \
+  --workspace-uid 7f3b0a5e-example-workspace \
   --type decision \
   --content "Use SQLite for local memory persistence."
 ```
@@ -86,8 +86,12 @@ Search workspace memories:
 ```bash
 recallium --db /tmp/recallium.db search-workspace \
   "local persistence" \
-  --workspace-path .
+  --workspace-uid 7f3b0a5e-example-workspace
 ```
+
+Workspace memories are keyed by a stable workspace UID. Future adapters, such as
+the OpenCode plugin, should create and pass that UID rather than using filesystem
+paths as workspace identity.
 
 All successful CLI commands return JSON.
 

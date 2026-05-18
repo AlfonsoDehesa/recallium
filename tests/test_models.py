@@ -32,11 +32,21 @@ def build_memory(**overrides: object) -> Memory:
 
 
 def test_validate_memory_create_input_workspace_requires_workspace_field() -> None:
-    with pytest.raises(ValidationError, match="workspace_id or workspace_path"):
+    with pytest.raises(ValidationError, match="workspace_uid"):
         validate_memory_create_input(
             space=SPACE_WORKSPACE,
             memory_type="fact",
             content="hello",
+        )
+
+
+def test_validate_memory_create_input_rejects_workspace_uid_for_user_memory() -> None:
+    with pytest.raises(ValidationError, match="user memories must not include"):
+        validate_memory_create_input(
+            space=SPACE_USER,
+            memory_type="fact",
+            content="hello",
+            workspace_uid="workspace-alpha",
         )
 
 
@@ -123,8 +133,11 @@ def test_memory_serialization_round_trip_is_stable_and_json_compatible() -> None
 
 
 def test_memory_workspace_validation_applies_to_dataclass() -> None:
-    with pytest.raises(ValidationError, match="workspace_id or workspace_path"):
+    with pytest.raises(ValidationError, match="workspace_uid"):
         build_memory(space=SPACE_WORKSPACE)
+
+    with pytest.raises(ValidationError, match="user memories must not include"):
+        build_memory(space=SPACE_USER, workspace_uid="workspace-alpha")
 
 
 def test_search_result_serialization_round_trip() -> None:

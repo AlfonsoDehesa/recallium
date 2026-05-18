@@ -42,20 +42,19 @@ def test_store_creates_parent_directories_and_persists_across_instances(
     assert loaded == memory
 
 
-def test_workspace_path_only_memory_round_trips_through_storage(tmp_path: Path) -> None:
-    store = SQLiteMemoryStore(tmp_path / "workspace-path.db")
+def test_workspace_uid_memory_round_trips_through_storage(tmp_path: Path) -> None:
+    store = SQLiteMemoryStore(tmp_path / "workspace-uid.db")
     memory = build_memory(
-        "mem-path",
+        "mem-workspace",
         space=SPACE_WORKSPACE,
-        workspace_path="/tmp/project-alpha",
-        workspace_id=None,
+        workspace_uid="workspace-alpha",
     )
 
     store.insert_memory(memory, embedding=[0.2, 0.3])
 
-    loaded = store.get_memory("mem-path")
+    loaded = store.get_memory("mem-workspace")
     assert loaded.space == SPACE_WORKSPACE
-    assert loaded.workspace_id == "/tmp/project-alpha"
+    assert loaded.workspace_uid == "workspace-alpha"
 
 
 def test_store_uses_schema_version_1(tmp_path: Path) -> None:
@@ -137,7 +136,7 @@ def test_list_memories_filters_by_space_type_status_workspace(tmp_path: Path) ->
         build_memory(
             "w1",
             space=SPACE_WORKSPACE,
-            workspace_id="workspace-a",
+            workspace_uid="workspace-a",
             type="task",
             content="task a",
         ),
@@ -147,7 +146,7 @@ def test_list_memories_filters_by_space_type_status_workspace(tmp_path: Path) ->
         build_memory(
             "w2",
             space=SPACE_WORKSPACE,
-            workspace_id="workspace-b",
+            workspace_uid="workspace-b",
             type="task",
             content="task b",
         ),
@@ -156,7 +155,7 @@ def test_list_memories_filters_by_space_type_status_workspace(tmp_path: Path) ->
     store.archive_memory("w2")
 
     workspace_results = store.list_memories(
-        space=SPACE_WORKSPACE, workspace_id="workspace-a"
+        space=SPACE_WORKSPACE, workspace_uid="workspace-a"
     )
     assert [memory.id for memory in workspace_results] == ["w1"]
 

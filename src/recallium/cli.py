@@ -51,8 +51,7 @@ def _build_parser() -> argparse.ArgumentParser:
     add_parser.add_argument("--space", required=True)
     add_parser.add_argument("--type", required=True)
     add_parser.add_argument("--content", required=True)
-    add_parser.add_argument("--workspace-id")
-    add_parser.add_argument("--workspace-path")
+    add_parser.add_argument("--workspace-uid")
     add_parser.add_argument("--metadata")
     add_parser.add_argument("--source")
     add_parser.add_argument("--confidence", type=float)
@@ -65,8 +64,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     search_workspace_parser = subparsers.add_parser("search-workspace")
     search_workspace_parser.add_argument("query")
-    search_workspace_parser.add_argument("--workspace-id")
-    search_workspace_parser.add_argument("--workspace-path")
+    search_workspace_parser.add_argument("--workspace-uid", required=True)
     search_workspace_parser.add_argument("--limit", type=int, default=10)
     search_workspace_parser.add_argument("--include-archived", action="store_true")
 
@@ -74,8 +72,7 @@ def _build_parser() -> argparse.ArgumentParser:
     list_parser.add_argument("--space")
     list_parser.add_argument("--type")
     list_parser.add_argument("--status")
-    list_parser.add_argument("--workspace-id")
-    list_parser.add_argument("--workspace-path")
+    list_parser.add_argument("--workspace-uid")
     list_parser.add_argument("--include-archived", action="store_true")
     list_parser.add_argument("--limit", type=int)
 
@@ -112,8 +109,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 space=args.space,
                 type=args.type,
                 content=args.content,
-                workspace_id=args.workspace_id,
-                workspace_path=args.workspace_path,
+                workspace_uid=args.workspace_uid,
                 metadata=_parse_metadata(args.metadata),
                 source=args.source,
                 confidence=args.confidence,
@@ -128,8 +124,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "search-workspace":
             result = core.search_workspace_memories(
                 query=args.query,
-                workspace_id=args.workspace_id,
-                workspace_path=args.workspace_path,
+                workspace_uid=args.workspace_uid,
                 limit=args.limit,
                 include_archived=args.include_archived,
             )
@@ -138,8 +133,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 space=args.space,
                 type=args.type,
                 status=args.status,
-                workspace_id=args.workspace_id,
-                workspace_path=args.workspace_path,
+                workspace_uid=args.workspace_uid,
                 include_archived=args.include_archived,
                 limit=args.limit,
             )

@@ -9,7 +9,7 @@ import sqlite3
 from typing import Any
 
 from recallium.errors import NotFoundError
-from recallium.models import Memory, SPACE_WORKSPACE, STATUS_ARCHIVED
+from recallium.models import Memory, STATUS_ARCHIVED
 
 
 def utc_now_iso() -> str:
@@ -36,7 +36,7 @@ class SQLiteMemoryStore:
                 CREATE TABLE IF NOT EXISTS memories (
                     id TEXT PRIMARY KEY,
                     space TEXT NOT NULL,
-                    workspace_id TEXT NULL,
+                    workspace_uid TEXT NULL,
                     type TEXT NOT NULL,
                     content TEXT NOT NULL,
                     metadata_json TEXT NOT NULL DEFAULT '{}',
@@ -57,7 +57,7 @@ class SQLiteMemoryStore:
             connection.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_memories_space_workspace_status
-                ON memories(space, workspace_id, status)
+                ON memories(space, workspace_uid, status)
                 """
             )
             connection.execute(
@@ -69,15 +69,11 @@ class SQLiteMemoryStore:
             connection.execute("PRAGMA user_version = 1")
 
     def insert_memory(self, memory: Memory, embedding: list[float]) -> Memory:
-        workspace_identifier = memory.workspace_id
-        if memory.space == SPACE_WORKSPACE and workspace_identifier is None:
-            workspace_identifier = memory.workspace_path
-
         with self._connect() as connection:
             connection.execute(
                 """
                 INSERT INTO memories (
-                    id, space, workspace_id, type, content, metadata_json,
+                    id, space, workspace_uid, type, content, metadata_json,
                     status, source, confidence, sensitivity, embedding_json,
                     created_at, updated_at, last_accessed_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -85,7 +81,7 @@ class SQLiteMemoryStore:
                 (
                     memory.id,
                     memory.space,
-                    workspace_identifier,
+                    memory.workspace_uid,
                     memory.type,
                     memory.content,
                     json.dumps(memory.metadata, sort_keys=True),
@@ -180,7 +176,7 @@ class SQLiteMemoryStore:
         space: str | None = None,
         memory_type: str | None = None,
         status: str | None = None,
-        workspace_id: str | None = None,
+        workspace_uid: str | None = None,
         include_archived: bool = False,
         limit: int | None = None,
     ) -> list[Memory]:
@@ -199,9 +195,9 @@ class SQLiteMemoryStore:
         elif not include_archived:
             where_parts.append("status != ?")
             values.append(STATUS_ARCHIVED)
-        if workspace_id is not None:
-            where_parts.append("workspace_id = ?")
-            values.append(workspace_id)
+        if workspace_uid is not None:
+            where_parts.append("workspace_uid = ?")
+            values.append(workspace_uid)
 
         where_clause = ""
         if where_parts:
@@ -228,7 +224,7 @@ class SQLiteMemoryStore:
         self,
         *,
         space: str | None = None,
-        workspace_id: str | None = None,
+        workspace_uid: str | None = None,
         include_archived: bool = False,
     ) -> list[tuple[Memory, list[float]]]:
         where_parts: list[str] = []
@@ -237,9 +233,9 @@ class SQLiteMemoryStore:
         if space is not None:
             where_parts.append("space = ?")
             values.append(space)
-        if workspace_id is not None:
-            where_parts.append("workspace_id = ?")
-            values.append(workspace_id)
+        if workspace_uid is not None:
+            where_parts.append("workspace_uid = ?")
+            values.append(workspace_uid)
         if not include_archived:
             where_parts.append("status != ?")
             values.append(STATUS_ARCHIVED)
@@ -265,7 +261,7 @@ class SQLiteMemoryStore:
         return Memory(
             id=row["id"],
             space=row["space"],
-            workspace_id=row["workspace_id"],
+            workspace_uid=row["workspace_uid"],
             type=row["type"],
             content=row["content"],
             metadata=json.loads(row["metadata_json"]),
