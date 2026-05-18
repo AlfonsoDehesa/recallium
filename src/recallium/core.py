@@ -36,6 +36,22 @@ def _validate_optional_string(field_name: str, value: str | None) -> str | None:
     return value.strip()
 
 
+def _resolve_workspace_identifier(
+    *,
+    workspace_id: str | None,
+    workspace_path: str | None,
+    method_name: str,
+) -> str | None:
+    if workspace_id is not None and workspace_path is not None:
+        raise ValidationError(
+            f"{method_name} does not allow both workspace_id and workspace_path"
+        )
+
+    if workspace_path is not None:
+        return _canonical_workspace_path(workspace_path)
+    return workspace_id
+
+
 class RecalliumCore:
     """High-level service object used by clients and adapters."""
 
@@ -71,18 +87,24 @@ class RecalliumCore:
             confidence=confidence,
         )
 
-        canonical_workspace_path = payload["workspace_path"]
-        if canonical_workspace_path is not None:
-            canonical_workspace_path = _canonical_workspace_path(canonical_workspace_path)
+        resolved_workspace_id = _resolve_workspace_identifier(
+            workspace_id=payload["workspace_id"],
+            workspace_path=payload["workspace_path"],
+            method_name="add_memory",
+        )
 
         timestamp = utc_now_iso()
+        normalized_workspace_path: str | None = None
+        if payload["space"] == SPACE_WORKSPACE and resolved_workspace_id is not None:
+            normalized_workspace_path = resolved_workspace_id
+
         memory = Memory(
             id=str(uuid4()),
             space=payload["space"],
             type=payload["type"],
             content=payload["content"],
-            workspace_id=payload["workspace_id"],
-            workspace_path=canonical_workspace_path,
+            workspace_id=resolved_workspace_id,
+            workspace_path=normalized_workspace_path,
             metadata=payload["metadata"],
             source=_validate_optional_string("source", source),
             confidence=payload["confidence"],
@@ -115,9 +137,11 @@ class RecalliumCore:
         limit: int = 10,
         include_archived: bool = False,
     ) -> list[SearchResult]:
-        resolved_workspace_id = workspace_id
-        if workspace_path is not None:
-            resolved_workspace_id = _canonical_workspace_path(workspace_path)
+        resolved_workspace_id = _resolve_workspace_identifier(
+            workspace_id=workspace_id,
+            workspace_path=workspace_path,
+            method_name="search_workspace_memories",
+        )
 
         candidates = self.store.list_candidates(
             space=SPACE_WORKSPACE,
@@ -141,9 +165,11 @@ class RecalliumCore:
         include_archived: bool = False,
         limit: int | None = None,
     ) -> list[Memory]:
-        resolved_workspace_id = workspace_id
-        if workspace_path is not None:
-            resolved_workspace_id = _canonical_workspace_path(workspace_path)
+        resolved_workspace_id = _resolve_workspace_identifier(
+            workspace_id=workspace_id,
+            workspace_path=workspace_path,
+            method_name="list_memories",
+        )
 
         return self.store.list_memories(
             space=space,

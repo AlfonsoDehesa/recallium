@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from recallium.core import RecalliumCore
-from recallium.errors import NotFoundError
+from recallium.errors import NotFoundError, ValidationError
 from recallium.models import SPACE_WORKSPACE, STATUS_ARCHIVED
 
 
@@ -93,3 +93,30 @@ def test_core_persistence_across_instances_and_not_found(tmp_path: Path) -> None
 
     with pytest.raises(NotFoundError):
         second_core.get_memory("missing-id")
+
+
+def test_workspace_methods_reject_mixed_workspace_id_and_workspace_path(tmp_path: Path) -> None:
+    core = RecalliumCore(db_path=tmp_path / "mixed-workspace.db")
+
+    with pytest.raises(ValidationError, match="both workspace_id and workspace_path"):
+        core.add_memory(
+            space=SPACE_WORKSPACE,
+            type="task",
+            content="Need to purchase milk",
+            workspace_id="workspace-alpha",
+            workspace_path=str(tmp_path / "alpha"),
+        )
+
+    with pytest.raises(ValidationError, match="both workspace_id and workspace_path"):
+        core.search_workspace_memories(
+            "buy milk",
+            workspace_id="workspace-alpha",
+            workspace_path=str(tmp_path / "alpha"),
+        )
+
+    with pytest.raises(ValidationError, match="both workspace_id and workspace_path"):
+        core.list_memories(
+            space=SPACE_WORKSPACE,
+            workspace_id="workspace-alpha",
+            workspace_path=str(tmp_path / "alpha"),
+        )
