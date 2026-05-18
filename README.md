@@ -27,17 +27,25 @@ This MVP does not include:
 
 ## Install for development
 
+Recallium Core requires Python 3.14 or newer. Use `uv` for environment and dependency management.
+
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -e .
-python -m pip install pytest
+uv sync --group dev
 ```
 
-Run tests:
+Run the full local quality gate:
 
 ```bash
-pytest
+uv run ruff format .
+uv run ruff check .
+uv run pyright
+uv run pytest
+```
+
+Run the CLI through the managed environment:
+
+```bash
+uv run recallium --help
 ```
 
 ## Data path behavior
