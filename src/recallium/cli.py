@@ -10,6 +10,8 @@ from typing import Any, Sequence
 
 from recallium import NotFoundError, RecalliumCore, ValidationError
 from recallium.models import SearchResult
+from recallium.service import run_service
+from recallium.service_contract import SERVICE_DEFAULT_HOST, SERVICE_DEFAULT_PORT
 
 
 def _parse_metadata(raw_metadata: str | None) -> dict[str, object] | None:
@@ -235,6 +237,28 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     archive_parser.add_argument("memory_id", help="Memory ID to archive.")
 
+    serve_parser = subparsers.add_parser(
+        "serve",
+        help="run the local Recallium HTTP service",
+        description=(
+            "Start a blocking local-only HTTP JSON service for Recallium Core. "
+            "By default it binds to localhost (127.0.0.1), exposes the /v1 "
+            "service API, and keeps running until interrupted. Use the global "
+            "--db flag to choose the SQLite database path."
+        ),
+    )
+    serve_parser.add_argument(
+        "--host",
+        default=SERVICE_DEFAULT_HOST,
+        help=("Host interface to bind. Defaults to 127.0.0.1 for local-only access."),
+    )
+    serve_parser.add_argument(
+        "--port",
+        type=int,
+        default=SERVICE_DEFAULT_PORT,
+        help="TCP port for the local service API. Defaults to 8765.",
+    )
+
     return parser
 
 
@@ -245,6 +269,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return 0
     args = parser.parse_args(argv)
+
+    if args.command == "serve":
+        run_service(host=args.host, port=args.port, db_path=args.db_path)
+        return 0
+
     core = RecalliumCore(db_path=args.db_path)
 
     try:
