@@ -3,15 +3,19 @@
 from __future__ import annotations
 
 import math
+import multiprocessing
+import queue
 import re
-from dataclasses import dataclass
 from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Any, Protocol, cast
 
 from recallium.errors import (
+    EmbeddingDimensionMismatchError,
     EmbeddingGenerationError,
     EmbeddingModelUnavailableError,
     EmbeddingProviderUnavailableError,
+    EmbeddingReadinessTimeoutError,
 )
 
 
@@ -22,6 +26,22 @@ class EmbeddingProvider(Protocol):
     def embed(self, text: str) -> list[float]: ...
 
     def similarity(self, first: list[float], second: list[float]) -> float: ...
+
+
+def _fastembed_readiness_worker(result_queue: multiprocessing.Queue[Any]) -> None:
+    try:
+        BuiltinFastEmbedProvider()._ensure_ready_unbounded()
+    except Exception as exc:  # pragma: no cover - exercised through parent process
+        result_queue.put(
+            {
+                "ok": False,
+                "error_type": exc.__class__.__name__,
+                "message": str(exc),
+            }
+        )
+        return
+
+    result_queue.put({"ok": True})
 
 
 @dataclass(slots=True)
@@ -134,11 +154,67 @@ class BuiltinFastEmbedProvider:
             ) from exc
 
         vector = [float(value) for value in cast(Iterable[float], result)]
-        if len(vector) != self.dimensions:
-            raise EmbeddingGenerationError(
-                f"unexpected embedding dimension: expected {self.dimensions}, got {len(vector)}"
-            )
+        self._validate_dimensions(vector)
         return self._normalize_vector(vector)
+
+    def ensure_ready(self, *, timeout_seconds: float = 60.0) -> None:
+        if timeout_seconds <= 0:
+            raise EmbeddingReadinessTimeoutError(
+                "FastEmbed provider startup timed out after 0 seconds"
+            )
+
+        context = multiprocessing.get_context("spawn")
+        result_queue: multiprocessing.Queue[Any] = context.Queue()
+        process = context.Process(
+            target=_fastembed_readiness_worker,
+            args=(result_queue,),
+        )
+        process.start()
+        process.join(timeout_seconds)
+
+        if process.is_alive():
+            process.terminate()
+            process.join(5)
+            if process.is_alive():
+                process.kill()
+                process.join(5)
+            raise EmbeddingReadinessTimeoutError(
+                "FastEmbed provider startup timed out after "
+                f"{timeout_seconds:g} seconds"
+            )
+
+        try:
+            result = cast(dict[str, object], result_queue.get_nowait())
+        except queue.Empty as exc:
+            raise EmbeddingGenerationError(
+                "FastEmbed provider readiness check exited without reporting status"
+            ) from exc
+        finally:
+            result_queue.close()
+            result_queue.join_thread()
+
+        if result.get("ok") is True:
+            return
+
+        message = str(result.get("message") or "FastEmbed provider readiness failed")
+        error_type = result.get("error_type")
+        if error_type == "EmbeddingProviderUnavailableError":
+            raise EmbeddingProviderUnavailableError(message)
+        if error_type == "EmbeddingModelUnavailableError":
+            raise EmbeddingModelUnavailableError(message)
+        if error_type == "EmbeddingDimensionMismatchError":
+            raise EmbeddingDimensionMismatchError(message)
+        if error_type == "EmbeddingReadinessTimeoutError":
+            raise EmbeddingReadinessTimeoutError(message)
+        raise EmbeddingGenerationError(message)
+
+    def _ensure_ready_unbounded(self) -> None:
+        vector = self.embed("healthcheck")
+        self._validate_dimensions(vector)
+        if not any(value != 0.0 for value in vector):
+            raise EmbeddingGenerationError(
+                "FastEmbed provider readiness check returned an empty vector"
+            )
 
     def similarity(self, first: list[float], second: list[float]) -> float:
         if len(first) != len(second):
@@ -175,6 +251,12 @@ class BuiltinFastEmbedProvider:
             ) from exc
 
         return self._embedder
+
+    def _validate_dimensions(self, vector: list[float]) -> None:
+        if len(vector) != self.dimensions:
+            raise EmbeddingDimensionMismatchError(
+                f"unexpected embedding dimension: expected {self.dimensions}, got {len(vector)}"
+            )
 
     @staticmethod
     def _vector_norm(vector: list[float]) -> float:

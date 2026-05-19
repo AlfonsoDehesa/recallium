@@ -1,10 +1,16 @@
+import json
 from pathlib import Path
 import sqlite3
 
 import pytest
 
 from recallium.core import RecalliumCore
-from recallium.errors import NotFoundError, ReembeddingInProgressError, ValidationError
+from recallium.errors import (
+    NotFoundError,
+    ReembeddingFailedError,
+    ReembeddingInProgressError,
+    ValidationError,
+)
 from recallium.models import SPACE_USER, SPACE_WORKSPACE, STATUS_ARCHIVED
 
 
@@ -253,3 +259,79 @@ def test_search_raises_retryable_error_when_stale_count_exceeds_threshold(
     job = core.get_embedding_job(error.job_id)
     assert job["state"] == "in_progress"
     assert job["total_count"] == 2
+
+
+def test_reembedding_preserves_updated_at_for_startup_and_runtime(
+    tmp_path: Path,
+) -> None:
+    startup_db = tmp_path / "startup-preserve-updated-at.db"
+    core = RecalliumCore(db_path=startup_db)
+    startup_memory = core.add_memory(space=SPACE_USER, type="fact", content="alpha")
+
+    stale_profile = {
+        **core.embedding_provider.embedding_profile,
+        "profile": "stale-profile",
+    }
+    with sqlite3.connect(startup_db) as connection:
+        connection.execute(
+            "UPDATE memories SET embedding_profile_json = ? WHERE id = ?",
+            (json.dumps(stale_profile, sort_keys=True), startup_memory.id),
+        )
+
+    restarted = RecalliumCore(db_path=startup_db)
+    startup_after = restarted.get_memory(startup_memory.id)
+    assert startup_after.updated_at == startup_memory.updated_at
+
+    runtime_db = tmp_path / "runtime-preserve-updated-at.db"
+    runtime_core = RecalliumCore(db_path=runtime_db)
+    runtime_memory = runtime_core.add_memory(
+        space=SPACE_USER, type="fact", content="beta"
+    )
+
+    with sqlite3.connect(runtime_db) as connection:
+        connection.execute(
+            "UPDATE memories SET embedding_profile_json = ? WHERE id = ?",
+            (json.dumps(stale_profile, sort_keys=True), runtime_memory.id),
+        )
+
+    _ = runtime_core.search_user_memories("beta")
+    runtime_after = runtime_core.get_memory(runtime_memory.id)
+    assert runtime_after.updated_at == runtime_memory.updated_at
+
+
+def test_runtime_reembedding_failure_blocks_partial_results(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = tmp_path / "runtime-reembed-failure.db"
+    core = RecalliumCore(db_path=db_path)
+    first = core.add_memory(space=SPACE_USER, type="note", content="memory one")
+    second = core.add_memory(space=SPACE_USER, type="note", content="memory two")
+
+    stale_profile = {
+        **core.embedding_provider.embedding_profile,
+        "profile": "stale-profile",
+    }
+    stale_json = json.dumps(stale_profile, sort_keys=True)
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            "UPDATE memories SET embedding_profile_json = ? WHERE id IN (?, ?)",
+            (stale_json, first.id, second.id),
+        )
+
+    original_chunk_embed_pairs = core._chunk_embed_pairs
+
+    def fail_on_second(text: str):
+        if text == second.content:
+            raise RuntimeError("forced runtime re-embed failure")
+        return original_chunk_embed_pairs(text)
+
+    monkeypatch.setattr(core, "_chunk_embed_pairs", fail_on_second)
+
+    with pytest.raises(ReembeddingFailedError) as exc_info:
+        core.search_user_memories("memory")
+
+    error = exc_info.value
+    job = core.get_embedding_job(error.job_id)
+    assert job["state"] == "failed"
+    assert job["failed_count"] == 1
+    assert error.status_path.endswith(error.job_id)

@@ -25,8 +25,25 @@ class EmbeddingGenerationError(RecalliumError):
     """Raised when embedding generation fails."""
 
 
+class EmbeddingDimensionMismatchError(EmbeddingGenerationError):
+    """Raised when the provider returns a vector with the wrong dimension."""
+
+
+class EmbeddingReadinessTimeoutError(EmbeddingProviderUnavailableError):
+    """Raised when embedding provider startup does not finish in time."""
+
+
 class ReembeddingInProgressError(RecalliumError):
     """Raised when re-embedding must finish before search can continue."""
+
+    def __init__(self, message: str, *, job_id: str, status_path: str) -> None:
+        super().__init__(message)
+        self.job_id = job_id
+        self.status_path = status_path
+
+
+class ReembeddingFailedError(RecalliumError):
+    """Raised when immediate re-embedding fails during runtime search."""
 
     def __init__(self, message: str, *, job_id: str, status_path: str) -> None:
         super().__init__(message)

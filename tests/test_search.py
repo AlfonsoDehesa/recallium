@@ -9,6 +9,29 @@ from recallium.search import ChunkCandidate, rank_memory_candidates
 from recallium.storage import SQLiteMemoryStore
 
 
+class DeterministicEmbeddingProvider(BuiltinFastEmbedProvider):
+    provider_name = "test-embedding"
+    model_name = "deterministic-keyword-v1"
+    dimensions = 3
+    profile_name = "test-deterministic-keyword-v1"
+
+    def embed(self, text: str) -> list[float]:
+        normalized = text.lower()
+        tech = sum(
+            normalized.count(token)
+            for token in ("bug", "defect", "fix", "software", "database", "sql")
+        )
+        food = sum(
+            normalized.count(token)
+            for token in ("buy", "coffee", "fruit", "groceries", "beans")
+        ) + (0.5 * normalized.count("purchase"))
+        household = sum(
+            normalized.count(token)
+            for token in ("household", "supplies", "database", "sql")
+        )
+        return self._normalize_vector([float(tech), float(food), float(household)])
+
+
 def build_memory(memory_id: str, content: str, **overrides: object) -> Memory:
     payload = {
         "id": memory_id,
@@ -41,6 +64,7 @@ def test_provider_profile_matches_fastembed_spec() -> None:
 
 
 def test_real_embedding_shape_is_1024() -> None:
+    pytest.importorskip("fastembed")
     provider = BuiltinFastEmbedProvider()
     vector = provider.embed("Recallium should return stable embedding dimensions")
 
@@ -49,7 +73,7 @@ def test_real_embedding_shape_is_1024() -> None:
 
 
 def test_semantic_search_returns_relevant_memory(tmp_path: Path) -> None:
-    provider = BuiltinFastEmbedProvider()
+    provider = DeterministicEmbeddingProvider()
     store = SQLiteMemoryStore(tmp_path / "semantic.db")
 
     memory = build_memory("mem-1", "Need to fix bug before release")
@@ -73,7 +97,7 @@ def test_semantic_search_returns_relevant_memory(tmp_path: Path) -> None:
 
 
 def test_ranking_includes_score_and_rank_order() -> None:
-    provider = BuiltinFastEmbedProvider()
+    provider = DeterministicEmbeddingProvider()
 
     primary = build_memory("mem-1", "buy groceries and fruit")
     secondary = build_memory("mem-2", "purchase household supplies")
@@ -93,21 +117,21 @@ def test_ranking_includes_score_and_rank_order() -> None:
 
 
 def test_rank_memory_candidates_rejects_empty_query() -> None:
-    provider = BuiltinFastEmbedProvider()
+    provider = DeterministicEmbeddingProvider()
 
     with pytest.raises(ValidationError, match="query"):
         rank_memory_candidates(query="   ", candidates=[], embedding_provider=provider)
 
 
 def test_similarity_rejects_dimension_mismatch() -> None:
-    provider = BuiltinFastEmbedProvider()
+    provider = DeterministicEmbeddingProvider()
 
     with pytest.raises(EmbeddingGenerationError, match="same size"):
         provider.similarity([1.0, 0.0], [1.0])
 
 
 def test_rank_memory_candidates_rejects_invalid_limit() -> None:
-    provider = BuiltinFastEmbedProvider()
+    provider = DeterministicEmbeddingProvider()
 
     with pytest.raises(ValidationError, match="positive integer"):
         rank_memory_candidates(
@@ -173,7 +197,7 @@ def test_chunk_text_for_profile_rejects_overlap_greater_than_or_equal_to_chunk_s
 
 
 def test_rank_memory_candidates_deduplicates_parent_memory_by_best_chunk() -> None:
-    provider = BuiltinFastEmbedProvider()
+    provider = DeterministicEmbeddingProvider()
     memory = build_memory("mem-1", "parent memory")
 
     candidates: list[ChunkCandidate] = [
@@ -227,7 +251,7 @@ def test_search_result_json_round_trip_with_matched_context() -> None:
 
 
 def test_archived_filter_is_respected_by_candidate_selection(tmp_path: Path) -> None:
-    provider = BuiltinFastEmbedProvider()
+    provider = DeterministicEmbeddingProvider()
     store = SQLiteMemoryStore(tmp_path / "archive-filter.db")
 
     active = build_memory("active", "buy coffee beans")

@@ -12,7 +12,13 @@ from recallium.embeddings import (
     EmbeddingProvider,
     chunk_text_for_profile,
 )
-from recallium.errors import ReembeddingInProgressError, ValidationError
+from recallium.errors import (
+    EmbeddingDimensionMismatchError,
+    EmbeddingGenerationError,
+    ReembeddingFailedError,
+    ReembeddingInProgressError,
+    ValidationError,
+)
 from recallium.models import (
     SPACE_USER,
     SPACE_WORKSPACE,
@@ -53,9 +59,8 @@ class RecalliumCore:
         self.store = SQLiteMemoryStore(selected_path)
         self.embedding_provider = embedding_provider or BuiltinFastEmbedProvider()
         self.immediate_reembedding_threshold = immediate_reembedding_threshold
-        self._startup_reembedding_job_id = self._reembed_stale_memories(
-            reason="startup"
-        )
+        startup_job = self._reembed_stale_memories(reason="startup")
+        self._startup_reembedding_job_id = startup_job[0] if startup_job else None
 
     def add_memory(
         self,
@@ -251,6 +256,23 @@ class RecalliumCore:
             "startup_reembedding_job_id": self._startup_reembedding_job_id,
         }
 
+    def ensure_embedding_ready(self, *, timeout_seconds: float = 60.0) -> None:
+        provider_ready = getattr(self.embedding_provider, "ensure_ready", None)
+        if callable(provider_ready):
+            provider_ready(timeout_seconds=timeout_seconds)
+            return
+
+        vector = self.embedding_provider.embed("healthcheck")
+        dimensions = self.embedding_provider.embedding_profile.get("dimensions")
+        if not isinstance(dimensions, int) or isinstance(dimensions, bool):
+            raise EmbeddingGenerationError(
+                "embedding profile must define an integer dimensions value"
+            )
+        if len(vector) != dimensions:
+            raise EmbeddingDimensionMismatchError(
+                f"unexpected embedding dimension: expected {dimensions}, got {len(vector)}"
+            )
+
     def _chunk_embed_pairs(self, text: str) -> list[tuple[ContentChunk, list[float]]]:
         chunks = chunk_text_for_profile(text, self.embedding_provider.embedding_profile)
         return [(chunk, self.embedding_provider.embed(chunk.text)) for chunk in chunks]
@@ -273,12 +295,20 @@ class RecalliumCore:
             return
 
         if stale_count <= self.immediate_reembedding_threshold:
-            self._reembed_stale_memories(
+            job_result = self._reembed_stale_memories(
                 reason="search",
                 space=space,
                 workspace_uid=workspace_uid,
                 include_archived=include_archived,
+                fail_on_error=True,
             )
+            if job_result is not None and job_result[1]:
+                job_id = job_result[0]
+                raise ReembeddingFailedError(
+                    "runtime re-embedding failed; search results are blocked until refresh succeeds",
+                    job_id=job_id,
+                    status_path=f"{status_path}/{job_id}",
+                )
             return
 
         job_id = self._create_job_for_deferred_reembedding(
@@ -321,7 +351,8 @@ class RecalliumCore:
         space: str | None = None,
         workspace_uid: str | None = None,
         include_archived: bool = False,
-    ) -> str | None:
+        fail_on_error: bool = False,
+    ) -> tuple[str, bool] | None:
         stale_memories = self.store.list_memories_needing_profile_reembedding(
             embedding_profile=self.embedding_provider.embedding_profile,
             space=space,
@@ -357,7 +388,7 @@ class RecalliumCore:
             processed += 1
             try:
                 chunk_embeddings = self._chunk_embed_pairs(memory.content)
-                self.store.update_memory(
+                self.store.refresh_memory_embedding_derived_fields(
                     memory.id,
                     embedding=chunk_embeddings[0][1],
                     embedding_profile=self.embedding_provider.embedding_profile,
@@ -379,6 +410,9 @@ class RecalliumCore:
                 failed_count=failed,
             )
 
+            if fail_on_error and failed > 0:
+                break
+
         completed_at = utc_now_iso()
         self.store.update_embedding_job(
             job_id,
@@ -386,4 +420,4 @@ class RecalliumCore:
             error_message=failure_message,
             completed_at=completed_at,
         )
-        return job_id
+        return (job_id, failed > 0)

@@ -229,6 +229,30 @@ class SQLiteMemoryStore:
 
         return self.get_memory(memory_id)
 
+    def refresh_memory_embedding_derived_fields(
+        self,
+        memory_id: str,
+        *,
+        embedding: list[float],
+        embedding_profile: dict[str, object],
+    ) -> Memory:
+        values = (
+            json.dumps(embedding),
+            json.dumps(embedding_profile, sort_keys=True),
+            memory_id,
+        )
+
+        with self._connect() as connection:
+            result = connection.execute(
+                "UPDATE memories SET embedding_json = ?, embedding_profile_json = ? WHERE id = ?",
+                values,
+            )
+
+        if result.rowcount == 0:
+            raise NotFoundError(f"memory not found: {memory_id}")
+
+        return self.get_memory(memory_id)
+
     def touch_last_accessed_at(self, memory_id: str) -> Memory | None:
         timestamp = utc_now_iso()
         with self._connect() as connection:
