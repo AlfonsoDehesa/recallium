@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+import pytest
 from pytest import CaptureFixture
 
 from recallium.cli import main
@@ -13,6 +14,43 @@ def _run_cli(args: list[str], capsys: CaptureFixture[str]) -> tuple[int, str, st
     exit_code = main(args)
     captured = capsys.readouterr()
     return exit_code, captured.out, captured.err
+
+
+def _run_help(args: list[str], capsys: CaptureFixture[str]) -> str:
+    with pytest.raises(SystemExit) as exc_info:
+        main(args)
+
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    return captured.out
+
+
+def test_cli_help_documents_commands_and_flags(capsys) -> None:
+    top_level_help = _run_help(["--help"], capsys)
+    assert "Recallium Core local memory CLI" in top_level_help
+    assert "add a user or workspace memory" in top_level_help
+    assert "search memories for one workspace UID" in top_level_help
+
+    add_help = _run_help(["add", "--help"], capsys)
+    assert "User memories must not include" in add_help
+    assert "Workspace memories require --workspace-uid" in add_help
+    assert "Memory space: 'user'" in add_help
+    assert "inline JSON" in add_help
+    assert "@path/to/file.json" in add_help
+    assert "confidence score from 0.0 to 1.0" in add_help
+
+    search_help = _run_help(["search-workspace", "--help"], capsys)
+    assert "Stable workspace UID" in search_help
+    assert "searched" in search_help
+    assert "Defaults to 10" in search_help
+
+    update_help = _run_help(["update", "--help"], capsys)
+    assert "regenerates" in update_help
+    assert "embedding" in update_help
+
+    archive_help = _run_help(["archive", "--help"], capsys)
+    assert "not hard-deleted" in archive_help
 
 
 def test_cli_full_workflow(tmp_path, capsys) -> None:

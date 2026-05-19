@@ -42,54 +42,198 @@ def _to_payload(data: Any) -> Any:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="recallium")
-    parser.add_argument("--db", dest="db_path", help="SQLite database path")
+    parser = argparse.ArgumentParser(
+        prog="recallium",
+        description=(
+            "Recallium Core local memory CLI. Commands print JSON on success and "
+            "write validation or not-found errors to stderr."
+        ),
+    )
+    parser.add_argument(
+        "--db",
+        dest="db_path",
+        help=(
+            "SQLite database path. Defaults to ~/.local/share/recallium/recallium.db."
+        ),
+    )
 
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(
+        dest="command",
+        required=True,
+        title="commands",
+        metavar="COMMAND",
+    )
 
-    add_parser = subparsers.add_parser("add")
-    add_parser.add_argument("--space", required=True)
-    add_parser.add_argument("--type", required=True)
-    add_parser.add_argument("--content", required=True)
-    add_parser.add_argument("--workspace-uid")
-    add_parser.add_argument("--metadata")
-    add_parser.add_argument("--source")
-    add_parser.add_argument("--confidence", type=float)
-    add_parser.add_argument("--sensitivity")
+    add_parser = subparsers.add_parser(
+        "add",
+        help="add a user or workspace memory",
+        description=(
+            "Add a memory to the local Recallium database. User memories must not "
+            "include --workspace-uid. Workspace memories require --workspace-uid."
+        ),
+    )
+    add_parser.add_argument(
+        "--space",
+        required=True,
+        help="Memory space: 'user' for global user memory or 'workspace' for workspace memory.",
+    )
+    add_parser.add_argument(
+        "--type",
+        required=True,
+        help="Free-form memory type, such as preference, fact, note, decision, or task_context.",
+    )
+    add_parser.add_argument(
+        "--content",
+        required=True,
+        help="Memory text to store and embed for search.",
+    )
+    add_parser.add_argument(
+        "--workspace-uid",
+        help="Stable workspace UID. Required when --space workspace; forbidden when --space user.",
+    )
+    add_parser.add_argument(
+        "--metadata",
+        help="Optional JSON object metadata, either inline JSON or @path/to/file.json.",
+    )
+    add_parser.add_argument(
+        "--source",
+        help="Optional source label describing where the memory came from.",
+    )
+    add_parser.add_argument(
+        "--confidence",
+        type=float,
+        help="Optional confidence score from 0.0 to 1.0.",
+    )
+    add_parser.add_argument(
+        "--sensitivity",
+        help="Optional sensitivity label for privacy-aware handling later.",
+    )
 
-    search_user_parser = subparsers.add_parser("search-user")
-    search_user_parser.add_argument("query")
-    search_user_parser.add_argument("--limit", type=int, default=10)
-    search_user_parser.add_argument("--include-archived", action="store_true")
+    search_user_parser = subparsers.add_parser(
+        "search-user",
+        help="search global user memories",
+        description="Search active user memories semantically and return ranked JSON results.",
+    )
+    search_user_parser.add_argument(
+        "query", help="Search text to match against user memories."
+    )
+    search_user_parser.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+        help="Maximum number of ranked results to return. Must be positive. Defaults to 10.",
+    )
+    search_user_parser.add_argument(
+        "--include-archived",
+        action="store_true",
+        help="Include archived memories in search candidates.",
+    )
 
-    search_workspace_parser = subparsers.add_parser("search-workspace")
-    search_workspace_parser.add_argument("query")
-    search_workspace_parser.add_argument("--workspace-uid", required=True)
-    search_workspace_parser.add_argument("--limit", type=int, default=10)
-    search_workspace_parser.add_argument("--include-archived", action="store_true")
+    search_workspace_parser = subparsers.add_parser(
+        "search-workspace",
+        help="search memories for one workspace UID",
+        description=(
+            "Search active memories for a specific workspace UID and return ranked "
+            "JSON results."
+        ),
+    )
+    search_workspace_parser.add_argument(
+        "query", help="Search text to match against workspace memories."
+    )
+    search_workspace_parser.add_argument(
+        "--workspace-uid",
+        required=True,
+        help="Stable workspace UID whose memories should be searched.",
+    )
+    search_workspace_parser.add_argument(
+        "--limit",
+        type=int,
+        default=10,
+        help="Maximum number of ranked results to return. Must be positive. Defaults to 10.",
+    )
+    search_workspace_parser.add_argument(
+        "--include-archived",
+        action="store_true",
+        help="Include archived memories in search candidates.",
+    )
 
-    list_parser = subparsers.add_parser("list")
-    list_parser.add_argument("--space")
-    list_parser.add_argument("--type")
-    list_parser.add_argument("--status")
-    list_parser.add_argument("--workspace-uid")
-    list_parser.add_argument("--include-archived", action="store_true")
-    list_parser.add_argument("--limit", type=int)
+    list_parser = subparsers.add_parser(
+        "list",
+        help="list memories with optional filters",
+        description=(
+            "List memories as JSON, optionally filtered by space, type, status, "
+            "workspace UID, or result limit. Archived memories are hidden unless "
+            "requested."
+        ),
+    )
+    list_parser.add_argument(
+        "--space", help="Filter by memory space, usually 'user' or 'workspace'."
+    )
+    list_parser.add_argument("--type", help="Filter by memory type.")
+    list_parser.add_argument(
+        "--status", help="Filter by memory status, such as active or archived."
+    )
+    list_parser.add_argument(
+        "--workspace-uid", help="Filter to memories for one stable workspace UID."
+    )
+    list_parser.add_argument(
+        "--include-archived",
+        action="store_true",
+        help="Include archived memories in list results.",
+    )
+    list_parser.add_argument(
+        "--limit",
+        type=int,
+        help="Maximum number of memories to return. Must be positive.",
+    )
 
-    get_parser = subparsers.add_parser("get")
-    get_parser.add_argument("memory_id")
+    get_parser = subparsers.add_parser(
+        "get",
+        help="retrieve one memory by ID",
+        description="Retrieve one memory by its ID and print it as JSON.",
+    )
+    get_parser.add_argument("memory_id", help="Memory ID to retrieve.")
 
-    update_parser = subparsers.add_parser("update")
-    update_parser.add_argument("memory_id")
-    update_parser.add_argument("--type")
-    update_parser.add_argument("--content")
-    update_parser.add_argument("--metadata")
-    update_parser.add_argument("--source")
-    update_parser.add_argument("--confidence", type=float)
-    update_parser.add_argument("--sensitivity")
+    update_parser = subparsers.add_parser(
+        "update",
+        help="update editable memory fields",
+        description=(
+            "Update one or more editable fields on a memory. Updating --content "
+            "also regenerates that memory's embedding."
+        ),
+    )
+    update_parser.add_argument("memory_id", help="Memory ID to update.")
+    update_parser.add_argument("--type", help="Replacement memory type.")
+    update_parser.add_argument(
+        "--content", help="Replacement memory text. Regenerates the stored embedding."
+    )
+    update_parser.add_argument(
+        "--metadata",
+        help="Replacement JSON object metadata, either inline JSON or @path/to/file.json.",
+    )
+    update_parser.add_argument(
+        "--source",
+        help="Replacement source label describing where the memory came from.",
+    )
+    update_parser.add_argument(
+        "--confidence",
+        type=float,
+        help="Replacement confidence score from 0.0 to 1.0.",
+    )
+    update_parser.add_argument(
+        "--sensitivity",
+        help="Replacement sensitivity label for privacy-aware handling later.",
+    )
 
-    archive_parser = subparsers.add_parser("archive")
-    archive_parser.add_argument("memory_id")
+    archive_parser = subparsers.add_parser(
+        "archive",
+        help="archive one memory by ID",
+        description=(
+            "Archive a memory by ID. Archived memories are hidden from default list "
+            "and search results but are not hard-deleted."
+        ),
+    )
+    archive_parser.add_argument("memory_id", help="Memory ID to archive.")
 
     return parser
 
