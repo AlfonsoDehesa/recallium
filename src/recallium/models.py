@@ -193,6 +193,9 @@ class SearchResult:
     memory: Memory
     score: float
     rank: int
+    matched_text: str | None = None
+    snippet: str | None = None
+    chunk_index: int | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.memory, Memory):
@@ -204,12 +207,22 @@ class SearchResult:
             raise ValidationError("score must be a finite number")
         if not isinstance(self.rank, int) or self.rank < 1:
             raise ValidationError("rank must be a positive integer")
+        self.matched_text = _validate_optional_non_empty_string(
+            "matched_text", self.matched_text
+        )
+        self.snippet = _validate_optional_non_empty_string("snippet", self.snippet)
+        if self.chunk_index is not None:
+            if not isinstance(self.chunk_index, int) or self.chunk_index < 0:
+                raise ValidationError("chunk_index must be a non-negative integer")
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "memory": self.memory.to_dict(),
             "score": self.score,
             "rank": self.rank,
+            "matched_text": self.matched_text,
+            "snippet": self.snippet,
+            "chunk_index": self.chunk_index,
         }
 
     def to_json(self) -> str:
@@ -224,6 +237,9 @@ class SearchResult:
             memory=Memory.from_dict(memory_payload),
             score=payload["score"],
             rank=payload["rank"],
+            matched_text=payload.get("matched_text"),
+            snippet=payload.get("snippet"),
+            chunk_index=payload.get("chunk_index"),
         )
 
     @classmethod

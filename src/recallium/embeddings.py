@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import math
+import re
+from dataclasses import dataclass
 from collections.abc import Iterable
 from typing import Any, Protocol, cast
 
@@ -20,6 +22,68 @@ class EmbeddingProvider(Protocol):
     def embed(self, text: str) -> list[float]: ...
 
     def similarity(self, first: list[float], second: list[float]) -> float: ...
+
+
+@dataclass(slots=True)
+class ContentChunk:
+    chunk_index: int
+    text: str
+    token_start: int
+    token_end: int
+
+
+def chunk_text_for_profile(text: str, profile: dict[str, object]) -> list[ContentChunk]:
+    """Split text into overlapping chunks using embedding profile token policy."""
+    chunk_tokens = _as_positive_int(profile.get("chunk_tokens"), "chunk_tokens")
+    overlap_tokens = _as_non_negative_int(
+        profile.get("chunk_overlap_tokens"), "chunk_overlap_tokens"
+    )
+    if overlap_tokens >= chunk_tokens:
+        raise EmbeddingGenerationError(
+            "chunk_overlap_tokens must be smaller than chunk_tokens"
+        )
+
+    tokens = _tokenize_for_chunking(text)
+    if not tokens:
+        return [ContentChunk(chunk_index=0, text="", token_start=0, token_end=0)]
+
+    chunks: list[ContentChunk] = []
+    step = chunk_tokens - overlap_tokens
+    start = 0
+    chunk_index = 0
+    while start < len(tokens):
+        end = min(start + chunk_tokens, len(tokens))
+        chunk_tokens_slice = tokens[start:end]
+        chunks.append(
+            ContentChunk(
+                chunk_index=chunk_index,
+                text=" ".join(chunk_tokens_slice),
+                token_start=start,
+                token_end=end,
+            )
+        )
+        if end >= len(tokens):
+            break
+        start += step
+        chunk_index += 1
+
+    return chunks
+
+
+def _tokenize_for_chunking(text: str) -> list[str]:
+    return re.findall(r"\S+", text)
+
+
+def _as_positive_int(value: object, field_name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise EmbeddingGenerationError(f"{field_name} must be a positive integer")
+    return value
+
+
+def _as_non_negative_int(value: object, field_name: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise EmbeddingGenerationError(f"{field_name} must be a non-negative integer")
+    return value
 
 
 class BuiltinFastEmbedProvider:
