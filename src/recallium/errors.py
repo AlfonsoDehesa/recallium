@@ -23,3 +23,12 @@ class EmbeddingModelUnavailableError(RecalliumError):
 
 class EmbeddingGenerationError(RecalliumError):
     """Raised when embedding generation fails."""
+
+
+class ReembeddingInProgressError(RecalliumError):
+    """Raised when re-embedding must finish before search can continue."""
+
+    def __init__(self, message: str, *, job_id: str, status_path: str) -> None:
+        super().__init__(message)
+        self.job_id = job_id
+        self.status_path = status_path
