@@ -1,9 +1,23 @@
 from pathlib import Path
+import sys
+from types import ModuleType
+from typing import Any, cast
 
 import pytest
 
-from recallium.embeddings import BuiltinFastEmbedProvider, chunk_text_for_profile
-from recallium.errors import EmbeddingGenerationError, ValidationError
+from recallium.embeddings import (
+    BuiltinFastEmbedProvider,
+    _fastembed_readiness_worker,
+    chunk_text_for_profile,
+)
+from recallium.errors import (
+    EmbeddingDimensionMismatchError,
+    EmbeddingGenerationError,
+    EmbeddingModelUnavailableError,
+    EmbeddingProviderUnavailableError,
+    EmbeddingReadinessTimeoutError,
+    ValidationError,
+)
 from recallium.models import SPACE_USER, STATUS_ACTIVE, Memory, SearchResult
 from recallium.search import ChunkCandidate, rank_memory_candidates
 from recallium.storage import SQLiteMemoryStore
@@ -175,6 +189,281 @@ def test_chunk_text_for_profile_rejects_overlap_greater_than_or_equal_to_chunk_s
         match="chunk_overlap_tokens must be smaller than chunk_tokens",
     ):
         chunk_text_for_profile("zero one two three", profile)
+
+
+def test_chunk_text_for_profile_handles_empty_text_and_bad_token_settings() -> None:
+    provider = BuiltinFastEmbedProvider()
+    profile = dict(provider.embedding_profile)
+
+    chunks = chunk_text_for_profile("   ", profile)
+    assert len(chunks) == 1
+
+    empty_chunk = chunks[0]
+    assert empty_chunk.text == ""
+    assert empty_chunk.token_start == 0
+    assert empty_chunk.token_end == 0
+
+    bad_chunk_profile = dict(profile)
+    bad_chunk_profile["chunk_tokens"] = True
+    with pytest.raises(EmbeddingGenerationError, match="chunk_tokens"):
+        chunk_text_for_profile("hello", bad_chunk_profile)
+
+    bad_overlap_profile = dict(profile)
+    bad_overlap_profile["chunk_overlap_tokens"] = -1
+    with pytest.raises(EmbeddingGenerationError, match="chunk_overlap_tokens"):
+        chunk_text_for_profile("hello", bad_overlap_profile)
+
+
+def test_builtin_fastembed_embed_handles_empty_text_and_empty_provider_result() -> None:
+    provider = BuiltinFastEmbedProvider()
+    assert provider.embed("   ") == [0.0] * provider.dimensions
+
+    class EmptyEmbedder:
+        def embed(self, texts: list[str], batch_size: int) -> list[list[float]]:
+            return []
+
+    provider._embedder = EmptyEmbedder()
+    with pytest.raises(EmbeddingGenerationError, match="no vector"):
+        provider.embed("hello")
+
+
+def test_builtin_fastembed_similarity_validates_vectors() -> None:
+    provider = BuiltinFastEmbedProvider()
+
+    with pytest.raises(EmbeddingGenerationError, match="same size"):
+        provider.similarity([1.0, 0.0], [1.0])
+
+    with pytest.raises(EmbeddingGenerationError, match="embedding vector size"):
+        provider.similarity([1.0, 0.0], [1.0, 0.0])
+
+    assert (
+        provider.similarity([0.0] * provider.dimensions, [1.0] * provider.dimensions)
+        == 0.0
+    )
+
+
+def test_builtin_fastembed_get_embedder_import_load_and_cache_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    BuiltinFastEmbedProvider._shared_embedders.clear()
+    monkeypatch.setitem(sys.modules, "fastembed", None)
+    with pytest.raises(EmbeddingProviderUnavailableError):
+        BuiltinFastEmbedProvider()._get_embedder()
+
+    fastembed_module = ModuleType("fastembed")
+
+    class BrokenTextEmbedding:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            raise RuntimeError("model unavailable")
+
+    setattr(fastembed_module, "TextEmbedding", BrokenTextEmbedding)
+    monkeypatch.setitem(sys.modules, "fastembed", fastembed_module)
+    with pytest.raises(EmbeddingModelUnavailableError, match="failed to load"):
+        BuiltinFastEmbedProvider()._get_embedder()
+
+    class WorkingTextEmbedding:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            self.args = args
+            self.kwargs = kwargs
+
+        def embed(self, texts: list[str], batch_size: int) -> list[list[float]]:
+            return [[1.0] + [0.0] * 511 for _text in texts]
+
+    setattr(fastembed_module, "TextEmbedding", WorkingTextEmbedding)
+    provider = BuiltinFastEmbedProvider()
+    embedder = provider._get_embedder()
+    assert provider._get_embedder() is embedder
+    other_provider = BuiltinFastEmbedProvider()
+    assert other_provider._get_embedder() is embedder
+    BuiltinFastEmbedProvider._shared_embedders.clear()
+
+
+def test_builtin_fastembed_dimension_validation_and_zero_ready_check() -> None:
+    provider = BuiltinFastEmbedProvider()
+
+    with pytest.raises(EmbeddingDimensionMismatchError, match="expected 512"):
+        provider._validate_dimensions([1.0])
+
+    class ZeroProvider(BuiltinFastEmbedProvider):
+        def embed(self, text: str) -> list[float]:
+            return [0.0] * self.dimensions
+
+    with pytest.raises(EmbeddingGenerationError, match="empty vector"):
+        ZeroProvider()._ensure_ready_unbounded()
+
+    class ReadyProvider(BuiltinFastEmbedProvider):
+        def embed(self, text: str) -> list[float]:
+            return [1.0] + [0.0] * (self.dimensions - 1)
+
+    ReadyProvider()._ensure_ready_unbounded()
+
+    zero_vector = [0.0] * provider.dimensions
+    assert provider._normalize_vector(zero_vector) == zero_vector
+
+
+class FakeConnection:
+    def __init__(self) -> None:
+        self.messages: list[dict[str, object]] = []
+        self.closed = False
+
+    def send(self, payload: dict[str, object]) -> None:
+        self.messages.append(payload)
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_fastembed_readiness_worker_reports_success_and_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ReadyProvider:
+        def _ensure_ready_unbounded(self) -> None:
+            pass
+
+    monkeypatch.setattr("recallium.embeddings.BuiltinFastEmbedProvider", ReadyProvider)
+    success_connection = FakeConnection()
+    _fastembed_readiness_worker(cast(Any, success_connection))
+    assert success_connection.messages == [{"ok": True}]
+    assert success_connection.closed is True
+
+    class FailingProvider:
+        def _ensure_ready_unbounded(self) -> None:
+            raise EmbeddingModelUnavailableError("missing model")
+
+    monkeypatch.setattr(
+        "recallium.embeddings.BuiltinFastEmbedProvider", FailingProvider
+    )
+    failure_connection = FakeConnection()
+    _fastembed_readiness_worker(cast(Any, failure_connection))
+    assert failure_connection.messages == [
+        {
+            "ok": False,
+            "error_type": "EmbeddingModelUnavailableError",
+            "message": "missing model",
+        }
+    ]
+    assert failure_connection.closed is True
+
+
+class FakeProcess:
+    def __init__(self, alive_results: list[bool]) -> None:
+        self.alive_results = alive_results
+        self.started = False
+        self.terminated = False
+        self.killed = False
+
+    def start(self) -> None:
+        self.started = True
+
+    def join(self, timeout: float | None = None) -> None:
+        pass
+
+    def is_alive(self) -> bool:
+        if self.alive_results:
+            return self.alive_results.pop(0)
+        return False
+
+    def terminate(self) -> None:
+        self.terminated = True
+
+    def kill(self) -> None:
+        self.killed = True
+
+
+class FakeParentConnection:
+    def __init__(self, result: dict[str, object] | None) -> None:
+        self.result = result
+        self.closed = False
+
+    def poll(self) -> bool:
+        return self.result is not None
+
+    def recv(self) -> dict[str, object]:
+        assert self.result is not None
+        return self.result
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class FakeChildConnection:
+    def __init__(self) -> None:
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class FakeSpawnContext:
+    def __init__(
+        self,
+        result: dict[str, object] | None,
+        alive_results: list[bool] | None = None,
+    ) -> None:
+        self.parent = FakeParentConnection(result)
+        self.child = FakeChildConnection()
+        self.process = FakeProcess(alive_results or [False])
+
+    def Pipe(self, *, duplex: bool) -> tuple[FakeParentConnection, FakeChildConnection]:
+        assert duplex is False
+        return self.parent, self.child
+
+    def Process(self, *, target: object, args: tuple[object, ...]) -> FakeProcess:
+        assert target is _fastembed_readiness_worker
+        assert args == (self.child,)
+        return self.process
+
+
+def test_builtin_fastembed_ensure_ready_timeout_and_result_mapping(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = BuiltinFastEmbedProvider()
+
+    with pytest.raises(EmbeddingReadinessTimeoutError, match="0 seconds"):
+        provider.ensure_ready(timeout_seconds=0)
+
+    timeout_context = FakeSpawnContext(None, alive_results=[True, True, False])
+    monkeypatch.setattr(
+        "recallium.embeddings.multiprocessing.get_context",
+        lambda method: timeout_context,
+    )
+    with pytest.raises(EmbeddingReadinessTimeoutError, match="timed out"):
+        provider.ensure_ready(timeout_seconds=0.01)
+    assert timeout_context.process.terminated is True
+    assert timeout_context.process.killed is True
+
+    no_result_context = FakeSpawnContext(None)
+    monkeypatch.setattr(
+        "recallium.embeddings.multiprocessing.get_context",
+        lambda method: no_result_context,
+    )
+    with pytest.raises(EmbeddingGenerationError, match="without reporting status"):
+        provider.ensure_ready(timeout_seconds=1)
+
+    ok_context = FakeSpawnContext({"ok": True})
+    monkeypatch.setattr(
+        "recallium.embeddings.multiprocessing.get_context",
+        lambda method: ok_context,
+    )
+    provider.ensure_ready(timeout_seconds=1)
+
+    error_cases: list[tuple[str, type[Exception]]] = [
+        ("EmbeddingProviderUnavailableError", EmbeddingProviderUnavailableError),
+        ("EmbeddingModelUnavailableError", EmbeddingModelUnavailableError),
+        ("EmbeddingDimensionMismatchError", EmbeddingDimensionMismatchError),
+        ("EmbeddingReadinessTimeoutError", EmbeddingReadinessTimeoutError),
+        ("OtherError", EmbeddingGenerationError),
+    ]
+    for error_type, expected_error in error_cases:
+        error_context = FakeSpawnContext(
+            {"ok": False, "error_type": error_type, "message": "mapped error"}
+        )
+        monkeypatch.setattr(
+            "recallium.embeddings.multiprocessing.get_context",
+            lambda method, context=error_context: context,
+        )
+        with pytest.raises(expected_error, match="mapped error"):
+            provider.ensure_ready(timeout_seconds=1)
 
 
 def test_rank_memory_candidates_deduplicates_parent_memory_by_best_chunk() -> None:

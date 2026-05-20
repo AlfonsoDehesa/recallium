@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
+import runpy
 
 import pytest
 from pytest import CaptureFixture
 
 from recallium.cli import main
-from recallium.errors import EmbeddingProviderUnavailableError
+from recallium.errors import EmbeddingGenerationError, EmbeddingProviderUnavailableError
+from recallium.storage import SQLiteMemoryStore
 
 
 def _run_cli(args: list[str], capsys: CaptureFixture[str]) -> tuple[int, str, str]:
@@ -74,6 +77,31 @@ def test_cli_help_documents_commands_and_flags(capsys) -> None:
     assert "--job-id" in embedding_jobs_help
     assert "--state" in embedding_jobs_help
     assert "--limit" in embedding_jobs_help
+
+
+def test_cli_no_args_prints_help(capsys) -> None:
+    exit_code = main([])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Recallium Core local memory CLI" in captured.out
+    assert captured.err == ""
+
+
+def test_module_entrypoint_delegates_to_cli_main(monkeypatch) -> None:
+    calls: list[object] = []
+
+    def fake_main() -> int:
+        calls.append(None)
+        return 7
+
+    monkeypatch.setattr("recallium.cli.main", fake_main)
+
+    with pytest.raises(SystemExit) as exc_info:
+        runpy.run_module("recallium.__main__", run_name="__main__")
+
+    assert exc_info.value.code == 7
+    assert calls == [None]
 
 
 def test_cli_serve_passes_flags_to_service_runner(tmp_path, monkeypatch) -> None:
@@ -239,6 +267,80 @@ def test_cli_full_workflow(tmp_path, capsys) -> None:
     assert archive_payload["status"] == "archived"
 
 
+def test_cli_reads_metadata_from_json_file(tmp_path, capsys) -> None:
+    db_path = tmp_path / "cli-file-metadata.db"
+    metadata_path = tmp_path / "metadata.json"
+    metadata_path.write_text('{"origin": "file"}', encoding="utf-8")
+
+    exit_code, stdout, stderr = _run_cli(
+        [
+            "--db",
+            str(db_path),
+            "add",
+            "--space",
+            "user",
+            "--type",
+            "fact",
+            "--content",
+            "file metadata memory",
+            "--metadata",
+            f"@{metadata_path}",
+        ],
+        capsys,
+    )
+
+    assert exit_code == 0
+    assert stderr == ""
+    assert json.loads(stdout)["metadata"] == {"origin": "file"}
+
+
+def test_cli_rejects_invalid_metadata_json_and_non_object(
+    tmp_path: Path, capsys
+) -> None:
+    invalid_json_path = tmp_path / "invalid.json"
+    invalid_json_path.write_text("{", encoding="utf-8")
+
+    exit_code, stdout, stderr = _run_cli(
+        [
+            "--db",
+            str(tmp_path / "bad-json.db"),
+            "add",
+            "--space",
+            "user",
+            "--type",
+            "fact",
+            "--content",
+            "bad json memory",
+            "--metadata",
+            f"@{invalid_json_path}",
+        ],
+        capsys,
+    )
+    assert exit_code == 2
+    assert stdout == ""
+    assert "metadata must be valid JSON" in stderr
+
+    exit_code, stdout, stderr = _run_cli(
+        [
+            "--db",
+            str(tmp_path / "bad-type.db"),
+            "add",
+            "--space",
+            "user",
+            "--type",
+            "fact",
+            "--content",
+            "bad metadata memory",
+            "--metadata",
+            "[]",
+        ],
+        capsys,
+    )
+    assert exit_code == 2
+    assert stdout == ""
+    assert "metadata must be a JSON object" in stderr
+
+
 def test_cli_validation_error_returns_2(tmp_path, capsys) -> None:
     db_path = tmp_path / "cli.db"
 
@@ -292,6 +394,76 @@ def test_cli_embedding_error_returns_clear_message(
     assert exit_code == 1
     assert stdout == ""
     assert "EmbeddingProviderUnavailableError: FastEmbed is unavailable" in stderr
+
+
+def test_cli_embedding_generation_error_returns_1(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    class FailingCore:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        def active_embedding_status(self) -> dict[str, object]:
+            raise EmbeddingGenerationError("provider returned no vector")
+
+    monkeypatch.setattr("recallium.cli.RecalliumCore", FailingCore)
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--db", str(tmp_path / "generation.db"), "embedding-status"], capsys
+    )
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert "EmbeddingGenerationError: provider returned no vector" in stderr
+
+
+def test_cli_fetches_one_embedding_job(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    db_path = tmp_path / "cli-job.db"
+    store = SQLiteMemoryStore(db_path)
+    store.create_embedding_job(
+        job_id="job-1",
+        state="completed",
+        total_count=1,
+        processed_count=1,
+        succeeded_count=1,
+        failed_count=0,
+        provider="test",
+        model="fake",
+        embedding_profile={"provider": "test", "model": "fake", "dimensions": 3},
+    )
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--db", str(db_path), "embedding-jobs", "--job-id", "job-1"],
+        capsys,
+    )
+
+    assert exit_code == 0
+    assert stderr == ""
+    assert json.loads(stdout)["id"] == "job-1"
+
+
+def test_cli_unknown_command_defensive_branch(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeArgs:
+        command = "mystery"
+        db_path = None
+
+    class FakeParser:
+        def parse_args(self, argv: object) -> FakeArgs:
+            return FakeArgs()
+
+        def error(self, message: str) -> None:
+            assert message == "unknown command: mystery"
+
+    class FakeCore:
+        def __init__(self, *, db_path: object) -> None:
+            assert db_path is None
+
+    monkeypatch.setattr("recallium.cli._build_parser", lambda: FakeParser())
+    monkeypatch.setattr("recallium.cli.RecalliumCore", FakeCore)
+
+    assert main(["mystery"]) == 2
 
 
 def test_cli_embedding_status_and_jobs_output_json(tmp_path, capsys) -> None:

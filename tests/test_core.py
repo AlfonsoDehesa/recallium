@@ -7,6 +7,8 @@ import pytest
 
 from recallium.core import RecalliumCore
 from recallium.errors import (
+    EmbeddingDimensionMismatchError,
+    EmbeddingGenerationError,
     NotFoundError,
     ReembeddingFailedError,
     ReembeddingInProgressError,
@@ -36,6 +38,16 @@ class FakeEmbeddingProvider:
 
     def similarity(self, first: list[float], second: list[float]) -> float:
         return sum(a * b for a, b in zip(first, second, strict=True))
+
+
+class ConfigurableEmbeddingProvider(FakeEmbeddingProvider):
+    def __init__(self, vector: list[float], dimensions: object = 3) -> None:
+        super().__init__()
+        self.vector = vector
+        self.embedding_profile["dimensions"] = dimensions
+
+    def embed(self, text: str) -> list[float]:
+        return self.vector
 
 
 class BlockingFakeEmbeddingProvider(FakeEmbeddingProvider):
@@ -197,6 +209,99 @@ def test_core_rejects_invalid_list_limit(tmp_path: Path) -> None:
         core.list_memories(limit=0)
 
 
+def test_default_db_path_uses_xdg_style_data_home(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    core = RecalliumCore(embedding_provider=FakeEmbeddingProvider())
+
+    assert (
+        core.store.db_path
+        == tmp_path / ".local" / "share" / "recallium" / "recallium.db"
+    )
+
+
+def test_workspace_search_requires_non_empty_workspace_uid(tmp_path: Path) -> None:
+    core = RecalliumCore(
+        db_path=tmp_path / "workspace-search.db",
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+
+    with pytest.raises(ValidationError, match="workspace_uid is required"):
+        core.search_workspace_memories("hello", workspace_uid=None)
+
+
+def test_update_memory_source_and_sensitivity_without_model_updates(
+    tmp_path: Path,
+) -> None:
+    core = RecalliumCore(
+        db_path=tmp_path / "source-sensitivity.db",
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+    memory = core.add_memory(space=SPACE_USER, type="fact", content="plain memory")
+
+    updated = core.update_memory(
+        memory.id,
+        source="manual import",
+        sensitivity="low",
+    )
+
+    assert updated.source == "manual import"
+    assert updated.sensitivity == "low"
+
+    source_only = core.update_memory(memory.id, source="chat")
+    assert source_only.source == "chat"
+
+    sensitivity_only = core.update_memory(memory.id, sensitivity="normal")
+    assert sensitivity_only.sensitivity == "normal"
+
+    with pytest.raises(ValidationError, match="at least one update field"):
+        core.update_memory(memory.id)
+
+
+def test_update_memory_rejects_blank_source_and_sensitivity(tmp_path: Path) -> None:
+    core = RecalliumCore(
+        db_path=tmp_path / "blank-source.db",
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+    memory = core.add_memory(space=SPACE_USER, type="fact", content="plain memory")
+
+    with pytest.raises(ValidationError, match="source"):
+        core.update_memory(memory.id, source=" ")
+
+    with pytest.raises(ValidationError, match="sensitivity"):
+        core.update_memory(memory.id, sensitivity=" ")
+
+
+def test_ensure_embedding_ready_fallback_validates_profile_dimensions(
+    tmp_path: Path,
+) -> None:
+    core = RecalliumCore(
+        db_path=tmp_path / "ready.db",
+        embedding_provider=ConfigurableEmbeddingProvider([1.0, 2.0, 3.0]),
+    )
+    core.ensure_embedding_ready()
+
+    bool_dimensions = RecalliumCore(
+        db_path=tmp_path / "bool-dimensions.db",
+        embedding_provider=ConfigurableEmbeddingProvider([1.0], True),
+    )
+    with pytest.raises(EmbeddingGenerationError, match="integer dimensions"):
+        bool_dimensions.ensure_embedding_ready()
+
+    missing_dimensions = RecalliumCore(
+        db_path=tmp_path / "missing-dimensions.db",
+        embedding_provider=ConfigurableEmbeddingProvider([1.0], "3"),
+    )
+    with pytest.raises(EmbeddingGenerationError, match="integer dimensions"):
+        missing_dimensions.ensure_embedding_ready()
+
+    mismatch = RecalliumCore(
+        db_path=tmp_path / "dimension-mismatch.db",
+        embedding_provider=ConfigurableEmbeddingProvider([1.0, 2.0], 3),
+    )
+    with pytest.raises(EmbeddingDimensionMismatchError, match="expected 3"):
+        mismatch.ensure_embedding_ready()
+
+
 def test_add_memory_persists_chunk_embeddings_and_searches_from_chunks(
     tmp_path: Path,
 ) -> None:
@@ -328,6 +433,106 @@ def test_search_raises_retryable_error_when_stale_count_exceeds_threshold(
     job = core.get_embedding_job(error.job_id)
     assert job["state"] in {"pending", "in_progress", "completed"}
     assert job["total_count"] == 2
+
+
+def test_startup_reembedding_defers_when_stale_count_exceeds_threshold(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "startup-deferred.db"
+    provider = BlockingFakeEmbeddingProvider()
+    core = RecalliumCore(
+        db_path=db_path,
+        embedding_provider=provider,
+        immediate_reembedding_threshold=10,
+    )
+    memories = [
+        core.add_memory(space=SPACE_USER, type="fact", content=f"startup {index}")
+        for index in range(2)
+    ]
+    make_memories_stale(
+        db_path, [memory.id for memory in memories], provider.embedding_profile
+    )
+    provider.block_texts.add(memories[0].content)
+
+    restarted = RecalliumCore(
+        db_path=db_path,
+        embedding_provider=provider,
+        immediate_reembedding_threshold=1,
+    )
+
+    job_id = restarted._startup_reembedding_job_id
+    assert job_id is not None
+    assert provider.started.wait(5)
+    job = restarted.get_embedding_job(job_id)
+    assert job["state"] in {"pending", "in_progress"}
+    provider.release.set()
+    restarted._join_embedding_job(job_id)
+
+
+def test_deferred_reembedding_replaces_missing_and_completed_active_jobs(
+    tmp_path: Path,
+) -> None:
+    core = RecalliumCore(
+        db_path=tmp_path / "deferred-job-cleanup.db",
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+    key = core._reembedding_scope_key(
+        space=SPACE_USER,
+        workspace_uid=None,
+        include_archived=False,
+    )
+
+    core._active_deferred_embedding_jobs[key] = "missing-job"
+    first_job_id = core._start_deferred_reembedding(
+        reason="test",
+        stale_count=1,
+        space=SPACE_USER,
+    )
+    core._join_embedding_job(first_job_id)
+    assert first_job_id != "missing-job"
+
+    second_job_id = core._start_deferred_reembedding(
+        reason="test",
+        stale_count=1,
+        space=SPACE_USER,
+    )
+    core._join_embedding_job(second_job_id)
+    assert second_job_id != first_job_id
+
+    completed_job = core.store.create_embedding_job(
+        job_id="completed-job",
+        state="completed",
+        total_count=1,
+        processed_count=1,
+        succeeded_count=1,
+        failed_count=0,
+        provider="test",
+        model="fake",
+        embedding_profile=core.embedding_provider.embedding_profile,
+    )
+    core._active_deferred_embedding_jobs[key] = str(completed_job["id"])
+    core._embedding_job_threads[str(completed_job["id"])] = threading.Thread()
+
+    replacement_job_id = core._start_deferred_reembedding(
+        reason="test",
+        stale_count=1,
+        space=SPACE_USER,
+    )
+    core._join_embedding_job(replacement_job_id)
+
+    assert replacement_job_id != "completed-job"
+    assert "completed-job" not in core._embedding_job_threads
+
+
+def test_reembed_stale_memories_returns_none_when_nothing_is_stale(
+    tmp_path: Path,
+) -> None:
+    core = RecalliumCore(
+        db_path=tmp_path / "no-stale.db",
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+
+    assert core._reembed_stale_memories(reason="test") is None
 
 
 def test_deferred_reembedding_worker_completes_and_preserves_memory_fields(

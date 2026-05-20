@@ -208,6 +208,43 @@ def test_update_memory_updates_editable_fields_and_timestamp(tmp_path: Path) -> 
     assert candidates[0][1] == [0.5, 0.6]
 
 
+def test_storage_noop_updates_and_missing_derived_rows(tmp_path: Path) -> None:
+    store = SQLiteMemoryStore(tmp_path / "noop-and-missing.db")
+    memory = build_memory("mem-1")
+    store.insert_memory(
+        memory, embedding=[0.1, 0.2], embedding_profile=EMBEDDING_PROFILE
+    )
+
+    assert store.update_memory("mem-1") == memory
+    assert store.touch_last_accessed_at("missing") is None
+
+    touched = store.touch_last_accessed_at("mem-1")
+    assert touched is not None
+    assert touched.last_accessed_at is not None
+
+    refreshed = store.refresh_memory_embedding_derived_fields(
+        "mem-1",
+        embedding=[0.4, 0.5],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+    assert refreshed.id == "mem-1"
+    assert store.list_candidates(space=SPACE_USER)[0][1] == [0.4, 0.5]
+
+    with pytest.raises(NotFoundError):
+        store.refresh_memory_embedding_derived_fields(
+            "missing",
+            embedding=[0.1, 0.2],
+            embedding_profile=EMBEDDING_PROFILE,
+        )
+
+    with pytest.raises(NotFoundError):
+        store.replace_memory_chunks(
+            memory_id="missing",
+            embedding_profile=EMBEDDING_PROFILE,
+            chunk_embeddings=[],
+        )
+
+
 def test_archive_excluded_from_default_list_and_includable(tmp_path: Path) -> None:
     store = SQLiteMemoryStore(tmp_path / "archive.db")
     active = build_memory("mem-1")
@@ -310,6 +347,35 @@ def test_list_candidates_can_filter_by_embedding_profile(tmp_path: Path) -> None
     candidates = store.list_candidates(embedding_profile=EMBEDDING_PROFILE)
 
     assert [memory.id for memory, _ in candidates] == ["current"]
+
+
+def test_list_candidates_can_filter_by_workspace_uid(tmp_path: Path) -> None:
+    store = SQLiteMemoryStore(tmp_path / "candidate-workspace.db")
+    store.insert_memory(
+        build_memory(
+            "workspace-a",
+            space=SPACE_WORKSPACE,
+            workspace_uid="workspace-a",
+        ),
+        embedding=[0.1, 0.2],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+    store.insert_memory(
+        build_memory(
+            "workspace-b",
+            space=SPACE_WORKSPACE,
+            workspace_uid="workspace-b",
+        ),
+        embedding=[0.3, 0.4],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+
+    candidates = store.list_candidates(
+        space=SPACE_WORKSPACE,
+        workspace_uid="workspace-a",
+    )
+
+    assert [memory.id for memory, _embedding in candidates] == ["workspace-a"]
 
 
 def test_replace_memory_chunks_is_atomic_per_memory_and_profile(tmp_path: Path) -> None:
@@ -481,6 +547,20 @@ def test_reembedding_detectors_find_stale_or_missing_profile_chunks(
         == 2
     )
 
+    limited = store.list_memories_needing_profile_reembedding(
+        embedding_profile=EMBEDDING_PROFILE,
+        limit=1,
+    )
+    assert len(limited) == 1
+
+    workspace_count = store.count_memories_needing_profile_reembedding(
+        embedding_profile=EMBEDDING_PROFILE,
+        space=SPACE_WORKSPACE,
+        workspace_uid="workspace-a",
+        include_archived=True,
+    )
+    assert workspace_count == 0
+
 
 def test_embedding_job_persistence_create_update_get_list(tmp_path: Path) -> None:
     store = SQLiteMemoryStore(tmp_path / "jobs.db")
@@ -534,3 +614,21 @@ def test_embedding_job_persistence_create_update_get_list(tmp_path: Path) -> Non
 
     failed_jobs = store.list_embedding_jobs(state="failed")
     assert [job["id"] for job in failed_jobs] == ["job-2"]
+
+    limited_jobs = store.list_embedding_jobs(limit=1)
+    assert len(limited_jobs) == 1
+
+    no_op_job = store.update_embedding_job("job-1")
+    assert no_op_job["id"] == "job-1"
+
+    reprofilled = store.update_embedding_job(
+        "job-1",
+        embedding_profile={**EMBEDDING_PROFILE, "version": "2"},
+    )
+    assert reprofilled["embedding_profile"]["version"] == "2"
+
+    with pytest.raises(NotFoundError):
+        store.update_embedding_job("missing", state="failed")
+
+    with pytest.raises(NotFoundError):
+        store.get_embedding_job("missing")
