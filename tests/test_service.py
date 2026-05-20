@@ -8,6 +8,9 @@ from fastapi.testclient import TestClient
 from recallium.core import RecalliumCore
 from recallium.service import create_app
 from recallium.service_contract import (
+    OPERATION_EMBEDDING_JOBS_GET,
+    OPERATION_EMBEDDING_JOBS_LIST,
+    OPERATION_EMBEDDING_STATUS,
     OPERATION_CAPABILITIES_READ,
     OPERATION_HEALTH_READ,
     OPERATION_MEMORIES_ADD,
@@ -44,6 +47,9 @@ def test_service_capabilities_cover_required_operations() -> None:
         OPERATION_MEMORIES_ARCHIVE,
         OPERATION_MEMORIES_LIST,
         OPERATION_MEMORIES_GET,
+        OPERATION_EMBEDDING_STATUS,
+        OPERATION_EMBEDDING_JOBS_LIST,
+        OPERATION_EMBEDDING_JOBS_GET,
     )
 
 
@@ -130,6 +136,9 @@ def test_local_service_docs_cover_request_and_response_behavior_for_all_routes()
         "POST /v1/memories/{memory_id}/archive": {"require_request": True},
         "GET /v1/memories": {"require_request": True},
         "GET /v1/memories/{memory_id}": {"require_request": True},
+        "GET /v1/embedding/status": {"require_request": False},
+        "GET /v1/embedding/jobs": {"require_request": False},
+        "GET /v1/embedding/jobs/{job_id}": {"require_request": False},
     }
 
     for route, constraints in routes.items():
@@ -142,11 +151,14 @@ def test_local_service_docs_cover_request_and_response_behavior_for_all_routes()
         assert "Example response:" in section or "Response example:" in section
         assert '"data":' in section
 
-    assert "Documented known client-visible codes" in docs_text
     for error_code in (
-        "unsupported_capability",
-        "incompatible_version",
-        "service_unavailable",
+        "embedding_provider_unavailable",
+        "embedding_model_unavailable",
+        "embedding_generation_failed",
+        "embedding_profile_mismatch",
+        "embedding_readiness_timeout",
+        "reembedding_in_progress",
+        "reembedding_failed",
     ):
         assert error_code in docs_text
 
@@ -180,6 +192,9 @@ def test_local_service_openapi_contract_is_valid_and_covers_routes(
         "/v1/memories": ["post", "get"],
         "/v1/memories/{memory_id}": ["patch", "get"],
         "/v1/memories/{memory_id}/archive": ["post"],
+        "/v1/embedding/status": ["get"],
+        "/v1/embedding/jobs": ["get"],
+        "/v1/embedding/jobs/{job_id}": ["get"],
     }
     for path, methods in required_paths.items():
         assert path in paths
@@ -364,6 +379,29 @@ def test_http_memory_routes_delegate_to_core(tmp_path: Path) -> None:
     assert user_id in listed_ids_all
     assert workspace_id in listed_ids_all
 
+    status, embedding_status = _request_json(client, "GET", "/v1/embedding/status")
+    assert status == 200
+    assert (
+        embedding_status["data"]["embedding_profile"]["provider"] == "builtin-fastembed"
+    )
+    assert embedding_status["data"]["provider_status"] == "configured"
+    assert embedding_status["data"]["model_status"] == "managed_by_fastembed_cache"
+    assert embedding_status["data"]["runtime"] == {
+        "name": "fastembed",
+        "threads": 1,
+        "parallel": None,
+    }
+
+    status, jobs_payload = _request_json(client, "GET", "/v1/embedding/jobs")
+    assert status == 200
+    jobs = jobs_payload["data"]
+    assert isinstance(jobs, list)
+    if jobs:
+        job_id = jobs[0]["id"]
+        status, one_job = _request_json(client, "GET", f"/v1/embedding/jobs/{job_id}")
+        assert status == 200
+        assert one_job["data"]["id"] == job_id
+
 
 def test_http_workspace_search_requires_workspace_uid(tmp_path: Path) -> None:
     core = RecalliumCore(db_path=tmp_path / "service-workspace-validation.db")
@@ -436,3 +474,101 @@ def test_http_internal_error_is_mapped_without_traceback(tmp_path: Path) -> None
         assert payload["error"]["message"] == "internal server error"
     finally:
         core.list_memories = original
+
+
+def test_http_embedding_errors_map_to_stable_boundary_codes(tmp_path: Path) -> None:
+    core = RecalliumCore(db_path=tmp_path / "service-embedding-errors.db")
+    client = _client(core)
+    original = core.search_user_memories
+
+    from recallium.errors import (
+        EmbeddingDimensionMismatchError,
+        EmbeddingGenerationError,
+        EmbeddingModelUnavailableError,
+        EmbeddingProviderUnavailableError,
+        EmbeddingReadinessTimeoutError,
+        ReembeddingFailedError,
+        ReembeddingInProgressError,
+    )
+
+    error_cases = [
+        (
+            EmbeddingReadinessTimeoutError("FastEmbed provider startup timed out"),
+            503,
+            "embedding_readiness_timeout",
+        ),
+        (
+            EmbeddingProviderUnavailableError("FastEmbed is unavailable"),
+            503,
+            "embedding_provider_unavailable",
+        ),
+        (
+            EmbeddingModelUnavailableError("failed to load embedding model"),
+            503,
+            "embedding_model_unavailable",
+        ),
+        (
+            EmbeddingDimensionMismatchError("unexpected embedding dimension"),
+            500,
+            "embedding_profile_mismatch",
+        ),
+        (
+            EmbeddingGenerationError("failed to generate embedding"),
+            500,
+            "embedding_generation_failed",
+        ),
+        (
+            ReembeddingFailedError(
+                "runtime re-embedding failed",
+                job_id="job-failed",
+                status_path="/v1/embedding/jobs/job-failed",
+            ),
+            503,
+            "reembedding_failed",
+        ),
+    ]
+
+    def reembedding_in_progress(*args: Any, **kwargs: Any) -> list[Any]:
+        raise ReembeddingInProgressError(
+            "re-embedding is in progress for the active profile",
+            job_id="job-123",
+            status_path="/v1/embedding/jobs/job-123",
+        )
+
+    core.search_user_memories = reembedding_in_progress
+    try:
+        status, payload = _request_json(
+            client,
+            "POST",
+            "/v1/memories/search_user",
+            {"query": "test"},
+        )
+        assert status == 409
+        assert payload["error"]["code"] == "reembedding_in_progress"
+        assert payload["error"]["details"] == {
+            "job_id": "job-123",
+            "status_path": "/v1/embedding/jobs/job-123",
+        }
+
+        for error, expected_status, expected_code in error_cases:
+
+            def raise_error(*args: Any, **kwargs: Any) -> list[Any]:
+                raise error
+
+            core.search_user_memories = raise_error
+            status, payload = _request_json(
+                client,
+                "POST",
+                "/v1/memories/search_user",
+                {"query": "test"},
+            )
+            assert status == expected_status
+            assert payload["error"]["code"] == expected_code
+
+            if expected_code == "reembedding_failed":
+                assert payload["error"]["details"] == {
+                    "job_id": "job-failed",
+                    "status_path": "/v1/embedding/jobs/job-failed",
+                }
+    finally:
+        core.search_user_memories = original

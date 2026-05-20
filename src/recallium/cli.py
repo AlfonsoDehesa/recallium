@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any, Sequence
 
-from recallium import NotFoundError, RecalliumCore, ValidationError
+from recallium import NotFoundError, RecalliumCore, RecalliumError, ValidationError
 from recallium.models import SearchResult
 from recallium.service import run_service
 from recallium.service_contract import SERVICE_DEFAULT_HOST, SERVICE_DEFAULT_PORT
@@ -259,6 +259,37 @@ def _build_parser() -> argparse.ArgumentParser:
         help="TCP port for the local service API. Defaults to 8765.",
     )
 
+    subparsers.add_parser(
+        "embedding-status",
+        help="show active local FastEmbed profile and startup job",
+        description=(
+            "Show the active built-in local FastEmbed embedding profile plus startup "
+            "re-embedding job metadata. Recallium uses the local model cache for "
+            "jinaai/jina-embeddings-v2-small-en."
+        ),
+    )
+    embedding_jobs_parser = subparsers.add_parser(
+        "embedding-jobs",
+        help="list embedding jobs or fetch one job by id",
+        description=(
+            "List embedding jobs by default or fetch one job with --job-id. "
+            "Jobs track local FastEmbed model download and re-embedding progress."
+        ),
+    )
+    embedding_jobs_parser.add_argument(
+        "--job-id",
+        help="If provided, return exactly one embedding job by ID.",
+    )
+    embedding_jobs_parser.add_argument(
+        "--state",
+        help="Optional list filter by job state, such as in_progress, completed, or failed.",
+    )
+    embedding_jobs_parser.add_argument(
+        "--limit",
+        type=int,
+        help="Optional positive integer limit for list mode.",
+    )
+
     return parser
 
 
@@ -274,9 +305,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         run_service(host=args.host, port=args.port, db_path=args.db_path)
         return 0
 
-    core = RecalliumCore(db_path=args.db_path)
-
     try:
+        core = RecalliumCore(db_path=args.db_path)
+
         if args.command == "add":
             result = core.add_memory(
                 space=args.space,
@@ -324,6 +355,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         elif args.command == "archive":
             result = core.archive_memory(args.memory_id)
+        elif args.command == "embedding-status":
+            result = core.active_embedding_status()
+        elif args.command == "embedding-jobs":
+            if args.job_id:
+                result = core.get_embedding_job(args.job_id)
+            else:
+                result = core.list_embedding_jobs(state=args.state, limit=args.limit)
         else:
             parser.error(f"unknown command: {args.command}")
             return 2
@@ -332,6 +370,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     except NotFoundError as exc:
         print(f"NotFoundError: {exc}", file=sys.stderr)
+        return 1
+    except RecalliumError as exc:
+        print(f"{exc.__class__.__name__}: {exc}", file=sys.stderr)
         return 1
 
     print(json.dumps(_to_payload(result), sort_keys=True))

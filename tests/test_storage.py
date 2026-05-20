@@ -1,7 +1,9 @@
 from pathlib import Path
+import sqlite3
 
 import pytest
 
+from recallium.embeddings import ContentChunk
 from recallium.errors import NotFoundError
 from recallium.models import (
     SPACE_USER,
@@ -73,13 +75,93 @@ def test_store_uses_schema_version_1(tmp_path: Path) -> None:
     db_path = tmp_path / "schema.db"
     SQLiteMemoryStore(db_path)
 
-    import sqlite3
-
     with sqlite3.connect(db_path) as connection:
         row = connection.execute("PRAGMA user_version").fetchone()
 
     assert row is not None
-    assert row[0] == 1
+    assert row[0] == 2
+
+
+def test_fresh_schema_creates_chunk_and_job_tables(tmp_path: Path) -> None:
+    db_path = tmp_path / "schema-v2.db"
+    SQLiteMemoryStore(db_path)
+
+    with sqlite3.connect(db_path) as connection:
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            ).fetchall()
+        }
+
+    assert "memories" in tables
+    assert "embedding_chunks" in tables
+    assert "embedding_jobs" in tables
+
+
+def test_v1_database_migrates_to_v2_without_losing_memories(tmp_path: Path) -> None:
+    db_path = tmp_path / "migrate-v1.db"
+    memory = build_memory("legacy")
+
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE memories (
+                id TEXT PRIMARY KEY,
+                space TEXT NOT NULL,
+                workspace_uid TEXT NULL,
+                type TEXT NOT NULL,
+                content TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                status TEXT NOT NULL,
+                source TEXT NULL,
+                confidence REAL NULL,
+                sensitivity TEXT NULL,
+                embedding_profile_json TEXT NOT NULL,
+                embedding_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                last_accessed_at TEXT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            INSERT INTO memories (
+                id, space, workspace_uid, type, content, metadata_json,
+                status, source, confidence, sensitivity, embedding_profile_json,
+                embedding_json, created_at, updated_at, last_accessed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                memory.id,
+                memory.space,
+                memory.workspace_uid,
+                memory.type,
+                memory.content,
+                '{"source": "chat"}',
+                memory.status,
+                memory.source,
+                memory.confidence,
+                memory.sensitivity,
+                '{"provider": "test", "model": "v1"}',
+                "[0.1, 0.2]",
+                memory.created_at,
+                memory.updated_at,
+                memory.last_accessed_at,
+            ),
+        )
+        connection.execute("PRAGMA user_version = 1")
+
+    store = SQLiteMemoryStore(db_path)
+    loaded = store.get_memory("legacy")
+    assert loaded.id == "legacy"
+    assert loaded.content == memory.content
+
+    with sqlite3.connect(db_path) as connection:
+        version = connection.execute("PRAGMA user_version").fetchone()
+    assert version is not None
+    assert version[0] == 2
 
 
 def test_get_update_archive_raise_not_found_for_missing_ids(tmp_path: Path) -> None:
@@ -228,3 +310,227 @@ def test_list_candidates_can_filter_by_embedding_profile(tmp_path: Path) -> None
     candidates = store.list_candidates(embedding_profile=EMBEDDING_PROFILE)
 
     assert [memory.id for memory, _ in candidates] == ["current"]
+
+
+def test_replace_memory_chunks_is_atomic_per_memory_and_profile(tmp_path: Path) -> None:
+    store = SQLiteMemoryStore(tmp_path / "chunks.db")
+    memory = build_memory("mem-1")
+    store.insert_memory(
+        memory, embedding=[0.1, 0.2], embedding_profile=EMBEDDING_PROFILE
+    )
+
+    first_chunks = [
+        (
+            ContentChunk(chunk_index=0, text="first chunk", token_start=0, token_end=2),
+            [0.1, 0.2],
+        ),
+        (
+            ContentChunk(
+                chunk_index=1, text="second chunk", token_start=2, token_end=4
+            ),
+            [0.3, 0.4],
+        ),
+    ]
+    store.replace_memory_chunks(
+        memory_id="mem-1",
+        embedding_profile=EMBEDDING_PROFILE,
+        chunk_embeddings=first_chunks,
+    )
+
+    candidates = store.list_chunk_candidates(embedding_profile=EMBEDDING_PROFILE)
+    assert [candidate.chunk_index for candidate in candidates] == [0, 1]
+
+    replacement_chunks = [
+        (
+            ContentChunk(chunk_index=0, text="replacement", token_start=0, token_end=1),
+            [0.9, 0.8],
+        )
+    ]
+    store.replace_memory_chunks(
+        memory_id="mem-1",
+        embedding_profile=EMBEDDING_PROFILE,
+        chunk_embeddings=replacement_chunks,
+    )
+
+    replaced = store.list_chunk_candidates(embedding_profile=EMBEDDING_PROFILE)
+    assert len(replaced) == 1
+    assert replaced[0].chunk_index == 0
+    assert replaced[0].matched_text == "replacement"
+    assert replaced[0].embedding == [0.9, 0.8]
+
+
+def test_list_chunk_candidates_respects_scope_workspace_archive_filters(
+    tmp_path: Path,
+) -> None:
+    store = SQLiteMemoryStore(tmp_path / "chunk-filters.db")
+
+    user_memory = build_memory("user-1", space=SPACE_USER)
+    workspace_memory = build_memory(
+        "workspace-1",
+        space=SPACE_WORKSPACE,
+        workspace_uid="workspace-a",
+    )
+    archived_workspace = build_memory(
+        "workspace-2",
+        space=SPACE_WORKSPACE,
+        workspace_uid="workspace-b",
+    )
+
+    store.insert_memory(
+        user_memory,
+        embedding=[0.1, 0.2],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+    store.insert_memory(
+        workspace_memory,
+        embedding=[0.2, 0.3],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+    store.insert_memory(
+        archived_workspace,
+        embedding=[0.3, 0.4],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+    store.archive_memory("workspace-2")
+
+    for memory_id, text in [
+        ("user-1", "user chunk"),
+        ("workspace-1", "workspace chunk"),
+        ("workspace-2", "archived chunk"),
+    ]:
+        store.replace_memory_chunks(
+            memory_id=memory_id,
+            embedding_profile=EMBEDDING_PROFILE,
+            chunk_embeddings=[
+                (
+                    ContentChunk(chunk_index=0, text=text, token_start=0, token_end=2),
+                    [0.5, 0.6],
+                )
+            ],
+        )
+
+    workspace_only = store.list_chunk_candidates(
+        embedding_profile=EMBEDDING_PROFILE,
+        space=SPACE_WORKSPACE,
+    )
+    assert [candidate.memory.id for candidate in workspace_only] == ["workspace-1"]
+
+    workspace_a = store.list_chunk_candidates(
+        embedding_profile=EMBEDDING_PROFILE,
+        space=SPACE_WORKSPACE,
+        workspace_uid="workspace-a",
+    )
+    assert [candidate.memory.id for candidate in workspace_a] == ["workspace-1"]
+
+    include_archived = store.list_chunk_candidates(
+        embedding_profile=EMBEDDING_PROFILE,
+        space=SPACE_WORKSPACE,
+        include_archived=True,
+    )
+    assert [candidate.memory.id for candidate in include_archived] == [
+        "workspace-2",
+        "workspace-1",
+    ]
+
+
+def test_reembedding_detectors_find_stale_or_missing_profile_chunks(
+    tmp_path: Path,
+) -> None:
+    store = SQLiteMemoryStore(tmp_path / "reembedding.db")
+    stale_profile = {
+        "provider": "test",
+        "model": "old-model",
+        "dimensions": 2,
+        "version": "1",
+    }
+    store.insert_memory(
+        build_memory("current-ready"),
+        embedding=[0.1, 0.2],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+    store.insert_memory(
+        build_memory("current-missing"),
+        embedding=[0.2, 0.3],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+    store.insert_memory(
+        build_memory("stale-profile"),
+        embedding=[0.3, 0.4],
+        embedding_profile=stale_profile,
+    )
+
+    store.replace_memory_chunks(
+        memory_id="current-ready",
+        embedding_profile=EMBEDDING_PROFILE,
+        chunk_embeddings=[
+            (
+                ContentChunk(chunk_index=0, text="ready", token_start=0, token_end=1),
+                [0.1, 0.2],
+            )
+        ],
+    )
+
+    needing = store.list_memories_needing_profile_reembedding(
+        embedding_profile=EMBEDDING_PROFILE
+    )
+    assert {memory.id for memory in needing} == {"stale-profile", "current-missing"}
+    assert (
+        store.count_memories_needing_profile_reembedding(
+            embedding_profile=EMBEDDING_PROFILE
+        )
+        == 2
+    )
+
+
+def test_embedding_job_persistence_create_update_get_list(tmp_path: Path) -> None:
+    store = SQLiteMemoryStore(tmp_path / "jobs.db")
+
+    created = store.create_embedding_job(
+        job_id="job-1",
+        state="pending",
+        total_count=10,
+        processed_count=0,
+        succeeded_count=0,
+        failed_count=0,
+        provider="builtin-fastembed",
+        model="jinaai/jina-embeddings-v2-small-en",
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+    assert created["id"] == "job-1"
+    assert created["state"] == "pending"
+    assert created["total_count"] == 10
+
+    updated = store.update_embedding_job(
+        "job-1",
+        state="running",
+        processed_count=3,
+        succeeded_count=3,
+        started_at="2026-01-01T01:00:00Z",
+    )
+    assert updated["state"] == "running"
+    assert updated["processed_count"] == 3
+    assert updated["succeeded_count"] == 3
+
+    fetched = store.get_embedding_job("job-1")
+    assert fetched["id"] == "job-1"
+    assert fetched["embedding_profile"] == EMBEDDING_PROFILE
+
+    store.create_embedding_job(
+        job_id="job-2",
+        state="failed",
+        total_count=4,
+        processed_count=4,
+        succeeded_count=3,
+        failed_count=1,
+        provider="builtin-fastembed",
+        model="jinaai/jina-embeddings-v2-small-en",
+        embedding_profile=EMBEDDING_PROFILE,
+        error_message="provider unavailable",
+        completed_at="2026-01-01T02:00:00Z",
+    )
+
+    all_jobs = store.list_embedding_jobs()
+    assert [job["id"] for job in all_jobs] == ["job-2", "job-1"]
+
+    failed_jobs = store.list_embedding_jobs(state="failed")
+    assert [job["id"] for job in failed_jobs] == ["job-2"]

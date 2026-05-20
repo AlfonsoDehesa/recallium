@@ -1,10 +1,17 @@
+import json
 from pathlib import Path
+import sqlite3
 
 import pytest
 
 from recallium.core import RecalliumCore
-from recallium.errors import NotFoundError, ValidationError
-from recallium.models import SPACE_WORKSPACE, STATUS_ARCHIVED
+from recallium.errors import (
+    NotFoundError,
+    ReembeddingFailedError,
+    ReembeddingInProgressError,
+    ValidationError,
+)
+from recallium.models import SPACE_USER, SPACE_WORKSPACE, STATUS_ARCHIVED
 
 
 def test_core_user_memory_flow_add_get_search_list_update_archive(
@@ -128,3 +135,212 @@ def test_core_rejects_invalid_list_limit(tmp_path: Path) -> None:
 
     with pytest.raises(ValidationError, match="positive integer"):
         core.list_memories(limit=0)
+
+
+def test_add_memory_persists_chunk_embeddings_and_searches_from_chunks(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "chunks.db"
+    core = RecalliumCore(db_path=db_path)
+
+    created = core.add_memory(
+        space=SPACE_USER,
+        type="note",
+        content="dragon fruit smoothie prep for breakfast",
+    )
+
+    results = core.search_user_memories("dragon fruit breakfast")
+    assert [result.memory.id for result in results] == [created.id]
+    assert results[0].matched_text is not None
+    assert results[0].chunk_index == 0
+
+    with sqlite3.connect(db_path) as connection:
+        chunk_count = connection.execute(
+            "SELECT COUNT(*) FROM embedding_chunks WHERE memory_id = ?",
+            (created.id,),
+        ).fetchone()[0]
+        assert chunk_count >= 1
+
+
+def test_update_memory_content_refreshes_chunks(tmp_path: Path) -> None:
+    db_path = tmp_path / "update-chunks.db"
+    core = RecalliumCore(db_path=db_path)
+
+    created = core.add_memory(
+        space=SPACE_USER,
+        type="note",
+        content="old release checklist",
+    )
+    updated = core.update_memory(created.id, content="new launch checklist")
+    assert updated.content == "new launch checklist"
+
+    with sqlite3.connect(db_path) as connection:
+        chunk_texts = connection.execute(
+            "SELECT content FROM embedding_chunks WHERE memory_id = ? ORDER BY chunk_index ASC",
+            (created.id,),
+        ).fetchall()
+    assert chunk_texts
+    assert all("new" in row[0] for row in chunk_texts)
+    assert all("old" not in row[0] for row in chunk_texts)
+
+
+def test_startup_reembeds_stale_memories_for_active_profile(tmp_path: Path) -> None:
+    db_path = tmp_path / "startup-stale.db"
+    core = RecalliumCore(db_path=db_path)
+    memory = core.add_memory(space=SPACE_USER, type="fact", content="kiwi notebook")
+
+    stale_profile = {
+        **core.embedding_provider.embedding_profile,
+        "profile": "stale-profile",
+    }
+    core.store.update_memory(memory.id, embedding_profile=stale_profile)
+
+    restarted = RecalliumCore(db_path=db_path)
+    stale_count = restarted.store.count_memories_needing_profile_reembedding(
+        embedding_profile=restarted.embedding_provider.embedding_profile,
+        space=SPACE_USER,
+    )
+    assert stale_count == 0
+
+    jobs = restarted.list_embedding_jobs(limit=1)
+    assert jobs
+    assert jobs[0]["state"] == "completed"
+    assert jobs[0]["total_count"] >= 1
+
+    status = restarted.active_embedding_status()
+    assert status["provider_status"] == "configured"
+    assert status["model_status"] == "managed_by_fastembed_cache"
+    assert status["runtime"] == {"name": "fastembed", "threads": 1, "parallel": None}
+    assert status["startup_reembedding_job_id"] == jobs[0]["id"]
+    assert status["startup_reembedding_status_path"].endswith(jobs[0]["id"])
+    assert status["embedding_jobs_status_path"] == "/v1/embedding/jobs"
+    assert status["recent_embedding_jobs"]
+
+
+def test_search_reembeds_missing_profile_chunks_below_threshold(tmp_path: Path) -> None:
+    db_path = tmp_path / "search-reembed.db"
+    core = RecalliumCore(db_path=db_path)
+    created = core.add_memory(
+        space=SPACE_WORKSPACE,
+        type="task",
+        content="calibrate laser cutter",
+        workspace_uid="shop",
+    )
+
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            "DELETE FROM embedding_chunks WHERE memory_id = ?", (created.id,)
+        )
+
+    results = core.search_workspace_memories("laser calibration", workspace_uid="shop")
+    assert [result.memory.id for result in results] == [created.id]
+
+    with sqlite3.connect(db_path) as connection:
+        refreshed_chunk_count = connection.execute(
+            "SELECT COUNT(*) FROM embedding_chunks WHERE memory_id = ?",
+            (created.id,),
+        ).fetchone()[0]
+    assert refreshed_chunk_count >= 1
+
+
+def test_search_raises_retryable_error_when_stale_count_exceeds_threshold(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "threshold.db"
+    core = RecalliumCore(db_path=db_path, immediate_reembedding_threshold=1)
+    one = core.add_memory(space=SPACE_USER, type="note", content="alpha")
+    two = core.add_memory(space=SPACE_USER, type="note", content="beta")
+
+    stale_profile = {
+        **core.embedding_provider.embedding_profile,
+        "profile": "stale-user-profile",
+    }
+    core.store.update_memory(one.id, embedding_profile=stale_profile)
+    core.store.update_memory(two.id, embedding_profile=stale_profile)
+
+    with pytest.raises(ReembeddingInProgressError) as exc_info:
+        core.search_user_memories("alpha")
+
+    error = exc_info.value
+    assert error.job_id
+    assert error.status_path.endswith(error.job_id)
+
+    job = core.get_embedding_job(error.job_id)
+    assert job["state"] == "in_progress"
+    assert job["total_count"] == 2
+
+
+def test_reembedding_preserves_updated_at_for_startup_and_runtime(
+    tmp_path: Path,
+) -> None:
+    startup_db = tmp_path / "startup-preserve-updated-at.db"
+    core = RecalliumCore(db_path=startup_db)
+    startup_memory = core.add_memory(space=SPACE_USER, type="fact", content="alpha")
+
+    stale_profile = {
+        **core.embedding_provider.embedding_profile,
+        "profile": "stale-profile",
+    }
+    with sqlite3.connect(startup_db) as connection:
+        connection.execute(
+            "UPDATE memories SET embedding_profile_json = ? WHERE id = ?",
+            (json.dumps(stale_profile, sort_keys=True), startup_memory.id),
+        )
+
+    restarted = RecalliumCore(db_path=startup_db)
+    startup_after = restarted.get_memory(startup_memory.id)
+    assert startup_after.updated_at == startup_memory.updated_at
+
+    runtime_db = tmp_path / "runtime-preserve-updated-at.db"
+    runtime_core = RecalliumCore(db_path=runtime_db)
+    runtime_memory = runtime_core.add_memory(
+        space=SPACE_USER, type="fact", content="beta"
+    )
+
+    with sqlite3.connect(runtime_db) as connection:
+        connection.execute(
+            "UPDATE memories SET embedding_profile_json = ? WHERE id = ?",
+            (json.dumps(stale_profile, sort_keys=True), runtime_memory.id),
+        )
+
+    _ = runtime_core.search_user_memories("beta")
+    runtime_after = runtime_core.get_memory(runtime_memory.id)
+    assert runtime_after.updated_at == runtime_memory.updated_at
+
+
+def test_runtime_reembedding_failure_blocks_partial_results(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    db_path = tmp_path / "runtime-reembed-failure.db"
+    core = RecalliumCore(db_path=db_path)
+    first = core.add_memory(space=SPACE_USER, type="note", content="memory one")
+    second = core.add_memory(space=SPACE_USER, type="note", content="memory two")
+
+    stale_profile = {
+        **core.embedding_provider.embedding_profile,
+        "profile": "stale-profile",
+    }
+    stale_json = json.dumps(stale_profile, sort_keys=True)
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            "UPDATE memories SET embedding_profile_json = ? WHERE id IN (?, ?)",
+            (stale_json, first.id, second.id),
+        )
+
+    original_chunk_embed_pairs = core._chunk_embed_pairs
+
+    def fail_on_second(text: str):
+        if text == second.content:
+            raise RuntimeError("forced runtime re-embed failure")
+        return original_chunk_embed_pairs(text)
+
+    monkeypatch.setattr(core, "_chunk_embed_pairs", fail_on_second)
+
+    with pytest.raises(ReembeddingFailedError) as exc_info:
+        core.search_user_memories("memory")
+
+    error = exc_info.value
+    job = core.get_embedding_job(error.job_id)
+    assert job["state"] == "failed"
+    assert job["failed_count"] == 1
+    assert error.status_path.endswith(error.job_id)

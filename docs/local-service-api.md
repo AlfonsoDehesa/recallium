@@ -102,7 +102,10 @@ Response example:
       "memories.update",
       "memories.archive",
       "memories.list",
-      "memories.get"
+      "memories.get",
+      "embedding.status",
+      "embedding.jobs.list",
+      "embedding.jobs.get"
     ]
   }
 }
@@ -476,6 +479,119 @@ Search responses return a list of:
 }
 ```
 
+### 8) Embedding status
+
+- Method and path: `GET /v1/embedding/status`
+- Purpose: return the active local embedding profile, runtime posture, startup re-embedding job reference, status paths, and recent embedding jobs.
+- Side effects: none.
+- Successful response: HTTP `200` with current embedding profile and optional startup job ID.
+
+Example response:
+
+```json
+{
+  "data": {
+    "embedding_profile": {
+      "provider": "builtin-fastembed",
+      "model": "jinaai/jina-embeddings-v2-small-en",
+      "dimensions": 512,
+      "version": "1",
+      "profile": "builtin-fastembed-jina-v2-small-en-v1",
+      "max_tokens": 8192,
+      "chunk_tokens": 6144,
+      "chunk_overlap_tokens": 512,
+      "query_prompt_policy": "raw"
+    },
+    "provider_status": "configured",
+    "model_status": "managed_by_fastembed_cache",
+    "runtime": {
+      "name": "fastembed",
+      "threads": 1,
+      "parallel": null
+    },
+    "startup_reembedding_job_id": "job-123",
+    "startup_reembedding_status_path": "/v1/embedding/jobs/job-123",
+    "embedding_jobs_status_path": "/v1/embedding/jobs",
+    "recent_embedding_jobs": []
+  }
+}
+```
+
+### 9) List embedding jobs
+
+- Method and path: `GET /v1/embedding/jobs`
+- Purpose: list embedding jobs for model readiness or stale-profile re-embedding.
+- Optional query params:
+  - `state` (string)
+  - `limit` (positive integer)
+- Side effects: none.
+- Successful response: HTTP `200` with a `data` list ordered by most recent first.
+
+Example request:
+
+```bash
+curl -sS "http://127.0.0.1:8765/v1/embedding/jobs?state=failed&limit=5"
+```
+
+Example response:
+
+```json
+{
+  "data": [
+    {
+      "id": "job-123",
+      "state": "failed",
+      "total_count": 3,
+      "processed_count": 1,
+      "succeeded_count": 0,
+      "failed_count": 1,
+      "provider": "builtin-fastembed",
+      "model": "jinaai/jina-embeddings-v2-small-en",
+      "embedding_profile": {
+        "provider": "builtin-fastembed",
+        "model": "jinaai/jina-embeddings-v2-small-en"
+      },
+      "error_message": "runtime re-embedding failed",
+      "started_at": "2026-05-19T10:10:00+00:00",
+      "completed_at": "2026-05-19T10:10:05+00:00"
+    }
+  ]
+}
+```
+
+### 10) Get embedding job
+
+- Method and path: `GET /v1/embedding/jobs/{job_id}`
+- Purpose: fetch one embedding job by ID.
+- Path params:
+  - `job_id` (string)
+- Side effects: none.
+- Successful response: HTTP `200` with one job object in `data`.
+
+Example response:
+
+```json
+{
+  "data": {
+    "id": "job-123",
+    "state": "in_progress",
+    "total_count": 12,
+    "processed_count": 4,
+    "succeeded_count": 4,
+    "failed_count": 0,
+    "provider": "builtin-fastembed",
+    "model": "jinaai/jina-embeddings-v2-small-en",
+    "embedding_profile": {
+      "provider": "builtin-fastembed",
+      "model": "jinaai/jina-embeddings-v2-small-en"
+    },
+    "error_message": "triggered by search",
+    "started_at": "2026-05-19T10:10:00+00:00",
+    "completed_at": null
+  }
+}
+```
+
 ## Error codes and common failures
 
 Implemented error codes:
@@ -488,17 +604,22 @@ Implemented error codes:
   - Example: unknown path or unsupported method on a known path.
 - `invalid_json` (`400`)
   - Example: malformed JSON request body.
+- `embedding_provider_unavailable` (`503`)
+  - Example: built-in provider runtime could not initialize.
+- `embedding_model_unavailable` (`503`)
+  - Example: FastEmbed model cache missing or load failed.
+- `embedding_generation_failed` (`500`)
+  - Example: provider failed during embedding generation.
+- `embedding_profile_mismatch` (`500`)
+  - Example: returned embedding dimension does not match active profile.
+- `embedding_readiness_timeout` (`503`)
+  - Example: provider readiness check exceeded timeout.
+- `reembedding_in_progress` (`409`)
+  - Includes `details.job_id` and `details.status_path`.
+- `reembedding_failed` (`503`)
+  - Includes `details.job_id` and `details.status_path`.
 - `internal_error` (`500`)
   - Unexpected server-side exception at request boundary.
-
-Documented known client-visible codes (not currently emitted by this implementation slice):
-
-- `unsupported_capability` (`400`)
-  - Reserved for capability negotiation failures in a future negotiation flow.
-- `incompatible_version` (`400`)
-  - Reserved for service/client API version negotiation failures in a future negotiation flow.
-- `service_unavailable` (`503`)
-  - Reserved for startup/connectivity/service-state failures outside normal in-process request handling.
 
 Common failure examples:
 

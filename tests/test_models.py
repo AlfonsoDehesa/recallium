@@ -147,9 +147,31 @@ def test_search_result_serialization_round_trip() -> None:
     assert payload["score"] == 0.88
     assert payload["rank"] == 1
     assert payload["memory"]["id"] == "mem-1"
+    assert "matched_text" not in payload
+    assert "snippet" not in payload
+    assert "chunk_index" not in payload
 
     restored = SearchResult.from_json(result.to_json())
     assert restored == result
+
+
+def test_search_result_from_dict_accepts_legacy_payload_without_matched_context() -> (
+    None
+):
+    payload = {
+        "memory": build_memory().to_dict(),
+        "score": 0.72,
+        "rank": 2,
+    }
+
+    restored = SearchResult.from_dict(payload)
+
+    assert restored.memory.id == "mem-1"
+    assert restored.score == 0.72
+    assert restored.rank == 2
+    assert restored.matched_text is None
+    assert restored.snippet is None
+    assert restored.chunk_index is None
 
 
 def test_search_result_rejects_invalid_values() -> None:

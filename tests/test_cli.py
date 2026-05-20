@@ -8,6 +8,7 @@ import pytest
 from pytest import CaptureFixture
 
 from recallium.cli import main
+from recallium.errors import EmbeddingProviderUnavailableError
 
 
 def _run_cli(args: list[str], capsys: CaptureFixture[str]) -> tuple[int, str, str]:
@@ -31,6 +32,8 @@ def test_cli_help_documents_commands_and_flags(capsys) -> None:
     assert "Recallium Core local memory CLI" in top_level_help
     assert "add a user or workspace memory" in top_level_help
     assert "search memories for one workspace UID" in top_level_help
+    assert "embedding-status" in top_level_help
+    assert "embedding-jobs" in top_level_help
 
     add_help = _run_help(["add", "--help"], capsys)
     assert "User memories must not include" in add_help
@@ -61,6 +64,16 @@ def test_cli_help_documents_commands_and_flags(capsys) -> None:
     assert "database path" in serve_help
     assert "--host" in serve_help
     assert "--port" in serve_help
+
+    embedding_status_help = _run_help(["embedding-status", "--help"], capsys)
+    assert "built-in local FastEmbed" in embedding_status_help
+    assert "jinaai/jina-" in embedding_status_help
+    assert "embeddings-v2-small-en" in embedding_status_help
+
+    embedding_jobs_help = _run_help(["embedding-jobs", "--help"], capsys)
+    assert "--job-id" in embedding_jobs_help
+    assert "--state" in embedding_jobs_help
+    assert "--limit" in embedding_jobs_help
 
 
 def test_cli_serve_passes_flags_to_service_runner(tmp_path, monkeypatch) -> None:
@@ -261,3 +274,98 @@ def test_cli_not_found_returns_1(tmp_path, capsys) -> None:
     assert exit_code == 1
     assert stdout == ""
     assert "NotFoundError:" in stderr
+
+
+def test_cli_embedding_error_returns_clear_message(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    class UnavailableCore:
+        def __init__(self, *args, **kwargs) -> None:
+            raise EmbeddingProviderUnavailableError("FastEmbed is unavailable")
+
+    monkeypatch.setattr("recallium.cli.RecalliumCore", UnavailableCore)
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--db", str(tmp_path / "provider.db"), "embedding-status"], capsys
+    )
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert "EmbeddingProviderUnavailableError: FastEmbed is unavailable" in stderr
+
+
+def test_cli_embedding_status_and_jobs_output_json(tmp_path, capsys) -> None:
+    db_path = tmp_path / "cli-embedding.db"
+
+    add_code, _, add_err = _run_cli(
+        [
+            "--db",
+            str(db_path),
+            "add",
+            "--space",
+            "user",
+            "--type",
+            "fact",
+            "--content",
+            "Local embedding status smoke",
+        ],
+        capsys,
+    )
+    assert add_code == 0
+    assert add_err == ""
+
+    status_code, status_out, status_err = _run_cli(
+        ["--db", str(db_path), "embedding-status"],
+        capsys,
+    )
+    assert status_code == 0
+    assert status_err == ""
+    status_payload = json.loads(status_out)
+    assert status_payload["embedding_profile"]["provider"] == "builtin-fastembed"
+    assert status_payload["provider_status"] == "configured"
+    assert status_payload["model_status"] == "managed_by_fastembed_cache"
+    assert status_payload["runtime"] == {
+        "name": "fastembed",
+        "threads": 1,
+        "parallel": None,
+    }
+    assert status_payload["embedding_jobs_status_path"] == "/v1/embedding/jobs"
+    assert isinstance(status_payload["recent_embedding_jobs"], list)
+
+    jobs_code, jobs_out, jobs_err = _run_cli(
+        ["--db", str(db_path), "embedding-jobs"],
+        capsys,
+    )
+    assert jobs_code == 0
+    assert jobs_err == ""
+    jobs_payload = json.loads(jobs_out)
+    assert isinstance(jobs_payload, list)
+    if jobs_payload:
+        job_id = jobs_payload[0]["id"]
+
+        one_job_code, one_job_out, one_job_err = _run_cli(
+            ["--db", str(db_path), "embedding-jobs", "--job-id", job_id],
+            capsys,
+        )
+        assert one_job_code == 0
+        assert one_job_err == ""
+        one_job_payload = json.loads(one_job_out)
+        assert one_job_payload["id"] == job_id
+
+    state_code, state_out, state_err = _run_cli(
+        [
+            "--db",
+            str(db_path),
+            "embedding-jobs",
+            "--state",
+            "completed",
+            "--limit",
+            "1",
+        ],
+        capsys,
+    )
+    assert state_code == 0
+    assert state_err == ""
+    state_payload = json.loads(state_out)
+    assert isinstance(state_payload, list)
+    assert len(state_payload) <= 1

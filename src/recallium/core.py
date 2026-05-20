@@ -3,10 +3,22 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
-from recallium.embeddings import LocalEmbeddingProvider
-from recallium.errors import ValidationError
+from recallium.embeddings import (
+    BuiltinFastEmbedProvider,
+    ContentChunk,
+    EmbeddingProvider,
+    chunk_text_for_profile,
+)
+from recallium.errors import (
+    EmbeddingDimensionMismatchError,
+    EmbeddingGenerationError,
+    ReembeddingFailedError,
+    ReembeddingInProgressError,
+    ValidationError,
+)
 from recallium.models import (
     SPACE_USER,
     SPACE_WORKSPACE,
@@ -40,11 +52,15 @@ class RecalliumCore:
         self,
         db_path: Path | str | None = None,
         *,
-        embedding_provider: LocalEmbeddingProvider | None = None,
+        embedding_provider: EmbeddingProvider | None = None,
+        immediate_reembedding_threshold: int = 20,
     ) -> None:
         selected_path = db_path if db_path is not None else _default_db_path()
         self.store = SQLiteMemoryStore(selected_path)
-        self.embedding_provider = embedding_provider or LocalEmbeddingProvider()
+        self.embedding_provider = embedding_provider or BuiltinFastEmbedProvider()
+        self.immediate_reembedding_threshold = immediate_reembedding_threshold
+        startup_job = self._reembed_stale_memories(reason="startup")
+        self._startup_reembedding_job_id = startup_job[0] if startup_job else None
 
     def add_memory(
         self,
@@ -80,10 +96,17 @@ class RecalliumCore:
             created_at=timestamp,
             updated_at=timestamp,
         )
-        embedding = self.embedding_provider.embed(memory.content)
-        return self.store.insert_memory(
-            memory, embedding, self.embedding_provider.embedding_profile
+        chunk_embeddings = self._chunk_embed_pairs(memory.content)
+        first_embedding = chunk_embeddings[0][1]
+        inserted = self.store.insert_memory(
+            memory, first_embedding, self.embedding_provider.embedding_profile
         )
+        self.store.replace_memory_chunks(
+            memory_id=inserted.id,
+            embedding_profile=self.embedding_provider.embedding_profile,
+            chunk_embeddings=chunk_embeddings,
+        )
+        return inserted
 
     def search_user_memories(
         self,
@@ -91,7 +114,12 @@ class RecalliumCore:
         limit: int = 10,
         include_archived: bool = False,
     ) -> list[SearchResult]:
-        candidates = self.store.list_candidates(
+        self._ensure_scope_embeddings_ready(
+            space=SPACE_USER,
+            include_archived=include_archived,
+            status_path="/v1/embedding/jobs",
+        )
+        candidates = self.store.list_chunk_candidates(
             space=SPACE_USER,
             embedding_profile=self.embedding_provider.embedding_profile,
             include_archived=include_archived,
@@ -116,7 +144,13 @@ class RecalliumCore:
         if workspace_uid is None:
             raise ValidationError("workspace_uid is required for workspace search")
 
-        candidates = self.store.list_candidates(
+        self._ensure_scope_embeddings_ready(
+            space=SPACE_WORKSPACE,
+            workspace_uid=workspace_uid,
+            include_archived=include_archived,
+            status_path="/v1/embedding/jobs",
+        )
+        candidates = self.store.list_chunk_candidates(
             space=SPACE_WORKSPACE,
             workspace_uid=workspace_uid,
             embedding_profile=self.embedding_provider.embedding_profile,
@@ -192,10 +226,216 @@ class RecalliumCore:
             raise ValidationError("at least one update field is required")
         content_update = validated.get("content")
         if isinstance(content_update, str):
-            validated["embedding"] = self.embedding_provider.embed(content_update)
+            chunk_embeddings = self._chunk_embed_pairs(content_update)
+            validated["embedding"] = chunk_embeddings[0][1]
             validated["embedding_profile"] = self.embedding_provider.embedding_profile
+            updated_memory = self.store.update_memory(memory_id, **validated)
+            self.store.replace_memory_chunks(
+                memory_id=memory_id,
+                embedding_profile=self.embedding_provider.embedding_profile,
+                chunk_embeddings=chunk_embeddings,
+            )
+            return updated_memory
 
         return self.store.update_memory(memory_id, **validated)
 
     def archive_memory(self, memory_id: str) -> Memory:
         return self.store.archive_memory(memory_id)
+
+    def get_embedding_job(self, job_id: str) -> dict[str, Any]:
+        return self.store.get_embedding_job(job_id)
+
+    def list_embedding_jobs(
+        self, *, state: str | None = None, limit: int | None = None
+    ) -> list[dict[str, Any]]:
+        return self.store.list_embedding_jobs(state=state, limit=validate_limit(limit))
+
+    def active_embedding_status(self) -> dict[str, Any]:
+        startup_status_path = None
+        if self._startup_reembedding_job_id is not None:
+            startup_status_path = (
+                f"/v1/embedding/jobs/{self._startup_reembedding_job_id}"
+            )
+        profile = self.embedding_provider.embedding_profile
+        runtime_threads = getattr(self.embedding_provider, "runtime_threads", None)
+
+        return {
+            "embedding_profile": profile,
+            "provider_status": "configured",
+            "model_status": "managed_by_fastembed_cache",
+            "runtime": {
+                "name": "fastembed",
+                "threads": runtime_threads,
+                "parallel": None,
+            },
+            "startup_reembedding_job_id": self._startup_reembedding_job_id,
+            "startup_reembedding_status_path": startup_status_path,
+            "embedding_jobs_status_path": "/v1/embedding/jobs",
+            "recent_embedding_jobs": self.list_embedding_jobs(limit=5),
+        }
+
+    def ensure_embedding_ready(self, *, timeout_seconds: float = 60.0) -> None:
+        provider_ready = getattr(self.embedding_provider, "ensure_ready", None)
+        if callable(provider_ready):
+            provider_ready(timeout_seconds=timeout_seconds)
+            return
+
+        vector = self.embedding_provider.embed("healthcheck")
+        dimensions = self.embedding_provider.embedding_profile.get("dimensions")
+        if not isinstance(dimensions, int) or isinstance(dimensions, bool):
+            raise EmbeddingGenerationError(
+                "embedding profile must define an integer dimensions value"
+            )
+        if len(vector) != dimensions:
+            raise EmbeddingDimensionMismatchError(
+                f"unexpected embedding dimension: expected {dimensions}, got {len(vector)}"
+            )
+
+    def _chunk_embed_pairs(self, text: str) -> list[tuple[ContentChunk, list[float]]]:
+        chunks = chunk_text_for_profile(text, self.embedding_provider.embedding_profile)
+        return [(chunk, self.embedding_provider.embed(chunk.text)) for chunk in chunks]
+
+    def _ensure_scope_embeddings_ready(
+        self,
+        *,
+        space: str,
+        workspace_uid: str | None = None,
+        include_archived: bool = False,
+        status_path: str,
+    ) -> None:
+        stale_count = self.store.count_memories_needing_profile_reembedding(
+            embedding_profile=self.embedding_provider.embedding_profile,
+            space=space,
+            workspace_uid=workspace_uid,
+            include_archived=include_archived,
+        )
+        if stale_count == 0:
+            return
+
+        if stale_count <= self.immediate_reembedding_threshold:
+            job_result = self._reembed_stale_memories(
+                reason="search",
+                space=space,
+                workspace_uid=workspace_uid,
+                include_archived=include_archived,
+                fail_on_error=True,
+            )
+            if job_result is not None and job_result[1]:
+                job_id = job_result[0]
+                raise ReembeddingFailedError(
+                    "runtime re-embedding failed; search results are blocked until refresh succeeds",
+                    job_id=job_id,
+                    status_path=f"{status_path}/{job_id}",
+                )
+            return
+
+        job_id = self._create_job_for_deferred_reembedding(
+            reason="search-threshold",
+            stale_count=stale_count,
+        )
+        raise ReembeddingInProgressError(
+            "re-embedding is in progress for the active profile",
+            job_id=job_id,
+            status_path=f"{status_path}/{job_id}",
+        )
+
+    def _create_job_for_deferred_reembedding(
+        self, *, reason: str, stale_count: int
+    ) -> str:
+        now = utc_now_iso()
+        job_id = str(uuid4())
+        self.store.create_embedding_job(
+            job_id=job_id,
+            state="in_progress",
+            total_count=stale_count,
+            processed_count=0,
+            succeeded_count=0,
+            failed_count=0,
+            provider=str(self.embedding_provider.embedding_profile["provider"]),
+            model=str(self.embedding_provider.embedding_profile["model"]),
+            embedding_profile=self.embedding_provider.embedding_profile,
+            error_message=(
+                f"deferred by {reason}: {stale_count} memories exceed immediate threshold"
+            ),
+            started_at=now,
+            completed_at=None,
+        )
+        return job_id
+
+    def _reembed_stale_memories(
+        self,
+        *,
+        reason: str,
+        space: str | None = None,
+        workspace_uid: str | None = None,
+        include_archived: bool = False,
+        fail_on_error: bool = False,
+    ) -> tuple[str, bool] | None:
+        stale_memories = self.store.list_memories_needing_profile_reembedding(
+            embedding_profile=self.embedding_provider.embedding_profile,
+            space=space,
+            workspace_uid=workspace_uid,
+            include_archived=include_archived,
+        )
+        if not stale_memories:
+            return None
+
+        now = utc_now_iso()
+        job_id = str(uuid4())
+        self.store.create_embedding_job(
+            job_id=job_id,
+            state="in_progress",
+            total_count=len(stale_memories),
+            processed_count=0,
+            succeeded_count=0,
+            failed_count=0,
+            provider=str(self.embedding_provider.embedding_profile["provider"]),
+            model=str(self.embedding_provider.embedding_profile["model"]),
+            embedding_profile=self.embedding_provider.embedding_profile,
+            error_message=f"triggered by {reason}",
+            started_at=now,
+            completed_at=None,
+        )
+
+        processed = 0
+        succeeded = 0
+        failed = 0
+        failure_message: str | None = None
+
+        for memory in stale_memories:
+            processed += 1
+            try:
+                chunk_embeddings = self._chunk_embed_pairs(memory.content)
+                self.store.refresh_memory_embedding_derived_fields(
+                    memory.id,
+                    embedding=chunk_embeddings[0][1],
+                    embedding_profile=self.embedding_provider.embedding_profile,
+                )
+                self.store.replace_memory_chunks(
+                    memory_id=memory.id,
+                    embedding_profile=self.embedding_provider.embedding_profile,
+                    chunk_embeddings=chunk_embeddings,
+                )
+                succeeded += 1
+            except Exception as exc:
+                failed += 1
+                failure_message = str(exc)
+
+            self.store.update_embedding_job(
+                job_id,
+                processed_count=processed,
+                succeeded_count=succeeded,
+                failed_count=failed,
+            )
+
+            if fail_on_error and failed > 0:
+                break
+
+        completed_at = utc_now_iso()
+        self.store.update_embedding_job(
+            job_id,
+            state="completed" if failed == 0 else "failed",
+            error_message=failure_message,
+            completed_at=completed_at,
+        )
+        return (job_id, failed > 0)

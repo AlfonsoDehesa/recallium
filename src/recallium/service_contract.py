@@ -22,6 +22,9 @@ OPERATION_MEMORIES_UPDATE = "memories.update"
 OPERATION_MEMORIES_ARCHIVE = "memories.archive"
 OPERATION_MEMORIES_LIST = "memories.list"
 OPERATION_MEMORIES_GET = "memories.get"
+OPERATION_EMBEDDING_STATUS = "embedding.status"
+OPERATION_EMBEDDING_JOBS_LIST = "embedding.jobs.list"
+OPERATION_EMBEDDING_JOBS_GET = "embedding.jobs.get"
 
 SERVICE_CAPABILITIES = (
     OPERATION_HEALTH_READ,
@@ -34,6 +37,9 @@ SERVICE_CAPABILITIES = (
     OPERATION_MEMORIES_ARCHIVE,
     OPERATION_MEMORIES_LIST,
     OPERATION_MEMORIES_GET,
+    OPERATION_EMBEDDING_STATUS,
+    OPERATION_EMBEDDING_JOBS_LIST,
+    OPERATION_EMBEDDING_JOBS_GET,
 )
 
 
@@ -51,6 +57,18 @@ def serialize_memories(memories: list[Memory]) -> list[dict[str, Any]]:
 
 def serialize_search_results(results: list[SearchResult]) -> list[dict[str, Any]]:
     return [serialize_search_result(result) for result in results]
+
+
+def serialize_embedding_status(status: dict[str, Any]) -> dict[str, Any]:
+    return status
+
+
+def serialize_embedding_job(job: dict[str, Any]) -> dict[str, Any]:
+    return job
+
+
+def serialize_embedding_jobs(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [serialize_embedding_job(job) for job in jobs]
 
 
 def success_payload(data: Any) -> dict[str, Any]:

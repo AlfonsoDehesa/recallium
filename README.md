@@ -8,6 +8,7 @@ This MVP provides:
 - Explicit user and workspace memory scopes.
 - Create, search, list, retrieve, update, and archive operations.
 - A JSON CLI and Python API for local development.
+- Smart local embeddings with built-in FastEmbed using `jinaai/jina-embeddings-v2-small-en`.
 
 ## Current boundaries (what this repo does not include yet)
 
@@ -22,8 +23,16 @@ This MVP does not include:
 ## Local-first behavior
 
 - Recallium Core runs fully local.
-- No network calls are required for memory operations.
+- First-time model cache download may require network access to fetch `jinaai/jina-embeddings-v2-small-en`.
 - Data is stored in a local SQLite file.
+
+## Smart embedding behavior
+
+- Recallium uses one production embedding path: built-in local FastEmbed.
+- Active profile: `provider=builtin-fastembed`, `model=jinaai/jina-embeddings-v2-small-en`.
+- Long memory content is chunked per model profile before embedding.
+- On startup and during search, stale profile embeddings are refreshed and tracked as embedding jobs.
+- Use CLI and local service status endpoints to inspect profile state and job progress.
 
 ## Install for development
 
@@ -95,6 +104,24 @@ paths as workspace identity.
 
 All successful CLI commands return JSON.
 
+Check embedding profile status:
+
+```bash
+recallium --db /tmp/recallium.db embedding-status
+```
+
+List embedding jobs:
+
+```bash
+recallium --db /tmp/recallium.db embedding-jobs
+```
+
+Get one embedding job:
+
+```bash
+recallium --db /tmp/recallium.db embedding-jobs --job-id <job-id>
+```
+
 ## Python API examples
 
 ```python
@@ -114,6 +141,8 @@ print(created.id)
 print(results[0].score if results else None)
 ```
 
-## Semantic search limitation in this MVP
+## Local service status routes
 
-Semantic search is deterministic and local, based on lightweight token normalization and hashing for testable behavior. It is useful for MVP validation, but it is not a production-grade embedding model.
+- `GET /v1/embedding/status`
+- `GET /v1/embedding/jobs`
+- `GET /v1/embedding/jobs/{job_id}`

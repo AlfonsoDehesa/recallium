@@ -13,7 +13,17 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from recallium.core import RecalliumCore
-from recallium.errors import NotFoundError, ValidationError
+from recallium.errors import (
+    EmbeddingDimensionMismatchError,
+    EmbeddingGenerationError,
+    EmbeddingModelUnavailableError,
+    EmbeddingProviderUnavailableError,
+    EmbeddingReadinessTimeoutError,
+    NotFoundError,
+    ReembeddingFailedError,
+    ReembeddingInProgressError,
+    ValidationError,
+)
 from recallium.service_contract import (
     SERVICE_API_PREFIX,
     SERVICE_DEFAULT_HOST,
@@ -21,6 +31,9 @@ from recallium.service_contract import (
     capabilities_payload,
     error_payload,
     health_payload,
+    serialize_embedding_job,
+    serialize_embedding_jobs,
+    serialize_embedding_status,
     serialize_memories,
     serialize_memory,
     serialize_search_results,
@@ -32,6 +45,41 @@ from recallium.service_contract import (
 _BOUNDARY_ERROR_MAP: tuple[tuple[type[Exception], HTTPStatus, str], ...] = (
     (ValidationError, HTTPStatus.BAD_REQUEST, "validation_error"),
     (NotFoundError, HTTPStatus.NOT_FOUND, "not_found"),
+    (
+        EmbeddingReadinessTimeoutError,
+        HTTPStatus.SERVICE_UNAVAILABLE,
+        "embedding_readiness_timeout",
+    ),
+    (
+        EmbeddingProviderUnavailableError,
+        HTTPStatus.SERVICE_UNAVAILABLE,
+        "embedding_provider_unavailable",
+    ),
+    (
+        EmbeddingModelUnavailableError,
+        HTTPStatus.SERVICE_UNAVAILABLE,
+        "embedding_model_unavailable",
+    ),
+    (
+        EmbeddingDimensionMismatchError,
+        HTTPStatus.INTERNAL_SERVER_ERROR,
+        "embedding_profile_mismatch",
+    ),
+    (
+        EmbeddingGenerationError,
+        HTTPStatus.INTERNAL_SERVER_ERROR,
+        "embedding_generation_failed",
+    ),
+    (
+        ReembeddingInProgressError,
+        HTTPStatus.CONFLICT,
+        "reembedding_in_progress",
+    ),
+    (
+        ReembeddingFailedError,
+        HTTPStatus.SERVICE_UNAVAILABLE,
+        "reembedding_failed",
+    ),
     (json.JSONDecodeError, HTTPStatus.BAD_REQUEST, "invalid_json"),
 )
 
@@ -82,6 +130,18 @@ def _map_boundary_error(exc: Exception) -> tuple[HTTPStatus, dict[str, Any]]:
         if isinstance(exc, error_type):
             if isinstance(exc, json.JSONDecodeError):
                 return status, error_payload(code, f"invalid JSON: {exc.msg}")
+            if isinstance(exc, ReembeddingInProgressError | ReembeddingFailedError):
+                return (
+                    status,
+                    error_payload(
+                        code,
+                        str(exc),
+                        details={
+                            "job_id": exc.job_id,
+                            "status_path": exc.status_path,
+                        },
+                    ),
+                )
             return status, error_payload(code, str(exc))
     return (
         HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -196,6 +256,27 @@ def create_app(core: RecalliumCore) -> FastAPI:
             include_archived=body.include_archived,
         )
         return success_payload(serialize_search_results(results))
+
+    @app.get(f"{SERVICE_API_PREFIX}/embedding/status", tags=["embedding"])
+    def embedding_status() -> dict[str, Any]:
+        status = core.active_embedding_status()
+        return success_payload(serialize_embedding_status(status))
+
+    @app.get(f"{SERVICE_API_PREFIX}/embedding/jobs", tags=["embedding"])
+    def list_embedding_jobs(
+        state: str | None = None,
+        limit: str | None = None,
+    ) -> dict[str, Any]:
+        jobs = core.list_embedding_jobs(
+            state=state,
+            limit=_parse_optional_positive_int(limit, field_name="limit"),
+        )
+        return success_payload(serialize_embedding_jobs(jobs))
+
+    @app.get(f"{SERVICE_API_PREFIX}/embedding/jobs/{{job_id}}", tags=["embedding"])
+    def get_embedding_job(job_id: str) -> dict[str, Any]:
+        job = core.get_embedding_job(job_id)
+        return success_payload(serialize_embedding_job(job))
 
     @app.post(f"{SERVICE_API_PREFIX}/memories", tags=["memories"])
     def add_memory(body: AddMemoryRequest) -> dict[str, Any]:
