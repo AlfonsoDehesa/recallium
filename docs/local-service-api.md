@@ -522,7 +522,7 @@ Example response:
 - Method and path: `GET /v1/embedding/jobs`
 - Purpose: list embedding jobs for model readiness or stale-profile re-embedding.
 - Optional query params:
-  - `state` (string)
+  - `state` (string, commonly `pending`, `in_progress`, `completed`, or `failed`)
   - `limit` (positive integer)
 - Side effects: none.
 - Successful response: HTTP `200` with a `data` list ordered by most recent first.
@@ -563,6 +563,7 @@ Example response:
 
 - Method and path: `GET /v1/embedding/jobs/{job_id}`
 - Purpose: fetch one embedding job by ID.
+- Job states: deferred work can appear as `pending` briefly before the in-process worker starts it, `in_progress` while memories are being refreshed, `completed` when all stale memories succeeded, or `failed` when one or more memories could not be re-embedded.
 - Path params:
   - `job_id` (string)
 - Side effects: none.

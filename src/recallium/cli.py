@@ -282,7 +282,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     embedding_jobs_parser.add_argument(
         "--state",
-        help="Optional list filter by job state, such as in_progress, completed, or failed.",
+        help="Optional list filter by job state, such as pending, in_progress, completed, or failed.",
     )
     embedding_jobs_parser.add_argument(
         "--limit",

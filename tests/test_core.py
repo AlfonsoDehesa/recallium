@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 import sqlite3
+import threading
 
 import pytest
 
@@ -12,6 +13,65 @@ from recallium.errors import (
     ValidationError,
 )
 from recallium.models import SPACE_USER, SPACE_WORKSPACE, STATUS_ARCHIVED
+
+
+class FakeEmbeddingProvider:
+    def __init__(self) -> None:
+        self.embedding_profile = {
+            "provider": "fake",
+            "model": "fake-model",
+            "dimensions": 3,
+            "version": "1",
+            "profile": "fake-profile-v1",
+            "max_tokens": 16,
+            "chunk_tokens": 4,
+            "chunk_overlap_tokens": 0,
+            "query_prompt_policy": "raw",
+        }
+
+    def embed(self, text: str) -> list[float]:
+        size = float(len(text))
+        first = float(ord(text[0])) if text else 0.0
+        return [size, first, 1.0]
+
+    def similarity(self, first: list[float], second: list[float]) -> float:
+        return sum(a * b for a, b in zip(first, second, strict=True))
+
+
+class BlockingFakeEmbeddingProvider(FakeEmbeddingProvider):
+    def __init__(self) -> None:
+        super().__init__()
+        self.block_texts: set[str] = set()
+        self.started = threading.Event()
+        self.release = threading.Event()
+        self.fail_texts: set[str] = set()
+
+    def embed(self, text: str) -> list[float]:
+        if text in self.block_texts:
+            self.started.set()
+            if not self.release.wait(5):
+                raise RuntimeError("timed out waiting to unblock fake embedding")
+        if text in self.fail_texts:
+            raise RuntimeError(f"forced embedding failure for {text}")
+        return super().embed(text)
+
+
+def make_memories_stale(
+    db_path: Path,
+    memory_ids: list[str],
+    active_profile: dict[str, object],
+) -> None:
+    stale_profile = {
+        **active_profile,
+        "profile": "stale-profile",
+    }
+    stale_json = json.dumps(stale_profile, sort_keys=True)
+    placeholders = ", ".join("?" for _ in memory_ids)
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            f"UPDATE memories SET embedding_profile_json = ? WHERE id IN ({placeholders})",
+            [stale_json, *memory_ids],
+        )
 
 
 def test_core_user_memory_flow_add_get_search_list_update_archive(
@@ -266,8 +326,198 @@ def test_search_raises_retryable_error_when_stale_count_exceeds_threshold(
     assert error.status_path.endswith(error.job_id)
 
     job = core.get_embedding_job(error.job_id)
-    assert job["state"] == "in_progress"
+    assert job["state"] in {"pending", "in_progress", "completed"}
     assert job["total_count"] == 2
+
+
+def test_deferred_reembedding_worker_completes_and_preserves_memory_fields(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "deferred-worker.db"
+    provider = BlockingFakeEmbeddingProvider()
+    core = RecalliumCore(
+        db_path=db_path,
+        embedding_provider=provider,
+        immediate_reembedding_threshold=0,
+    )
+    first = core.add_memory(
+        space=SPACE_USER,
+        type="fact",
+        content="alpha one",
+        metadata={"kept": True},
+        source="user",
+        confidence=0.8,
+        sensitivity="normal",
+    )
+    second = core.add_memory(space=SPACE_USER, type="fact", content="beta two")
+    make_memories_stale(
+        db_path,
+        [first.id, second.id],
+        provider.embedding_profile,
+    )
+    provider.block_texts.add(first.content)
+
+    with pytest.raises(ReembeddingInProgressError) as exc_info:
+        core.search_user_memories("alpha")
+
+    job_id = exc_info.value.job_id
+    assert exc_info.value.status_path.endswith(job_id)
+    assert provider.started.wait(5)
+
+    with pytest.raises(ReembeddingInProgressError) as duplicate_exc_info:
+        core.search_user_memories("alpha")
+    assert duplicate_exc_info.value.job_id == job_id
+
+    listed = core.list_memories(space=SPACE_USER)
+    assert {memory.id for memory in listed} == {first.id, second.id}
+    fetched_during_work = core.get_memory(first.id)
+    assert fetched_during_work.content == first.content
+
+    provider.release.set()
+    core._join_embedding_job(job_id)
+
+    job = core.get_embedding_job(job_id)
+    assert job["state"] == "completed"
+    assert job["processed_count"] == 2
+    assert job["succeeded_count"] == 2
+    assert job["failed_count"] == 0
+    assert job["started_at"] is not None
+    assert job["completed_at"] is not None
+
+    after = core.get_memory(first.id)
+    assert after.content == first.content
+    assert after.status == first.status
+    assert after.space == first.space
+    assert after.workspace_uid == first.workspace_uid
+    assert after.type == first.type
+    assert after.source == first.source
+    assert after.confidence == first.confidence
+    assert after.sensitivity == first.sensitivity
+    assert after.metadata == first.metadata
+    assert after.created_at == first.created_at
+    assert after.updated_at == first.updated_at
+
+    stale_count = core.store.count_memories_needing_profile_reembedding(
+        embedding_profile=provider.embedding_profile,
+        space=SPACE_USER,
+    )
+    assert stale_count == 0
+    with sqlite3.connect(db_path) as connection:
+        chunk_count = connection.execute(
+            "SELECT COUNT(*) FROM embedding_chunks WHERE memory_id = ?",
+            (first.id,),
+        ).fetchone()[0]
+    assert chunk_count >= 1
+    results = core.search_user_memories("alpha")
+    assert [result.memory.id for result in results]
+
+
+def test_deferred_reembedding_worker_reports_failures(tmp_path: Path) -> None:
+    db_path = tmp_path / "deferred-failure.db"
+    provider = BlockingFakeEmbeddingProvider()
+    core = RecalliumCore(
+        db_path=db_path,
+        embedding_provider=provider,
+        immediate_reembedding_threshold=1,
+    )
+    first = core.add_memory(space=SPACE_USER, type="note", content="alpha one")
+    second = core.add_memory(space=SPACE_USER, type="note", content="beta two")
+    make_memories_stale(
+        db_path,
+        [first.id, second.id],
+        provider.embedding_profile,
+    )
+    provider.fail_texts.add(second.content)
+
+    with pytest.raises(ReembeddingInProgressError) as exc_info:
+        core.search_user_memories("alpha")
+
+    job_id = exc_info.value.job_id
+    core._join_embedding_job(job_id)
+
+    job = core.get_embedding_job(job_id)
+    assert job["state"] == "failed"
+    assert job["processed_count"] == 2
+    assert job["succeeded_count"] == 1
+    assert job["failed_count"] == 1
+    assert "forced embedding failure" in job["error_message"]
+
+    stale_count = core.store.count_memories_needing_profile_reembedding(
+        embedding_profile=provider.embedding_profile,
+        space=SPACE_USER,
+    )
+    assert stale_count == 1
+
+
+def test_deferred_reembedding_scope_safety_and_archived_exclusion(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "deferred-scope.db"
+    provider = BlockingFakeEmbeddingProvider()
+    core = RecalliumCore(
+        db_path=db_path,
+        embedding_provider=provider,
+        immediate_reembedding_threshold=0,
+    )
+    user_memory = core.add_memory(space=SPACE_USER, type="fact", content="user alpha")
+    workspace_a = core.add_memory(
+        space=SPACE_WORKSPACE,
+        type="task",
+        content="workspace alpha",
+        workspace_uid="workspace-a",
+    )
+    workspace_b = core.add_memory(
+        space=SPACE_WORKSPACE,
+        type="task",
+        content="workspace beta",
+        workspace_uid="workspace-b",
+    )
+    archived = core.add_memory(space=SPACE_USER, type="fact", content="archived alpha")
+    core.archive_memory(archived.id)
+    make_memories_stale(
+        db_path,
+        [user_memory.id, workspace_a.id, workspace_b.id, archived.id],
+        provider.embedding_profile,
+    )
+    provider.block_texts.add(workspace_a.content)
+
+    with pytest.raises(ReembeddingInProgressError) as exc_info:
+        core.search_workspace_memories("alpha", workspace_uid="workspace-a")
+
+    job_id = exc_info.value.job_id
+    assert provider.started.wait(5)
+    provider.release.set()
+    core._join_embedding_job(job_id)
+
+    job = core.get_embedding_job(job_id)
+    assert job["state"] == "completed"
+    assert job["total_count"] == 1
+    assert job["succeeded_count"] == 1
+
+    workspace_a_stale = core.store.count_memories_needing_profile_reembedding(
+        embedding_profile=provider.embedding_profile,
+        space=SPACE_WORKSPACE,
+        workspace_uid="workspace-a",
+    )
+    workspace_b_stale = core.store.count_memories_needing_profile_reembedding(
+        embedding_profile=provider.embedding_profile,
+        space=SPACE_WORKSPACE,
+        workspace_uid="workspace-b",
+    )
+    user_stale = core.store.count_memories_needing_profile_reembedding(
+        embedding_profile=provider.embedding_profile,
+        space=SPACE_USER,
+    )
+    assert workspace_a_stale == 0
+    assert workspace_b_stale == 1
+    assert user_stale == 1
+
+    with sqlite3.connect(db_path) as connection:
+        archived_profile_json = connection.execute(
+            "SELECT embedding_profile_json FROM memories WHERE id = ?",
+            (archived.id,),
+        ).fetchone()[0]
+    assert json.loads(archived_profile_json)["profile"] == "stale-profile"
 
 
 def test_reembedding_preserves_updated_at_for_startup_and_runtime(
