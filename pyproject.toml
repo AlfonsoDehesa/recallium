@@ -8,10 +8,14 @@ version = "0.1.0"
 description = "Recallium Core local memory engine"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "fastapi>=0.124",
+    "uvicorn>=0.38",
+]
 
 [dependency-groups]
 dev = [
+    "httpx>=0.28",
     "pytest>=8",
     "ruff>=0.5",
     "pyright>=1.1",

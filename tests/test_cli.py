@@ -52,6 +52,67 @@ def test_cli_help_documents_commands_and_flags(capsys) -> None:
     archive_help = _run_help(["archive", "--help"], capsys)
     assert "not hard-deleted" in archive_help
 
+    serve_help = _run_help(["serve", "--help"], capsys)
+    assert "blocking" in serve_help
+    assert "local-only" in serve_help
+    assert "127.0.0.1" in serve_help
+    assert "/v1" in serve_help
+    assert "--db" in serve_help
+    assert "database path" in serve_help
+    assert "--host" in serve_help
+    assert "--port" in serve_help
+
+
+def test_cli_serve_passes_flags_to_service_runner(tmp_path, monkeypatch) -> None:
+    db_path = tmp_path / "serve.db"
+    call: dict[str, object] = {}
+
+    def _fake_run_service(*, host: str, port: int, db_path: str | None) -> None:
+        call["host"] = host
+        call["port"] = port
+        call["db_path"] = db_path
+
+    monkeypatch.setattr("recallium.cli.run_service", _fake_run_service)
+
+    exit_code = main(
+        [
+            "--db",
+            str(db_path),
+            "serve",
+            "--host",
+            "127.0.0.2",
+            "--port",
+            "9001",
+        ]
+    )
+
+    assert exit_code == 0
+    assert call == {
+        "host": "127.0.0.2",
+        "port": 9001,
+        "db_path": str(db_path),
+    }
+
+
+def test_cli_serve_uses_default_host_and_port(monkeypatch) -> None:
+    call: dict[str, object] = {}
+
+    def _fake_run_service(*, host: str, port: int, db_path: str | None) -> None:
+        call["host"] = host
+        call["port"] = port
+        call["db_path"] = db_path
+
+    monkeypatch.setattr("recallium.cli.run_service", _fake_run_service)
+
+    exit_code = main(["serve"])
+
+    assert exit_code == 0
+    assert call == {
+        "host": "127.0.0.1",
+        "port": 8765,
+        "db_path": None,
+    }
+
 
 def test_cli_full_workflow(tmp_path, capsys) -> None:
     db_path = tmp_path / "cli.db"
