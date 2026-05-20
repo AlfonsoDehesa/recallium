@@ -51,6 +51,9 @@ def test_validate_memory_create_input_rejects_workspace_uid_for_user_memory() ->
 
 
 def test_validate_memory_create_input_rejects_invalid_fields() -> None:
+    with pytest.raises(ValidationError, match="space"):
+        validate_memory_create_input(space="team", memory_type="fact", content="hello")
+
     with pytest.raises(ValidationError, match="type"):
         validate_memory_create_input(space=SPACE_USER, memory_type="", content="hello")
 
@@ -71,6 +74,14 @@ def test_validate_memory_create_input_rejects_invalid_fields() -> None:
             memory_type="fact",
             content="hello",
             confidence=2,
+        )
+
+    with pytest.raises(ValidationError, match="confidence"):
+        validate_memory_create_input(
+            space=SPACE_USER,
+            memory_type="fact",
+            content="hello",
+            confidence="high",
         )
 
     with pytest.raises(ValidationError, match="confidence"):
@@ -133,6 +144,12 @@ def test_memory_serialization_round_trip_is_stable_and_json_compatible() -> None
 
 
 def test_memory_workspace_validation_applies_to_dataclass() -> None:
+    with pytest.raises(ValidationError, match="space"):
+        build_memory(space="team")
+
+    with pytest.raises(ValidationError, match="status"):
+        build_memory(status="deleted")
+
     with pytest.raises(ValidationError, match="workspace_uid"):
         build_memory(space=SPACE_WORKSPACE)
 
@@ -188,3 +205,9 @@ def test_search_result_rejects_invalid_values() -> None:
 
     with pytest.raises(ValidationError, match="rank"):
         SearchResult(memory=build_memory(), score=0.1, rank=0)
+
+    with pytest.raises(ValidationError, match="chunk_index"):
+        SearchResult(memory=build_memory(), score=0.1, rank=1, chunk_index=-1)
+
+    with pytest.raises(ValidationError, match="memory"):
+        SearchResult.from_dict({"memory": "not-an-object", "score": 0.1, "rank": 1})

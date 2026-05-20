@@ -4,9 +4,17 @@ import re
 from typing import Any
 
 from fastapi.testclient import TestClient
+import pytest
 
 from recallium.core import RecalliumCore
-from recallium.service import create_app
+from recallium.errors import ValidationError
+from recallium.service import (
+    _map_boundary_error,
+    _parse_optional_bool,
+    _parse_optional_positive_int,
+    create_app,
+    run_service,
+)
 from recallium.service_contract import (
     OPERATION_EMBEDDING_JOBS_GET,
     OPERATION_EMBEDDING_JOBS_LIST,
@@ -26,6 +34,9 @@ from recallium.service_contract import (
     capabilities_payload,
     error_payload,
     health_payload,
+    serialize_embedding_job,
+    serialize_embedding_jobs,
+    serialize_embedding_status,
     serialize_memories,
     serialize_memory,
     serialize_search_result,
@@ -111,6 +122,13 @@ def test_serializers_use_existing_models(tmp_path: Path) -> None:
 
     serialized_results = serialize_search_results(results)
     assert serialized_results == [result.to_dict() for result in results]
+
+    status = {"provider_status": "configured"}
+    assert serialize_embedding_status(status) is status
+
+    job = {"id": "job-1"}
+    assert serialize_embedding_job(job) is job
+    assert serialize_embedding_jobs([job]) == [job]
 
 
 def test_success_payload_wraps_data_without_mutation() -> None:
@@ -402,6 +420,41 @@ def test_http_memory_routes_delegate_to_core(tmp_path: Path) -> None:
         assert status == 200
         assert one_job["data"]["id"] == job_id
 
+    status, limited_jobs = _request_json(client, "GET", "/v1/embedding/jobs?limit=1")
+    assert status == 200
+    assert len(limited_jobs["data"]) <= 1
+
+
+def test_http_query_parsers_accept_valid_values_and_reject_bad_values() -> None:
+    assert _parse_optional_bool(None, field_name="include_archived") is None
+    assert _parse_optional_bool(" TRUE ", field_name="include_archived") is True
+    assert _parse_optional_bool("false", field_name="include_archived") is False
+
+    with pytest.raises(ValidationError, match="include_archived"):
+        _parse_optional_bool("yes", field_name="include_archived")
+
+    assert _parse_optional_positive_int(None, field_name="limit") is None
+    assert _parse_optional_positive_int("3", field_name="limit") == 3
+
+    with pytest.raises(ValidationError, match="positive integer"):
+        _parse_optional_positive_int("nope", field_name="limit")
+
+    with pytest.raises(ValidationError, match="positive integer"):
+        _parse_optional_positive_int("0", field_name="limit")
+
+
+def test_http_invalid_query_params_return_validation_errors(tmp_path: Path) -> None:
+    core = RecalliumCore(db_path=tmp_path / "service-query-validation.db")
+    client = _client(core)
+
+    status, payload = _request_json(client, "GET", "/v1/memories?include_archived=yes")
+    assert status == 400
+    assert payload["error"]["code"] == "validation_error"
+
+    status, payload = _request_json(client, "GET", "/v1/embedding/jobs?limit=0")
+    assert status == 400
+    assert payload["error"]["code"] == "validation_error"
+
 
 def test_http_workspace_search_requires_workspace_uid(tmp_path: Path) -> None:
     core = RecalliumCore(db_path=tmp_path / "service-workspace-validation.db")
@@ -426,6 +479,27 @@ def test_http_unknown_route_returns_unsupported_operation(tmp_path: Path) -> Non
     assert payload["error"]["code"] == "unsupported_operation"
 
 
+def test_http_exception_handler_preserves_other_http_errors(tmp_path: Path) -> None:
+    core = RecalliumCore(db_path=tmp_path / "service-http-error.db")
+    app = create_app(core)
+
+    from fastapi import HTTPException
+
+    @app.get("/boom")
+    def boom() -> None:
+        raise HTTPException(status_code=418, detail="short and stout")
+
+    client = TestClient(app, raise_server_exceptions=False)
+
+    response = client.get("/boom")
+    assert response.status_code == 418
+    assert response.json()["error"] == {
+        "code": "http_error",
+        "message": "short and stout",
+        "details": {},
+    }
+
+
 def test_http_get_missing_memory_returns_not_found(tmp_path: Path) -> None:
     core = RecalliumCore(db_path=tmp_path / "service-missing-memory.db")
     client = _client(core)
@@ -433,6 +507,37 @@ def test_http_get_missing_memory_returns_not_found(tmp_path: Path) -> None:
     status, payload = _request_json(client, "GET", "/v1/memories/missing-id")
     assert status == 404
     assert payload["error"]["code"] == "not_found"
+
+
+def test_http_get_missing_embedding_job_returns_not_found(tmp_path: Path) -> None:
+    core = RecalliumCore(db_path=tmp_path / "service-missing-job.db")
+    client = _client(core)
+
+    status, payload = _request_json(client, "GET", "/v1/embedding/jobs/missing-job")
+
+    assert status == 404
+    assert payload["error"]["code"] == "not_found"
+
+
+def test_http_get_embedding_job_returns_existing_job(tmp_path: Path) -> None:
+    core = RecalliumCore(db_path=tmp_path / "service-existing-job.db")
+    job = core.store.create_embedding_job(
+        job_id="job-1",
+        state="completed",
+        total_count=1,
+        processed_count=1,
+        succeeded_count=1,
+        failed_count=0,
+        provider="test",
+        model="fake",
+        embedding_profile={"provider": "test", "model": "fake", "dimensions": 3},
+    )
+    client = _client(core)
+
+    status, payload = _request_json(client, "GET", f"/v1/embedding/jobs/{job['id']}")
+
+    assert status == 200
+    assert payload["data"]["id"] == "job-1"
 
 
 def test_http_invalid_json_returns_invalid_json_error(tmp_path: Path) -> None:
@@ -572,3 +677,46 @@ def test_http_embedding_errors_map_to_stable_boundary_codes(tmp_path: Path) -> N
                 }
     finally:
         core.search_user_memories = original
+
+
+def test_boundary_error_maps_json_decode_error_message() -> None:
+    error = json.JSONDecodeError("missing value", "{", 1)
+
+    status, payload = _map_boundary_error(error)
+
+    assert status == 400
+    assert payload["error"]["code"] == "invalid_json"
+    assert payload["error"]["message"] == "invalid JSON: missing value"
+
+
+def test_run_service_builds_core_and_starts_uvicorn(monkeypatch) -> None:
+    calls: dict[str, object] = {}
+
+    class FakeCore:
+        def __init__(self, *, db_path: str | None) -> None:
+            calls["db_path"] = db_path
+
+    def fake_create_app(core: object) -> str:
+        calls["core"] = core
+        return "fake-app"
+
+    def fake_run(app: object, *, host: str, port: int, log_level: str) -> None:
+        calls["app"] = app
+        calls["host"] = host
+        calls["port"] = port
+        calls["log_level"] = log_level
+
+    monkeypatch.setattr("recallium.service.RecalliumCore", FakeCore)
+    monkeypatch.setattr("recallium.service.create_app", fake_create_app)
+
+    import uvicorn
+
+    monkeypatch.setattr(uvicorn, "run", fake_run)
+
+    run_service(host="127.0.0.2", port=9002, db_path="service.db")
+
+    assert calls["db_path"] == "service.db"
+    assert calls["app"] == "fake-app"
+    assert calls["host"] == "127.0.0.2"
+    assert calls["port"] == 9002
+    assert calls["log_level"] == "info"
