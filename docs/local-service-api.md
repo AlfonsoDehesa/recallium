@@ -1,6 +1,6 @@
 # Recallium Core Local Service API
 
-This document describes the currently implemented local HTTP JSON service in `src/recallium/service.py`.
+This document describes the currently implemented FastAPI local HTTP JSON service in `src/recallium/service.py`.
 
 ## Local access and security assumptions
 

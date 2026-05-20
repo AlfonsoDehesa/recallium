@@ -2,43 +2,26 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Recallium Core Local Service API",
-    "version": "1",
-    "description": "Local-only HTTP JSON service contract for Recallium Core. This slice is localhost-first and intentionally has no authentication. Do not expose this service publicly."
+    "description": "Local-only HTTP JSON service contract for Recallium Core. This slice is localhost-first and intentionally has no authentication. Do not expose this service publicly.",
+    "version": "1"
   },
-  "servers": [
-    {
-      "url": "http://127.0.0.1:8765",
-      "description": "Default local server"
-    }
-  ],
-  "security": [],
-  "tags": [
-    {
-      "name": "service",
-      "description": "Local service metadata endpoints"
-    },
-    {
-      "name": "memories",
-      "description": "Memory operations"
-    }
-  ],
   "paths": {
     "/v1/health": {
       "get": {
-        "tags": ["service"],
-        "summary": "Check service health",
+        "tags": [
+          "service"
+        ],
+        "summary": "Health",
+        "operationId": "health_v1_health_get",
         "responses": {
           "200": {
-            "description": "Service is reachable",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SuccessEnvelope"
-                },
-                "example": {
-                  "data": {
-                    "status": "ok"
-                  }
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Health V1 Health Get"
                 }
               }
             }
@@ -48,21 +31,20 @@
     },
     "/v1/version": {
       "get": {
-        "tags": ["service"],
-        "summary": "Read service and package version",
+        "tags": [
+          "service"
+        ],
+        "summary": "Version",
+        "operationId": "version_v1_version_get",
         "responses": {
           "200": {
-            "description": "Version metadata",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SuccessEnvelope"
-                },
-                "example": {
-                  "data": {
-                    "service_api_version": "1",
-                    "recallium_version": "0.x.y"
-                  }
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Version V1 Version Get"
                 }
               }
             }
@@ -72,15 +54,20 @@
     },
     "/v1/capabilities": {
       "get": {
-        "tags": ["service"],
-        "summary": "Read supported capabilities",
+        "tags": [
+          "service"
+        ],
+        "summary": "Capabilities",
+        "operationId": "capabilities_v1_capabilities_get",
         "responses": {
           "200": {
-            "description": "Capability list",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SuccessEnvelope"
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Capabilities V1 Capabilities Get"
                 }
               }
             }
@@ -90,189 +77,320 @@
     },
     "/v1/memories/search_user": {
       "post": {
-        "tags": ["memories"],
-        "summary": "Search user memories",
+        "tags": [
+          "memories"
+        ],
+        "summary": "Search User",
+        "operationId": "search_user_v1_memories_search_user_post",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "query": { "type": "string" },
-                  "limit": { "type": "integer", "minimum": 1, "default": 10 },
-                  "include_archived": { "type": "boolean", "default": false }
-                },
-                "required": ["query"]
+                "$ref": "#/components/schemas/SearchUserRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
-            "description": "Ranked search results",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SuccessEnvelope"
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Search User V1 Memories Search User Post"
                 }
               }
             }
           },
-          "400": {
-            "$ref": "#/components/responses/ErrorResponse"
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       }
     },
     "/v1/memories/search_workspace": {
       "post": {
-        "tags": ["memories"],
-        "summary": "Search workspace memories",
+        "tags": [
+          "memories"
+        ],
+        "summary": "Search Workspace",
+        "operationId": "search_workspace_v1_memories_search_workspace_post",
         "requestBody": {
-          "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "query": { "type": "string" },
-                  "workspace_uid": { "type": "string" },
-                  "limit": { "type": "integer", "minimum": 1, "default": 10 },
-                  "include_archived": { "type": "boolean", "default": false }
-                },
-                "required": ["query", "workspace_uid"]
+                "$ref": "#/components/schemas/SearchWorkspaceRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
-            "description": "Ranked workspace search results",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SuccessEnvelope"
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Search Workspace V1 Memories Search Workspace Post"
                 }
               }
             }
           },
-          "400": {
-            "$ref": "#/components/responses/ErrorResponse"
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       }
     },
     "/v1/memories": {
       "post": {
-        "tags": ["memories"],
-        "summary": "Add memory",
+        "tags": [
+          "memories"
+        ],
+        "summary": "Add Memory",
+        "operationId": "add_memory_v1_memories_post",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "space": { "type": "string", "enum": ["user", "workspace"] },
-                  "type": { "type": "string" },
-                  "content": { "type": "string" },
-                  "workspace_uid": { "type": "string" },
-                  "metadata": { "type": "object" },
-                  "source": { "type": "string" },
-                  "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
-                  "sensitivity": { "type": "string" }
-                },
-                "required": ["space", "type", "content"]
+                "$ref": "#/components/schemas/AddMemoryRequest"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Created memory",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SuccessEnvelope"
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Add Memory V1 Memories Post"
                 }
               }
             }
           },
-          "400": {
-            "$ref": "#/components/responses/ErrorResponse"
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       },
       "get": {
-        "tags": ["memories"],
-        "summary": "List memories",
+        "tags": [
+          "memories"
+        ],
+        "summary": "List Memories",
+        "operationId": "list_memories_v1_memories_get",
         "parameters": [
-          { "name": "space", "in": "query", "schema": { "type": "string" } },
-          { "name": "type", "in": "query", "schema": { "type": "string" } },
-          { "name": "status", "in": "query", "schema": { "type": "string" } },
-          { "name": "workspace_uid", "in": "query", "schema": { "type": "string" } },
+          {
+            "name": "space",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Space"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Type"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "workspace_uid",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace Uid"
+            }
+          },
           {
             "name": "include_archived",
             "in": "query",
-            "schema": { "type": "boolean", "default": false }
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Include Archived"
+            }
           },
-          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1 } }
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
+          }
         ],
         "responses": {
           "200": {
-            "description": "Filtered memory list",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SuccessEnvelope"
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response List Memories V1 Memories Get"
                 }
               }
             }
           },
-          "400": {
-            "$ref": "#/components/responses/ErrorResponse"
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       }
     },
     "/v1/memories/{memory_id}": {
       "get": {
-        "tags": ["memories"],
-        "summary": "Get one memory",
+        "tags": [
+          "memories"
+        ],
+        "summary": "Get Memory",
+        "operationId": "get_memory_v1_memories__memory_id__get",
         "parameters": [
           {
             "name": "memory_id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string",
+              "title": "Memory Id"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Memory payload",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SuccessEnvelope"
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Get Memory V1 Memories  Memory Id  Get"
                 }
               }
             }
           },
-          "404": {
-            "$ref": "#/components/responses/ErrorResponse"
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       },
       "patch": {
-        "tags": ["memories"],
-        "summary": "Update one memory",
+        "tags": [
+          "memories"
+        ],
+        "summary": "Update Memory",
+        "operationId": "update_memory_v1_memories__memory_id__patch",
         "parameters": [
           {
             "name": "memory_id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string",
+              "title": "Memory Id"
+            }
           }
         ],
         "requestBody": {
@@ -280,160 +398,347 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "content": { "type": "string" },
-                  "type": { "type": "string" },
-                  "metadata": { "type": "object" },
-                  "source": { "type": "string" },
-                  "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
-                  "sensitivity": { "type": "string" }
-                }
+                "$ref": "#/components/schemas/UpdateMemoryRequest"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Updated memory",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SuccessEnvelope"
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Update Memory V1 Memories  Memory Id  Patch"
                 }
               }
             }
           },
-          "400": {
-            "$ref": "#/components/responses/ErrorResponse"
-          },
-          "404": {
-            "$ref": "#/components/responses/ErrorResponse"
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       }
     },
     "/v1/memories/{memory_id}/archive": {
       "post": {
-        "tags": ["memories"],
-        "summary": "Archive one memory",
-        "description": "This endpoint is body-less in the current implementation.",
+        "tags": [
+          "memories"
+        ],
+        "summary": "Archive Memory",
+        "operationId": "archive_memory_v1_memories__memory_id__archive_post",
         "parameters": [
           {
             "name": "memory_id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string" }
+            "schema": {
+              "type": "string",
+              "title": "Memory Id"
+            }
           }
         ],
         "responses": {
           "200": {
-            "description": "Archived memory",
+            "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/SuccessEnvelope"
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Archive Memory V1 Memories  Memory Id  Archive Post"
                 }
               }
             }
           },
-          "404": {
-            "$ref": "#/components/responses/ErrorResponse"
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
         }
       }
     }
   },
   "components": {
-    "responses": {
-      "ErrorResponse": {
-        "description": "Error envelope",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "#/components/schemas/ErrorEnvelope"
-            }
-          }
-        }
-      }
-    },
     "schemas": {
-      "Memory": {
-        "type": "object",
+      "AddMemoryRequest": {
         "properties": {
-          "id": { "type": "string" },
-          "space": { "type": "string" },
-          "workspace_uid": { "type": ["string", "null"] },
-          "type": { "type": "string" },
-          "content": { "type": "string" },
-          "metadata": { "type": "object" },
-          "status": { "type": "string" },
-          "source": { "type": ["string", "null"] },
-          "confidence": { "type": ["number", "null"] },
-          "sensitivity": { "type": ["string", "null"] },
-          "created_at": { "type": "string" },
-          "updated_at": { "type": "string" },
-          "last_accessed_at": { "type": ["string", "null"] }
+          "space": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Space"
+          },
+          "type": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Type"
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Content"
+          },
+          "workspace_uid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Uid"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "sensitivity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sensitivity"
+          }
         },
+        "type": "object",
         "required": [
-          "id",
           "space",
-          "workspace_uid",
           "type",
-          "content",
-          "metadata",
-          "status",
-          "source",
-          "confidence",
-          "sensitivity",
-          "created_at",
-          "updated_at",
-          "last_accessed_at"
-        ]
+          "content"
+        ],
+        "title": "AddMemoryRequest"
       },
-      "SearchResult": {
-        "type": "object",
+      "HTTPValidationError": {
         "properties": {
-          "memory": { "$ref": "#/components/schemas/Memory" },
-          "score": { "type": "number" },
-          "rank": { "type": "integer", "minimum": 1 }
-        },
-        "required": ["memory", "score", "rank"]
-      },
-      "SuccessEnvelope": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "oneOf": [
-              { "$ref": "#/components/schemas/Memory" },
-              {
-                "type": "array",
-                "items": { "$ref": "#/components/schemas/Memory" }
-              },
-              {
-                "type": "array",
-                "items": { "$ref": "#/components/schemas/SearchResult" }
-              },
-              { "type": "object" }
-            ]
-          }
-        },
-        "required": ["data"]
-      },
-      "ErrorEnvelope": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "object",
-            "properties": {
-              "code": { "type": "string" },
-              "message": { "type": "string" },
-              "details": { "type": "object" }
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
             },
-            "required": ["code", "message", "details"]
+            "type": "array",
+            "title": "Detail"
           }
         },
-        "required": ["error"]
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "SearchUserRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Query"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 10
+          },
+          "include_archived": {
+            "type": "boolean",
+            "title": "Include Archived",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "SearchUserRequest"
+      },
+      "SearchWorkspaceRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Query"
+          },
+          "workspace_uid": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Workspace Uid"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 10
+          },
+          "include_archived": {
+            "type": "boolean",
+            "title": "Include Archived",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "workspace_uid"
+        ],
+        "title": "SearchWorkspaceRequest"
+      },
+      "UpdateMemoryRequest": {
+        "properties": {
+          "type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Type"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "metadata": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "confidence": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confidence"
+          },
+          "sensitivity": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sensitivity"
+          }
+        },
+        "type": "object",
+        "title": "UpdateMemoryRequest"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
       }
     }
   }
