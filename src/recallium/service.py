@@ -356,4 +356,5 @@ def run_service(
     import uvicorn
 
     core = RecalliumCore(db_path=db_path, config_path=config_path)
-    uvicorn.run(create_app(core), host=host, port=port, log_level="info")
+    log_level = core.config.effective_config["logging"]["level"]
+    uvicorn.run(create_app(core), host=host, port=port, log_level=log_level)

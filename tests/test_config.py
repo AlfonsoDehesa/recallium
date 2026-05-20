@@ -15,6 +15,7 @@ from recallium.config import (
     RecalliumConfig,
     _check_type,
     _deep_merge,
+    _ensure_config_directories,
     _resolve_xdg_dirs,
     _validate_config_value,
     _write_starter_config,
@@ -154,6 +155,18 @@ class TestValidateConfigValue:
         with pytest.raises(ValidationError, match="embedding.provider must be str"):
             _validate_config_value(data)
 
+    def test_unsupported_embedding_provider_raises(self) -> None:
+        data = deepcopy(DEFAULTS)
+        data["embedding"]["provider"] = "ollama"
+        with pytest.raises(ValidationError, match="embedding.provider only supports"):
+            _validate_config_value(data)
+
+    def test_unsupported_embedding_model_raises(self) -> None:
+        data = deepcopy(DEFAULTS)
+        data["embedding"]["model"] = "other-model"
+        with pytest.raises(ValidationError, match="embedding.model only supports"):
+            _validate_config_value(data)
+
     def test_invalid_service_port_range_raises(self) -> None:
         data = deepcopy(DEFAULTS)
         data["service"]["port"] = 99999
@@ -183,6 +196,18 @@ class TestValidateConfigValue:
         data["logging"] = {"level": 42}
         with pytest.raises(ValidationError, match="logging.level must be str"):
             _validate_config_value(data)
+
+    def test_unknown_logging_level_raises(self) -> None:
+        data = deepcopy(DEFAULTS)
+        data["logging"]["level"] = "verbose"
+        with pytest.raises(ValidationError, match="logging.level must be one of"):
+            _validate_config_value(data)
+
+    def test_logging_level_is_normalized(self) -> None:
+        data = deepcopy(DEFAULTS)
+        data["logging"]["level"] = "WARNING"
+        _validate_config_value(data)
+        assert data["logging"]["level"] == "warning"
 
     def test_invalid_directories_subkey_type_raises(self) -> None:
         data = deepcopy(DEFAULTS)
@@ -229,6 +254,24 @@ class TestWriteAndLoadConfigFile:
         _write_starter_config(config_path)
         stat = config_path.stat()
         assert stat.st_mode & 0o777 == 0o600
+        assert config_path.parent.stat().st_mode & 0o777 == 0o700
+
+    def test_ensure_config_directories_creates_private_dirs(
+        self, tmp_path: Path
+    ) -> None:
+        paths = {
+            "config": tmp_path / "config" / "recallium",
+            "data": tmp_path / "data" / "recallium",
+            "cache": tmp_path / "cache" / "recallium",
+            "logs": tmp_path / "state" / "recallium" / "logs",
+            "runtime": tmp_path / "runtime" / "recallium",
+        }
+
+        _ensure_config_directories(paths)
+
+        for directory in paths.values():
+            assert directory.is_dir()
+            assert directory.stat().st_mode & 0o777 == 0o700
 
     def test_load_config_file_reads_valid_json(self, tmp_path: Path) -> None:
         config_path = tmp_path / "config.json"
@@ -444,6 +487,45 @@ class TestRecalliumConfig:
         assert cfg.config_file_path == fake_config_dir / "config.json"
         assert cfg.config_file_path.exists()
         assert cfg.effective_config == DEFAULTS
+
+    def test_default_config_load_creates_all_xdg_directories(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        import recallium.config as config_mod
+
+        xdg_config = tmp_path / "config" / "recallium"
+        xdg_data = tmp_path / "data" / "recallium"
+        xdg_cache = tmp_path / "cache" / "recallium"
+        xdg_state = tmp_path / "state" / "recallium"
+        xdg_runtime = tmp_path / "runtime" / "recallium"
+
+        monkeypatch.setattr(
+            config_mod, "user_config_dir", lambda appname: str(xdg_config)
+        )
+        monkeypatch.setattr(config_mod, "user_data_dir", lambda appname: str(xdg_data))
+        monkeypatch.setattr(
+            config_mod, "user_cache_dir", lambda appname: str(xdg_cache)
+        )
+        monkeypatch.setattr(
+            config_mod, "user_state_dir", lambda appname: str(xdg_state)
+        )
+        monkeypatch.setattr(
+            config_mod, "user_runtime_dir", lambda appname: str(xdg_runtime)
+        )
+
+        cfg = RecalliumConfig()
+
+        expected_dirs = {
+            "config": xdg_config,
+            "data": xdg_data,
+            "cache": xdg_cache,
+            "logs": xdg_state / "logs",
+            "runtime": xdg_runtime,
+        }
+        assert cfg.xdg_dirs == expected_dirs
+        for directory in expected_dirs.values():
+            assert directory.is_dir()
+            assert directory.stat().st_mode & 0o777 == 0o700
 
     def test_runtime_dir_fallback_when_user_runtime_none(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path

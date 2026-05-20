@@ -27,6 +27,9 @@ from recallium.errors import ValidationError
 # ---------------------------------------------------------------------------
 
 CONFIG_VERSION = 1
+SUPPORTED_EMBEDDING_PROVIDER = "builtin-fastembed"
+SUPPORTED_EMBEDDING_MODEL = "jinaai/jina-embeddings-v2-small-en"
+SUPPORTED_LOGGING_LEVELS = {"debug", "info", "warning", "error"}
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -36,8 +39,8 @@ DEFAULTS: dict[str, Any] = {
     "version": CONFIG_VERSION,
     "database": {"path": "recallium.db"},
     "embedding": {
-        "provider": "builtin-fastembed",
-        "model": "jinaai/jina-embeddings-v2-small-en",
+        "provider": SUPPORTED_EMBEDDING_PROVIDER,
+        "model": SUPPORTED_EMBEDDING_MODEL,
     },
     "service": {"host": "127.0.0.1", "port": 8765},
     "logging": {"level": "info"},
@@ -107,6 +110,23 @@ def _validate_config_value(data: dict[str, Any], path: str = "") -> None:
     _validate_section(data, "embedding", {"provider": str, "model": str})
     _validate_section(data, "service", {"host": str, "port": int})
 
+    embedding = data.get("embedding", {})
+    if isinstance(embedding, dict):
+        provider = embedding.get("provider")
+        if isinstance(provider, str) and provider != SUPPORTED_EMBEDDING_PROVIDER:
+            raise ValidationError(
+                "embedding.provider only supports "
+                f"{SUPPORTED_EMBEDDING_PROVIDER!r} in this release "
+                f"(got {provider!r})"
+            )
+        model = embedding.get("model")
+        if isinstance(model, str) and model != SUPPORTED_EMBEDDING_MODEL:
+            raise ValidationError(
+                "embedding.model only supports "
+                f"{SUPPORTED_EMBEDDING_MODEL!r} in this release "
+                f"(got {model!r})"
+            )
+
     # Service port range
     service = data.get("service", {})
     if isinstance(service, dict):
@@ -117,6 +137,16 @@ def _validate_config_value(data: dict[str, Any], path: str = "") -> None:
             )
 
     _validate_section(data, "logging", {"level": str})
+    logging_config = data.get("logging", {})
+    if isinstance(logging_config, dict):
+        level = logging_config.get("level")
+        if isinstance(level, str) and level.lower() not in SUPPORTED_LOGGING_LEVELS:
+            levels = ", ".join(sorted(SUPPORTED_LOGGING_LEVELS))
+            raise ValidationError(
+                f"logging.level must be one of: {levels} (got {level!r})"
+            )
+        if isinstance(level, str):
+            logging_config["level"] = level.lower()
 
     # directories.* must be string or None
     directories = data.get("directories", {})
@@ -158,8 +188,16 @@ def _validate_section(
 def _write_starter_config(path: Path) -> None:
     """Create a starter config file at *path* with all defaults."""
     path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    path.parent.chmod(0o700)
     path.write_text(json.dumps(DEFAULTS, indent=2) + "\n", encoding="utf-8")
     path.chmod(0o600)
+
+
+def _ensure_config_directories(paths: dict[str, Path]) -> None:
+    """Create resolved config directories with private permissions."""
+    for path in paths.values():
+        path.mkdir(mode=0o700, parents=True, exist_ok=True)
+        path.chmod(0o700)
 
 
 def load_config_file(path: Path) -> dict[str, Any]:
@@ -265,13 +303,16 @@ class RecalliumConfig:
         # 7. Resolve XDG directories
         self._xdg_dirs = _resolve_xdg_dirs(merged.get("directories", {}))
 
-        # 8. Resolve database path
+        # 8. Ensure all required directories exist with private permissions
+        _ensure_config_directories(self._xdg_dirs)
+
+        # 9. Resolve database path
         db_path = Path(merged["database"]["path"])
         if not db_path.is_absolute():
             db_path = self._xdg_dirs["data"] / db_path
         self._resolved_db_path = db_path
 
-        # 9. Store final effective config
+        # 10. Store final effective config
         self._effective_config = merged
 
     # -- properties -----------------------------------------------------------

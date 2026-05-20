@@ -70,13 +70,37 @@ def _resolve_config_path(explicit_path: str | None) -> Path:
     return Path(user_config_dir("recallium")) / "config.json"
 
 
-def _handle_config_command(args: argparse.Namespace, config_path: Path) -> int:
+def _core_config_path(explicit_path: str | None) -> Path | None:
+    """Return only explicit config paths for core/service initialization."""
+    if explicit_path is None:
+        return None
+    return Path(explicit_path)
+
+
+def _load_effective_config(config_path: Path, *, explicit: bool) -> RecalliumConfig:
+    """Load effective config with first-run default creation semantics."""
+    if explicit:
+        return RecalliumConfig(config_path)
+    return RecalliumConfig()
+
+
+def _handle_config_command(
+    args: argparse.Namespace,
+    config_path: Path,
+    *,
+    explicit: bool,
+) -> int:
     """Handle the `recallium config` command and its subcommands."""
     if args.config_action == "get":
-        raw = load_config_file(config_path)
-        merged = RecalliumConfig(config_path).effective_config
         try:
-            value = get_config_value(merged, args.key)
+            cfg = _load_effective_config(config_path, explicit=explicit)
+            value = get_config_value(cfg.effective_config, args.key)
+        except FileNotFoundError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        except ValidationError as exc:
+            print(f"ValidationError: {exc}", file=sys.stderr)
+            return 2
         except KeyError as exc:
             print(f"key not found: {exc}", file=sys.stderr)
             return 1
@@ -123,7 +147,10 @@ def _handle_config_command(args: argparse.Namespace, config_path: Path) -> int:
 
     if args.validate:
         try:
-            validate_config_file(config_path)
+            if explicit:
+                validate_config_file(config_path)
+            else:
+                _load_effective_config(config_path, explicit=False)
         except ValidationError as exc:
             print(str(exc), file=sys.stderr)
             return 1
@@ -141,11 +168,15 @@ def _handle_config_command(args: argparse.Namespace, config_path: Path) -> int:
         return 0
 
     # No subcommand or flag: print effective config
-    if config_path.exists():
-        cfg = RecalliumConfig(config_path)
-        print(json.dumps(cfg.effective_config, indent=2, sort_keys=True))
-    else:
-        print(json.dumps(DEFAULTS, indent=2, sort_keys=True))
+    try:
+        cfg = _load_effective_config(config_path, explicit=explicit)
+    except FileNotFoundError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    except ValidationError as exc:
+        print(f"ValidationError: {exc}", file=sys.stderr)
+        return 2
+    print(json.dumps(cfg.effective_config, indent=2, sort_keys=True))
     return 0
 
 
@@ -165,7 +196,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--config",
         dest="config_path",
-        help="Path to Recallium JSON config file. Defaults to the XDG config location.",
+        help=(
+            "Path to Recallium JSON config file. Defaults to the XDG config "
+            "location and auto-creates there on first use. Explicit missing "
+            "paths fail except config creation commands."
+        ),
     )
     parser.add_argument(
         "--db",
@@ -201,12 +236,12 @@ def _build_parser() -> argparse.ArgumentParser:
     config_parser.add_argument(
         "--path",
         action="store_true",
-        help="Print the resolved config file path.",
+        help="Print the resolved config file path without creating a file.",
     )
     config_parser.add_argument(
         "--defaults",
         action="store_true",
-        help="Print built-in default values as formatted JSON.",
+        help="Print built-in default values as formatted JSON without creating a file.",
     )
 
     config_sub = config_parser.add_subparsers(
@@ -530,10 +565,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # Resolve config path
     config_path = _resolve_config_path(args.config_path)
+    core_config_path = _core_config_path(args.config_path)
 
     # -- config command ---------------------------------------------------
     if args.command == "config":
-        return _handle_config_command(args, config_path)
+        return _handle_config_command(
+            args,
+            config_path,
+            explicit=args.config_path is not None,
+        )
 
     # -- serve command ----------------------------------------------------
     if args.command == "serve":
@@ -542,9 +582,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         port = args.port
         if host is None or port is None:
             try:
-                cfg = RecalliumConfig(config_path)
-            except FileNotFoundError, ValidationError:
-                cfg = None
+                cfg = RecalliumConfig(core_config_path)
+            except FileNotFoundError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            except ValidationError as exc:
+                print(f"ValidationError: {exc}", file=sys.stderr)
+                return 2
             if host is None:
                 host = (
                     cfg.effective_config["service"]["host"]
@@ -557,7 +601,19 @@ def main(argv: Sequence[str] | None = None) -> int:
                     if cfg
                     else SERVICE_DEFAULT_PORT
                 )
-        run_service(host=host, port=port, db_path=args.db_path, config_path=config_path)
+        try:
+            run_service(
+                host=host,
+                port=port,
+                db_path=args.db_path,
+                config_path=core_config_path,
+            )
+        except FileNotFoundError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        except ValidationError as exc:
+            print(f"ValidationError: {exc}", file=sys.stderr)
+            return 2
         return 0
 
     # -- db-status command ------------------------------------------------
@@ -566,19 +622,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             db_path = Path(args.db_path)
         else:
             try:
-                cfg = RecalliumConfig(config_path)
+                cfg = RecalliumConfig(core_config_path)
                 db_path = cfg.resolved_database_path
-            except FileNotFoundError, ValidationError:
-                db_path = (
-                    Path.home() / ".local" / "share" / "recallium" / "recallium.db"
-                )
+            except FileNotFoundError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            except ValidationError as exc:
+                print(f"ValidationError: {exc}", file=sys.stderr)
+                return 2
         store = SQLiteMemoryStore(db_path)
         print(json.dumps(store.migration_status(), sort_keys=True))
         return 0
 
     # -- all other commands use RecalliumCore ------------------------------
     try:
-        core = RecalliumCore(db_path=args.db_path, config_path=config_path)
+        core = RecalliumCore(db_path=args.db_path, config_path=core_config_path)
 
         if args.command == "add":
             result = core.add_memory(
@@ -642,6 +700,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
     except NotFoundError as exc:
         print(f"NotFoundError: {exc}", file=sys.stderr)
+        return 1
+    except FileNotFoundError as exc:
+        print(str(exc), file=sys.stderr)
         return 1
     except RecalliumError as exc:
         print(f"{exc.__class__.__name__}: {exc}", file=sys.stderr)

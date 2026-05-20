@@ -68,14 +68,16 @@ uv run recallium --help
 
 Recallium uses a JSON config file located at `~/.config/recallium/config.json`
 by default. The file is auto-created with built-in defaults the first time you
-run any Recallium command. CLI flags override config values.
+run a command that loads the effective config. CLI flags override config values.
+Inspection-only commands `recallium config --path` and `recallium config --defaults`
+do not create a config file.
 
 ### Config file location
 
 | Situation | Path |
 |---|---|
 | Default (Linux XDG) | `~/.config/recallium/config.json` |
-| Custom via `--config` | Any path you specify |
+| Custom via `--config` | Any path you specify. Explicit missing paths fail clearly unless a config creation command is used. |
 
 The config directory (`~/.config/recallium/`) and file are created
 automatically with restrictive permissions (`0700` for directories, `0600` for
@@ -113,11 +115,11 @@ the file).
 |---|---|---|
 | `version` | `1` | Config schema version for future compatibility. |
 | `database.path` | `"recallium.db"` | SQLite database path. Relative paths resolve against the data directory. Absolute paths are used as-is. |
-| `embedding.provider` | `"builtin-fastembed"` | Embedding provider. Currently only built-in FastEmbed is supported. |
-| `embedding.model` | `"jinaai/jina-embeddings-v2-small-en"` | Embedding model name. |
+| `embedding.provider` | `"builtin-fastembed"` | Embedding provider. Only `"builtin-fastembed"` is supported in this release. Other values fail validation. |
+| `embedding.model` | `"jinaai/jina-embeddings-v2-small-en"` | Embedding model name. Only this model is supported in this release. Other values fail validation. |
 | `service.host` | `"127.0.0.1"` | Host interface for the local HTTP service. |
 | `service.port` | `8765` | TCP port for the local HTTP service. |
-| `logging.level` | `"info"` | Log level (`debug`, `info`, `warning`, `error`). |
+| `logging.level` | `"info"` | Service log level. Allowed values: `debug`, `info`, `warning`, `error`. |
 | `directories.data` | `null` (XDG default) | Override the data directory. |
 | `directories.cache` | `null` (XDG default) | Override the cache directory. |
 | `directories.logs` | `null` (XDG default) | Override the logs directory. |
@@ -146,9 +148,11 @@ Values are resolved in this order (highest wins):
 recallium config
 
 # Print built-in defaults only
+# Does not create a config file
 recallium config --defaults
 
 # Show where the config file lives
+# Does not create a config file
 recallium config --path
 
 # Validate the config file (exit 0 on success, 1 on error)

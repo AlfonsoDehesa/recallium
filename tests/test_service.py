@@ -697,6 +697,11 @@ def test_run_service_builds_core_and_starts_uvicorn(monkeypatch) -> None:
             self, *, db_path: str | None, config_path: str | None = None
         ) -> None:
             calls["db_path"] = db_path
+            self.config = type(
+                "FakeConfig",
+                (),
+                {"effective_config": {"logging": {"level": "debug"}}},
+            )()
 
     def fake_create_app(core: object) -> str:
         calls["core"] = core
@@ -721,4 +726,4 @@ def test_run_service_builds_core_and_starts_uvicorn(monkeypatch) -> None:
     assert calls["app"] == "fake-app"
     assert calls["host"] == "127.0.0.2"
     assert calls["port"] == 9002
-    assert calls["log_level"] == "info"
+    assert calls["log_level"] == "debug"

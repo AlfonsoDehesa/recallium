@@ -36,11 +36,6 @@ from recallium.search import rank_memory_candidates
 from recallium.storage import SQLiteMemoryStore, utc_now_iso
 
 
-def _default_db_path() -> Path:
-    xdg_data_home = Path.home() / ".local" / "share"
-    return xdg_data_home / "recallium" / "recallium.db"
-
-
 def _validate_optional_string(field_name: str, value: str | None) -> str | None:
     if value is None:
         return None
@@ -60,17 +55,12 @@ class RecalliumCore:
         immediate_reembedding_threshold: int = 20,
         config_path: Path | str | None = None,
     ) -> None:
-        if config_path is not None:
-            self.config = RecalliumConfig(config_path)
-        else:
-            self.config = None
+        self.config = RecalliumConfig(config_path)
 
         if db_path is not None:
             selected_path = db_path
-        elif self.config is not None:
-            selected_path = self.config.resolved_database_path
         else:
-            selected_path = _default_db_path()
+            selected_path = self.config.resolved_database_path
 
         self.store = SQLiteMemoryStore(selected_path)
         self.embedding_provider = embedding_provider or BuiltinFastEmbedProvider()
