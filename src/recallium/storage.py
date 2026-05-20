@@ -10,6 +10,7 @@ from typing import Any
 
 from recallium.embeddings import ContentChunk
 from recallium.errors import NotFoundError
+from recallium.migrations import MigrationRunner
 from recallium.models import Memory, STATUS_ARCHIVED
 from recallium.search import ChunkCandidate
 
@@ -24,123 +25,16 @@ class SQLiteMemoryStore:
     def __init__(self, db_path: Path | str) -> None:
         self.db_path = Path(db_path).expanduser()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        self._initialize_schema()
+        self._migration_runner = MigrationRunner(self.db_path)
+        self._migration_runner.migrate()
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.db_path)
         connection.row_factory = sqlite3.Row
         return connection
 
-    def _initialize_schema(self) -> None:
-        with self._connect() as connection:
-            connection.execute(
-                """
-                CREATE TABLE IF NOT EXISTS memories (
-                    id TEXT PRIMARY KEY,
-                    space TEXT NOT NULL,
-                    workspace_uid TEXT NULL,
-                    type TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    metadata_json TEXT NOT NULL DEFAULT '{}',
-                    status TEXT NOT NULL,
-                    source TEXT NULL,
-                    confidence REAL NULL,
-                    sensitivity TEXT NULL,
-                    embedding_profile_json TEXT NOT NULL,
-                    embedding_json TEXT NOT NULL,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL,
-                    last_accessed_at TEXT NULL
-                )
-                """
-            )
-            connection.execute(
-                "CREATE INDEX IF NOT EXISTS idx_memories_space_status ON memories(space, status)"
-            )
-            connection.execute(
-                """
-                CREATE INDEX IF NOT EXISTS idx_memories_space_workspace_status
-                ON memories(space, workspace_uid, status)
-                """
-            )
-            connection.execute(
-                "CREATE INDEX IF NOT EXISTS idx_memories_type ON memories(type)"
-            )
-            connection.execute(
-                "CREATE INDEX IF NOT EXISTS idx_memories_updated_at ON memories(updated_at)"
-            )
-
-            current_version_row = connection.execute("PRAGMA user_version").fetchone()
-            current_version = int(current_version_row[0]) if current_version_row else 0
-
-            if current_version < 1:
-                connection.execute("PRAGMA user_version = 1")
-                current_version = 1
-
-            if current_version < 2:
-                self._migrate_v1_to_v2(connection)
-                connection.execute("PRAGMA user_version = 2")
-
-    def _migrate_v1_to_v2(self, connection: sqlite3.Connection) -> None:
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS embedding_chunks (
-                id TEXT PRIMARY KEY,
-                memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
-                chunk_index INTEGER NOT NULL,
-                content TEXT NOT NULL,
-                token_start INTEGER NOT NULL,
-                token_end INTEGER NOT NULL,
-                embedding_profile_json TEXT NOT NULL,
-                embedding_json TEXT NOT NULL,
-                UNIQUE(memory_id, chunk_index, embedding_profile_json)
-            )
-            """
-        )
-        connection.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_embedding_chunks_memory_profile
-            ON embedding_chunks(memory_id, embedding_profile_json, chunk_index)
-            """
-        )
-        connection.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_embedding_chunks_profile_memory
-            ON embedding_chunks(embedding_profile_json, memory_id)
-            """
-        )
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS embedding_jobs (
-                id TEXT PRIMARY KEY,
-                state TEXT NOT NULL,
-                total_count INTEGER NOT NULL,
-                processed_count INTEGER NOT NULL,
-                succeeded_count INTEGER NOT NULL,
-                failed_count INTEGER NOT NULL,
-                provider TEXT NOT NULL,
-                model TEXT NOT NULL,
-                embedding_profile_json TEXT NOT NULL,
-                error_message TEXT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                started_at TEXT NULL,
-                completed_at TEXT NULL
-            )
-            """
-        )
-        connection.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_embedding_jobs_updated_at
-            ON embedding_jobs(updated_at)
-            """
-        )
-        connection.execute(
-            """
-            CREATE INDEX IF NOT EXISTS idx_embedding_jobs_state_updated
-            ON embedding_jobs(state, updated_at)
-            """
-        )
+    def migration_status(self) -> dict[str, object]:
+        return self._migration_runner.status().to_dict()
 
     def insert_memory(
         self,

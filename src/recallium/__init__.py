@@ -1,7 +1,12 @@
 """Recallium Core package."""
 
 from recallium.core import RecalliumCore
-from recallium.errors import NotFoundError, RecalliumError, ValidationError
+from recallium.errors import (
+    MigrationError,
+    NotFoundError,
+    RecalliumError,
+    ValidationError,
+)
 from recallium.models import (
     SPACE_USER,
     SPACE_WORKSPACE,
@@ -19,6 +24,7 @@ __all__ = [
     "RecalliumError",
     "ValidationError",
     "NotFoundError",
+    "MigrationError",
     "SPACE_USER",
     "SPACE_WORKSPACE",
     "STATUS_ACTIVE",

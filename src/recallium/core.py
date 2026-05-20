@@ -282,6 +282,9 @@ class RecalliumCore:
             "recent_embedding_jobs": self.list_embedding_jobs(limit=5),
         }
 
+    def database_status(self) -> dict[str, object]:
+        return self.store.migration_status()
+
     def ensure_embedding_ready(self, *, timeout_seconds: float = 60.0) -> None:
         provider_ready = getattr(self.embedding_provider, "ensure_ready", None)
         if callable(provider_ready):

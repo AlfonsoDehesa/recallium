@@ -4,7 +4,8 @@ import sqlite3
 import pytest
 
 from recallium.embeddings import ContentChunk
-from recallium.errors import NotFoundError
+from recallium.errors import MigrationError, NotFoundError
+from recallium.migrations import Migration, MigrationRunner
 from recallium.models import (
     SPACE_USER,
     SPACE_WORKSPACE,
@@ -71,7 +72,7 @@ def test_workspace_uid_memory_round_trips_through_storage(tmp_path: Path) -> Non
     assert loaded.workspace_uid == "workspace-alpha"
 
 
-def test_store_uses_schema_version_1(tmp_path: Path) -> None:
+def test_store_uses_latest_schema_version(tmp_path: Path) -> None:
     db_path = tmp_path / "schema.db"
     SQLiteMemoryStore(db_path)
 
@@ -80,6 +81,21 @@ def test_store_uses_schema_version_1(tmp_path: Path) -> None:
 
     assert row is not None
     assert row[0] == 2
+
+
+def test_fresh_database_tracks_schema_migrations_metadata(tmp_path: Path) -> None:
+    db_path = tmp_path / "schema-metadata.db"
+    SQLiteMemoryStore(db_path)
+
+    with sqlite3.connect(db_path) as connection:
+        versions = [
+            row[0]
+            for row in connection.execute(
+                "SELECT version FROM schema_migrations ORDER BY version ASC"
+            ).fetchall()
+        ]
+
+    assert versions == [1, 2]
 
 
 def test_fresh_schema_creates_chunk_and_job_tables(tmp_path: Path) -> None:
@@ -162,6 +178,210 @@ def test_v1_database_migrates_to_v2_without_losing_memories(tmp_path: Path) -> N
         version = connection.execute("PRAGMA user_version").fetchone()
     assert version is not None
     assert version[0] == 2
+
+
+def test_current_v2_database_without_metadata_remains_compatible(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "v2-without-metadata.db"
+
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            """
+            CREATE TABLE memories (
+                id TEXT PRIMARY KEY,
+                space TEXT NOT NULL,
+                workspace_uid TEXT NULL,
+                type TEXT NOT NULL,
+                content TEXT NOT NULL,
+                metadata_json TEXT NOT NULL DEFAULT '{}',
+                status TEXT NOT NULL,
+                source TEXT NULL,
+                confidence REAL NULL,
+                sensitivity TEXT NULL,
+                embedding_profile_json TEXT NOT NULL,
+                embedding_json TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                last_accessed_at TEXT NULL
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE embedding_chunks (
+                id TEXT PRIMARY KEY,
+                memory_id TEXT NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
+                chunk_index INTEGER NOT NULL,
+                content TEXT NOT NULL,
+                token_start INTEGER NOT NULL,
+                token_end INTEGER NOT NULL,
+                embedding_profile_json TEXT NOT NULL,
+                embedding_json TEXT NOT NULL,
+                UNIQUE(memory_id, chunk_index, embedding_profile_json)
+            )
+            """
+        )
+        connection.execute(
+            """
+            CREATE TABLE embedding_jobs (
+                id TEXT PRIMARY KEY,
+                state TEXT NOT NULL,
+                total_count INTEGER NOT NULL,
+                processed_count INTEGER NOT NULL,
+                succeeded_count INTEGER NOT NULL,
+                failed_count INTEGER NOT NULL,
+                provider TEXT NOT NULL,
+                model TEXT NOT NULL,
+                embedding_profile_json TEXT NOT NULL,
+                error_message TEXT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                started_at TEXT NULL,
+                completed_at TEXT NULL
+            )
+            """
+        )
+        connection.execute("PRAGMA user_version = 2")
+
+    store = SQLiteMemoryStore(db_path)
+    status = store.migration_status()
+
+    assert status["current_version"] == 2
+    assert status["pending_versions"] == []
+    assert status["up_to_date"] is True
+
+    with sqlite3.connect(db_path) as connection:
+        versions = [
+            row[0]
+            for row in connection.execute(
+                "SELECT version FROM schema_migrations ORDER BY version ASC"
+            ).fetchall()
+        ]
+
+    assert versions == [1, 2]
+
+
+def test_migration_status_reports_versions_and_pending(tmp_path: Path) -> None:
+    db_path = tmp_path / "status.db"
+    store = SQLiteMemoryStore(db_path)
+
+    status = store.migration_status()
+
+    assert status["db_path"] == str(db_path)
+    assert status["current_version"] == 2
+    assert status["latest_version"] == 2
+    assert status["pending_versions"] == []
+    assert status["up_to_date"] is True
+
+
+def test_migrations_are_loaded_in_deterministic_order(tmp_path: Path) -> None:
+    db_path = tmp_path / "order.db"
+    calls: list[int] = []
+
+    def _upgrade_v1(connection: sqlite3.Connection) -> None:
+        calls.append(1)
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS ordered_1 (id INTEGER PRIMARY KEY)"
+        )
+
+    def _upgrade_v2(connection: sqlite3.Connection) -> None:
+        calls.append(2)
+        connection.execute(
+            "CREATE TABLE IF NOT EXISTS ordered_2 (id INTEGER PRIMARY KEY)"
+        )
+
+    runner = MigrationRunner(
+        db_path,
+        migrations=[
+            Migration(version=2, name="second", upgrade=_upgrade_v2),
+            Migration(version=1, name="first", upgrade=_upgrade_v1),
+        ],
+    )
+
+    status = runner.migrate()
+
+    assert calls == [1, 2]
+    assert status.current_version == 2
+    assert status.pending_versions == []
+
+
+def test_migration_failure_does_not_mark_version_upgraded(tmp_path: Path) -> None:
+    db_path = tmp_path / "failed-migration.db"
+
+    def _upgrade_v1(connection: sqlite3.Connection) -> None:
+        connection.execute("CREATE TABLE IF NOT EXISTS ok_1 (id INTEGER PRIMARY KEY)")
+
+    def _upgrade_v2(_connection: sqlite3.Connection) -> None:
+        msg = "boom"
+        raise sqlite3.OperationalError(msg)
+
+    runner = MigrationRunner(
+        db_path,
+        migrations=[
+            Migration(version=1, name="ok", upgrade=_upgrade_v1),
+            Migration(version=2, name="broken", upgrade=_upgrade_v2),
+        ],
+    )
+
+    with pytest.raises(MigrationError):
+        runner.migrate()
+
+    with sqlite3.connect(db_path) as connection:
+        version = connection.execute("PRAGMA user_version").fetchone()
+        applied = [
+            row[0]
+            for row in connection.execute(
+                "SELECT version FROM schema_migrations ORDER BY version ASC"
+            ).fetchall()
+        ]
+
+    assert version is not None
+    assert version[0] == 1
+    assert applied == [1]
+
+
+def test_newer_database_version_raises_migration_error(tmp_path: Path) -> None:
+    db_path = tmp_path / "future.db"
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("PRAGMA user_version = 999")
+
+    with pytest.raises(MigrationError):
+        SQLiteMemoryStore(db_path)
+
+
+def test_migration_runner_rejects_invalid_versions(tmp_path: Path) -> None:
+    db_path = tmp_path / "invalid-versions.db"
+
+    def noop(_connection: sqlite3.Connection) -> None:
+        return None
+
+    with pytest.raises(MigrationError):
+        MigrationRunner(
+            db_path,
+            migrations=[
+                Migration(version=1, name="a", upgrade=noop),
+                Migration(version=1, name="b", upgrade=noop),
+            ],
+        )
+
+    with pytest.raises(MigrationError):
+        MigrationRunner(
+            db_path,
+            migrations=[Migration(version=0, name="bad", upgrade=noop)],
+        )
+
+
+def test_migration_runner_handles_empty_migration_set(tmp_path: Path) -> None:
+    db_path = tmp_path / "empty-migrations.db"
+    runner = MigrationRunner(db_path, migrations=[])
+
+    status = runner.migrate()
+
+    assert status.current_version == 0
+    assert status.latest_version == 0
+    assert status.pending_versions == []
+    assert status.up_to_date is True
 
 
 def test_get_update_archive_raise_not_found_for_missing_ids(tmp_path: Path) -> None:

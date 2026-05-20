@@ -49,3 +49,7 @@ class ReembeddingFailedError(RecalliumError):
         super().__init__(message)
         self.job_id = job_id
         self.status_path = status_path
+
+
+class MigrationError(RecalliumError):
+    """Raised when database schema migration fails or is incompatible."""

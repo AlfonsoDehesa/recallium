@@ -799,3 +799,16 @@ def test_runtime_reembedding_failure_blocks_partial_results(
     assert job["state"] == "failed"
     assert job["failed_count"] == 1
     assert error.status_path.endswith(error.job_id)
+
+
+def test_database_status_surfaces_store_migration_status(tmp_path: Path) -> None:
+    db_path = tmp_path / "db-status-core.db"
+    core = RecalliumCore(db_path=db_path)
+
+    status = core.database_status()
+
+    assert status["db_path"] == str(db_path)
+    assert status["current_version"] == 2
+    assert status["latest_version"] == 2
+    assert status["pending_versions"] == []
+    assert status["up_to_date"] is True

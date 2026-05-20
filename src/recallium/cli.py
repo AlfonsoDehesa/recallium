@@ -12,6 +12,7 @@ from recallium import NotFoundError, RecalliumCore, RecalliumError, ValidationEr
 from recallium.models import SearchResult
 from recallium.service import run_service
 from recallium.service_contract import SERVICE_DEFAULT_HOST, SERVICE_DEFAULT_PORT
+from recallium.storage import SQLiteMemoryStore
 
 
 def _parse_metadata(raw_metadata: str | None) -> dict[str, object] | None:
@@ -260,6 +261,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     subparsers.add_parser(
+        "db-status",
+        help="show database schema migration status",
+        description=(
+            "Show SQLite migration status as JSON for the selected database path. "
+            "This command initializes the database if needed and reports current "
+            "and pending schema versions."
+        ),
+    )
+
+    subparsers.add_parser(
         "embedding-status",
         help="show active local FastEmbed profile and startup job",
         description=(
@@ -303,6 +314,12 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "serve":
         run_service(host=args.host, port=args.port, db_path=args.db_path)
+        return 0
+
+    if args.command == "db-status":
+        default_db = Path.home() / ".local" / "share" / "recallium" / "recallium.db"
+        store = SQLiteMemoryStore(args.db_path or default_db)
+        print(json.dumps(store.migration_status(), sort_keys=True))
         return 0
 
     try:

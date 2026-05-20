@@ -37,6 +37,7 @@ def test_cli_help_documents_commands_and_flags(capsys) -> None:
     assert "search memories for one workspace UID" in top_level_help
     assert "embedding-status" in top_level_help
     assert "embedding-jobs" in top_level_help
+    assert "db-status" in top_level_help
 
     add_help = _run_help(["add", "--help"], capsys)
     assert "User memories must not include" in add_help
@@ -77,6 +78,11 @@ def test_cli_help_documents_commands_and_flags(capsys) -> None:
     assert "--job-id" in embedding_jobs_help
     assert "--state" in embedding_jobs_help
     assert "--limit" in embedding_jobs_help
+
+    db_status_help = _run_help(["db-status", "--help"], capsys)
+    assert "migration status" in db_status_help
+    assert "pending" in db_status_help
+    assert "schema versions" in db_status_help
 
 
 def test_cli_no_args_prints_help(capsys) -> None:
@@ -292,6 +298,40 @@ def test_cli_reads_metadata_from_json_file(tmp_path, capsys) -> None:
     assert exit_code == 0
     assert stderr == ""
     assert json.loads(stdout)["metadata"] == {"origin": "file"}
+
+
+def test_cli_db_status_reports_migration_state(tmp_path, capsys) -> None:
+    db_path = tmp_path / "db-status.db"
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--db", str(db_path), "db-status"],
+        capsys,
+    )
+
+    assert exit_code == 0
+    assert stderr == ""
+    payload = json.loads(stdout)
+    assert payload["db_path"] == str(db_path)
+    assert payload["current_version"] == 2
+    assert payload["latest_version"] == 2
+    assert payload["pending_versions"] == []
+    assert payload["up_to_date"] is True
+
+
+def test_cli_db_status_uses_default_path_when_no_db_flag(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    monkeypatch.setattr("recallium.cli.Path.home", lambda: tmp_path)
+
+    exit_code, stdout, stderr = _run_cli(["db-status"], capsys)
+
+    assert exit_code == 0
+    assert stderr == ""
+    payload = json.loads(stdout)
+    expected = str(tmp_path / ".local" / "share" / "recallium" / "recallium.db")
+    assert payload["db_path"] == expected
+    assert payload["current_version"] == 2
+    assert payload["up_to_date"] is True
 
 
 def test_cli_rejects_invalid_metadata_json_and_non_object(
