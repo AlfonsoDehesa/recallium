@@ -280,6 +280,7 @@ def test_start_service_same_type_allowed(monkeypatch: pytest.MonkeyPatch) -> Non
         "recallium.service_manager.write_pid_file",
         lambda path, pid, st: write_calls.append((path, pid, st)),
     )
+    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: True)
 
     pid = start_service(config, "api")
     assert pid == 12345
@@ -291,6 +292,27 @@ def test_start_service_invalid_service_type() -> None:
     config = _make_mock_config(Path("/tmp/runtime"))
     with pytest.raises(ValueError, match="service_type must be"):
         start_service(config, "grpc")
+
+
+def test_start_service_child_dies_immediately(monkeypatch: pytest.MonkeyPatch) -> None:
+    """start_service must clean up and raise ServiceError if the child exits immediately."""
+    config = _make_mock_config(Path("/tmp/runtime"))
+    monkeypatch.setattr(
+        "recallium.service_manager.check_running_service", lambda cfg: None
+    )
+
+    fake_process = MagicMock()
+    fake_process.pid = 9999
+    monkeypatch.setattr(subprocess, "Popen", lambda cmd: fake_process)
+
+    monkeypatch.setattr(
+        "recallium.service_manager.write_pid_file", lambda path, pid, st: None
+    )
+    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: False)
+    monkeypatch.setattr("recallium.service_manager.remove_pid_file", lambda path: None)
+
+    with pytest.raises(ServiceError, match="exited immediately after start"):
+        start_service(config, "api")
 
 
 def test_start_service_no_conflict(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -305,6 +327,7 @@ def test_start_service_no_conflict(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "recallium.service_manager.write_pid_file", lambda path, pid, st: None
     )
+    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: True)
 
     pid = start_service(config, "mcp")
     assert pid == 5555
@@ -328,6 +351,7 @@ def test_start_service_without_db_path(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "recallium.service_manager.write_pid_file", lambda p, pid, st: None
     )
+    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: True)
 
     pid = start_service(config, "api")
     assert pid == 7777
@@ -355,6 +379,7 @@ def test_start_service_with_db_path(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "recallium.service_manager.write_pid_file", lambda p, pid, st: None
     )
+    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: True)
 
     pid = start_service(config, "api", db_path="/custom/db.sqlite")
     assert pid == 7777
@@ -543,11 +568,27 @@ def test_run_server_api(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_run_server_mcp(monkeypatch: pytest.MonkeyPatch) -> None:
-    exit_codes: list[int] = []
-    monkeypatch.setattr(sys, "exit", lambda code: exit_codes.append(code))
+    calls: dict[str, str | None] = {}
 
-    _run_server("mcp")
-    assert exit_codes == [1]
+    def fake_run_service(
+        *,
+        db_path: str | None = None,
+        config_path: str | None = None,
+        service_type: str | None = None,
+    ) -> None:
+        calls["db_path"] = db_path
+        calls["config_path"] = config_path
+        calls["service_type"] = service_type
+
+    monkeypatch.setattr("recallium.service.run_service", fake_run_service)
+    monkeypatch.setattr(sys, "exit", lambda code: None)
+
+    _run_server("mcp", db_path="/tmp/db", config_path="/tmp/cfg.json")
+    assert calls == {
+        "db_path": "/tmp/db",
+        "config_path": "/tmp/cfg.json",
+        "service_type": "mcp",
+    }
 
 
 def test_run_server_unknown_type(monkeypatch: pytest.MonkeyPatch) -> None:

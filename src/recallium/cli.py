@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -923,6 +924,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 service_type = running["type"]
                 print(f"Stopping existing {service_type} service...", file=sys.stderr)
                 stop_service(cfg)
+                time.sleep(0.5)  # let port release before binding again
             elif raw_pid_info is not None:
                 service_type = raw_pid_info["type"]
             elif args.type is not None:

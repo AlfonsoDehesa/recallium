@@ -162,9 +162,22 @@ def start_service(
     cmd.extend(["--config-path", config_path])
 
     process = subprocess.Popen(cmd)
-    write_pid_file(get_pid_file_path(config), process.pid, service_type)
-    print(f"Service started (PID {process.pid})")
-    return process.pid
+    pid = process.pid
+    pid_path = get_pid_file_path(config)
+    write_pid_file(pid_path, pid, service_type)
+
+    # Brief startup grace check: verify the child is still alive.
+    # If the child dies quickly (config error, port conflict, etc.),
+    # clean up and report failure rather than leaving a stale PID file.
+    time.sleep(0.3)
+    if not is_pid_alive(pid):
+        remove_pid_file(pid_path)
+        raise ServiceError(
+            f"service process (PID {pid}) exited immediately after start"
+        )
+
+    print(f"Service started (PID {pid})")
+    return pid
 
 
 def stop_service(config: RecalliumConfig) -> int | None:
@@ -224,20 +237,19 @@ def _run_server(
     """Internal entry point called by the subprocess.
 
     Builds a ``RecalliumCore`` and starts the appropriate server based on
-    *service_type*.  Handles ``SIGTERM`` and ``SIGINT`` for graceful
-    shutdown.
+    *service_type*.  Signal handling (SIGTERM/SIGINT) is delegated to the
+    server framework (uvicorn).
     """
-    # Register graceful shutdown handlers
-    signal.signal(signal.SIGTERM, lambda _signum, _frame: sys.exit(0))
-    signal.signal(signal.SIGINT, lambda _signum, _frame: sys.exit(0))
+    from recallium.service import run_service
 
     if service_type == "api":
-        from recallium.service import run_service
-
         run_service(db_path=db_path, config_path=config_path)
     elif service_type == "mcp":
-        print("MCP server is not yet implemented.", file=sys.stderr)
-        sys.exit(1)
+        run_service(
+            db_path=db_path,
+            config_path=config_path,
+            service_type="mcp",
+        )
     else:
         print(f"Unknown service type: {service_type!r}", file=sys.stderr)
         sys.exit(1)
