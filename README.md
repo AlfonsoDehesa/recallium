@@ -17,7 +17,6 @@ This MVP does not include:
 - OpenCode adapter integration.
 - Historian summaries.
 - Dreamer workflows.
-- A long-running service or daemon.
 - Cloud sync, multi-user support, or UI.
 
 ## Local-first behavior
@@ -191,6 +190,141 @@ recallium config reset
 | `--port <port>` | `service.port` | `serve` command |
 | `--config <path>` | — | Loads config from a custom path |
 
+
+## Service Management
+
+Recallium can run as a long-running service accessible over HTTP. Use the `recallium service` commands to manage the service lifecycle.
+
+Two service types are available:
+
+- **API** (`recallium service start api`): REST API server with all memory operations, embedding status, and health checks. Mounted at the configured `service.host` and `service.port`.
+- **MCP** (`recallium service start mcp`): MCP (Model Context Protocol) HTTP server with memory tools for AI assistant integration. Uses SSE transport at the configured address.
+
+Only one service can run at a time. The service manager uses a PID file to track the running process and prevent conflicts.
+
+### Starting a service
+
+```bash
+# Start the REST API server
+recallium service start api
+
+# Start the MCP HTTP server
+recallium service start mcp
+
+# Use a custom database path
+recallium --db /tmp/custom.db service start api
+```
+
+Output on success:
+
+```json
+{"endpoint": "http://127.0.0.1:8765", "pid": 12345, "status": "started", "type": "api"}
+```
+
+### Checking service status
+
+```bash
+recallium service status
+```
+
+When running:
+
+```json
+{"endpoint": "http://127.0.0.1:8765", "pid": 12345, "running": true, "type": "api"}
+```
+
+When no service is running:
+
+```json
+{"running": false}
+```
+
+If a stale PID file exists from a previous run that exited unexpectedly, the status output includes the last known service type and PID under `last_service`.
+
+### Stopping a service
+
+```bash
+recallium service stop
+```
+
+Output:
+
+```json
+{"pid": 12345, "status": "stopped"}
+```
+
+When no service is running:
+
+```json
+{"status": "no_service_running"}
+```
+
+Shutdown sends SIGTERM and waits up to 10 seconds for graceful exit. If the process does not exit in time, SIGKILL is sent as a fallback.
+
+### Restarting a service
+
+```bash
+# Restarts the currently running service
+recallium service restart
+
+# Restarts using the type from a stale PID file
+recallium service restart --type api
+
+# Specify a type when no trace of a previous service exists
+recallium service restart --type mcp
+```
+
+Output:
+
+```json
+{"endpoint": "http://127.0.0.1:8765", "pid": 12346, "status": "restarted", "type": "api"}
+```
+
+### MCP stdio mode
+
+The `mcp-stdio` command runs an MCP server over stdin/stdout. This mode is designed for AI assistant clients that spawn Recallium as a child process, such as Claude Desktop.
+
+```bash
+recallium mcp-stdio
+```
+
+No PID file is created for stdio mode. The process runs as long as the client is connected.
+
+#### Claude Desktop configuration
+
+Add this to your Claude Desktop `claude_desktop_config.json` to use Recallium as an MCP server:
+
+```json
+{
+  "mcpServers": {
+    "recallium": {
+      "command": "uv",
+      "args": [
+        "--directory", "/path/to/recallium",
+        "run", "recallium", "mcp-stdio"
+      ]
+    }
+  }
+}
+```
+
+Adjust the `--directory` path to point at your Recallium Core checkout.
+
+### PID file and runtime directory
+
+The service manager writes a PID file to the runtime directory (default `$XDG_RUNTIME_DIR/recallium/service.pid`). The file contains JSON with the process ID and service type:
+
+```json
+{"pid": 12345, "type": "api"}
+```
+
+The runtime directory can be overridden in config by setting `directories.runtime`.
+
+### Error handling
+
+- Starting a different service type while one is running produces a clear error: `ServiceConflictError: a mcp service is already running (PID 12345). Stop it before starting an api service.`
+- Starting the same type acts as a restart.
+- Stale PID files from crashed processes are cleaned automatically.
 
 ## CLI examples
 

@@ -103,3 +103,96 @@ def test_mcp_tool_errors(tmp_path: Path) -> None:
     data = json.loads(result_json)
     assert "error" in data
     assert "space must be one of" in data["error"]
+
+
+def test_search_user_memory_validation_error(tmp_path: Path) -> None:
+    """search_user_memory with an empty query returns an error JSON."""
+    db_path = str(tmp_path / "test.db")
+    core = RecalliumCore(db_path=db_path)
+    mcp = create_mcp_server(core)
+
+    search_fn = mcp._tool_manager._tools["search_user_memory"].fn
+    result_json = search_fn(query="", limit=5)
+    data = json.loads(result_json)
+    assert "error" in data
+
+
+def test_search_workspace_memory_missing_workspace_uid(tmp_path: Path) -> None:
+    """search_workspace_memory with an empty workspace UID returns an error JSON."""
+    db_path = str(tmp_path / "test.db")
+    core = RecalliumCore(db_path=db_path)
+    mcp = create_mcp_server(core)
+
+    search_fn = mcp._tool_manager._tools["search_workspace_memory"].fn
+    result_json = search_fn(query="test query", workspace_uid="", limit=5)
+    data = json.loads(result_json)
+    assert "error" in data
+
+
+def test_update_memory_not_found_error(tmp_path: Path) -> None:
+    """update_memory with a non-existent ID returns an error JSON."""
+    db_path = str(tmp_path / "test.db")
+    core = RecalliumCore(db_path=db_path)
+    mcp = create_mcp_server(core)
+
+    update_fn = mcp._tool_manager._tools["update_memory"].fn
+    result_json = update_fn(memory_id="nonexistent-id", content="new content")
+    data = json.loads(result_json)
+    assert "error" in data
+
+
+def test_archive_memory_not_found_error(tmp_path: Path) -> None:
+    """archive_memory with a non-existent ID returns an error JSON."""
+    db_path = str(tmp_path / "test.db")
+    core = RecalliumCore(db_path=db_path)
+    mcp = create_mcp_server(core)
+
+    archive_fn = mcp._tool_manager._tools["archive_memory"].fn
+    result_json = archive_fn(memory_id="nonexistent-id")
+    data = json.loads(result_json)
+    assert "error" in data
+
+
+def test_add_memory_workspace_space_mismatch(tmp_path: Path) -> None:
+    """add_memory with workspace space but no workspace_uid returns an error JSON."""
+    db_path = str(tmp_path / "test.db")
+    core = RecalliumCore(db_path=db_path)
+    mcp = create_mcp_server(core)
+
+    add_fn = mcp._tool_manager._tools["add_memory"].fn
+    result_json = add_fn(space="workspace", type="test", content="test content")
+    data = json.loads(result_json)
+    assert "error" in data
+    assert "workspace_uid is required" in data["error"]
+
+
+def test_list_memories_invalid_limit(tmp_path: Path) -> None:
+    """list_memories with an invalid limit returns an error JSON."""
+    db_path = str(tmp_path / "test.db")
+    core = RecalliumCore(db_path=db_path)
+    mcp = create_mcp_server(core)
+
+    list_fn = mcp._tool_manager._tools["list_memories"].fn
+    result_json = list_fn(limit=0)
+    data = json.loads(result_json)
+    assert "error" in data
+    assert "limit must be" in data["error"]
+
+
+def test_search_workspace_memory_round_trip(tmp_path: Path) -> None:
+    """search_workspace_memory returns an added workspace memory."""
+    db_path = str(tmp_path / "test.db")
+    core = RecalliumCore(db_path=db_path)
+    added = core.add_memory(
+        space="workspace",
+        type="fact",
+        content="This project uses SQLite",
+        workspace_uid="test-ws",
+    )
+    mcp = create_mcp_server(core)
+
+    search_fn = mcp._tool_manager._tools["search_workspace_memory"].fn
+    result_json = search_fn(query="SQLite database", workspace_uid="test-ws")
+    results = json.loads(result_json)
+    assert len(results) >= 1
+    assert results[0]["memory"]["id"] == added.id
