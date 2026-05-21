@@ -39,13 +39,18 @@ def read_pid_file(path: Path) -> dict[str, Any] | None:
     if not path.exists():
         return None
 
-    data = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ServiceError(f"corrupted PID file: invalid JSON ({exc})") from exc
     if not isinstance(data, dict):
         raise ServiceError(
             f"corrupted PID file: expected JSON object, got {type(data).__name__}"
         )
     if "pid" not in data or not isinstance(data["pid"], int):
         raise ServiceError("corrupted PID file: missing or invalid 'pid' field")
+    if data["pid"] <= 0:
+        raise ServiceError("corrupted PID file: pid must be a positive integer")
     if "type" not in data or data["type"] not in {"api", "mcp"}:
         raise ServiceError("corrupted PID file: missing or invalid 'type' field")
     return data
@@ -87,6 +92,8 @@ def is_pid_alive(pid: int) -> bool:
         return True
     except ProcessLookupError:
         return False
+    except PermissionError:
+        return True  # process exists, we just can't signal it
 
 
 # ---------------------------------------------------------------------------
