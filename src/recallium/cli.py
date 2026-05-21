@@ -22,6 +22,7 @@ from recallium.config import (
     validate_config_file,
 )
 from recallium.models import SearchResult
+from recallium.mcp_server import create_mcp_server
 from recallium.service import run_service
 from recallium.service_contract import SERVICE_DEFAULT_HOST, SERVICE_DEFAULT_PORT
 from recallium.storage import SQLiteMemoryStore
@@ -651,6 +652,17 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Optional positive integer limit for list mode.",
     )
 
+    # -- mcp-stdio ---------------------------------------------------------
+    subparsers.add_parser(
+        "mcp-stdio",
+        help="run MCP server over stdin/stdout",
+        description=(
+            "Start an MCP (Model Context Protocol) server over stdin/stdout. "
+            "This is intended to be spawned by MCP-compatible clients. "
+            "No PID file is created — the server runs for the lifetime of the client connection."
+        ),
+    )
+
     return parser
 
 
@@ -736,6 +748,26 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return 2
         store = SQLiteMemoryStore(db_path)
         print(json.dumps(store.migration_status(), sort_keys=True))
+        return 0
+
+    # -- mcp-stdio command ------------------------------------------------
+    if args.command == "mcp-stdio":
+        try:
+            core = RecalliumCore(db_path=args.db_path, config_path=core_config_path)
+        except FileNotFoundError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        except ValidationError as exc:
+            print(f"ValidationError: {exc}", file=sys.stderr)
+            return 2
+        try:
+            mcp = create_mcp_server(core)
+            import asyncio
+
+            asyncio.run(mcp.run_stdio_async())
+        except Exception as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            return 1
         return 0
 
     # -- all other commands use RecalliumCore ------------------------------
