@@ -11,6 +11,7 @@ requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.124",
     "fastembed>=0.7.3",
+    "mcp>=1.27.1",
     "platformdirs>=4",
     "uvicorn>=0.38",
 ]
