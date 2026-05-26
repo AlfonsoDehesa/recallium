@@ -8,6 +8,9 @@ testing; no real subprocesses or server ports are involved.
 from __future__ import annotations
 
 import json
+import socket
+import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -43,10 +46,32 @@ def _make_config(tmp_path: Path) -> Path:
     config_dir = tmp_path / "config"
     config_dir.mkdir()
     config_path = config_dir / "config.json"
+    data_dir = tmp_path / "data"
+    cache_dir = tmp_path / "cache"
+    logs_dir = tmp_path / "logs"
     runtime_dir = tmp_path / "run"
     config_data = dict(DEFAULTS)
-    config_data["directories"] = {"runtime": str(runtime_dir)}
+    config_data["directories"] = {
+        "data": str(data_dir),
+        "cache": str(cache_dir),
+        "logs": str(logs_dir),
+        "runtime": str(runtime_dir),
+    }
     config_path.write_text(json.dumps(config_data))
+    return config_path
+
+
+def _free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        return int(sock.getsockname()[1])
+
+
+def _make_real_service_config(tmp_path: Path) -> Path:
+    config_path = _make_config(tmp_path)
+    config_data = json.loads(config_path.read_text(encoding="utf-8"))
+    config_data["service"] = {"host": "127.0.0.1", "port": _free_port()}
+    config_path.write_text(json.dumps(config_data), encoding="utf-8")
     return config_path
 
 
@@ -193,6 +218,53 @@ def test_start_service_service_error(
     assert exit_code == 1
     assert stdout == ""
     assert "service process exited immediately" in stderr
+
+
+def test_start_service_real_process_returns_json_without_inherited_output(
+    tmp_path: Path,
+) -> None:
+    config_path = _make_real_service_config(tmp_path)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "recallium",
+            "--config",
+            str(config_path),
+            "service",
+            "start",
+            "api",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+
+    try:
+        assert result.returncode == 0, result.stderr
+        assert result.stderr == ""
+        payload = json.loads(result.stdout)
+        assert payload["status"] == "started"
+        assert payload["type"] == "api"
+        assert isinstance(payload["pid"], int)
+    finally:
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "recallium",
+                "--config",
+                str(config_path),
+                "service",
+                "stop",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
 
 
 # ---------------------------------------------------------------------------

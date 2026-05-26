@@ -227,7 +227,19 @@ def start_service(
     cmd.extend(["--config-path", config_path])
     cmd.extend(["--host", host, "--port", str(port)])
 
-    process = subprocess.Popen(cmd)
+    log_dir = config.xdg_dirs["logs"]
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / f"service-{service_type}.log"
+
+    with log_path.open("ab") as log_file:
+        process = subprocess.Popen(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            close_fds=True,
+            start_new_session=True,
+        )
     pid = process.pid
     pid_path = get_pid_file_path(config)
     process_start_time = get_process_start_time(pid)

@@ -41,7 +41,7 @@ def _make_mock_config(
     runtime_dir: Path, config_path: str = "/mock/config.json"
 ) -> MagicMock:
     config = MagicMock()
-    config.xdg_dirs = {"runtime": runtime_dir}
+    config.xdg_dirs = {"runtime": runtime_dir, "logs": runtime_dir / "logs"}
     config.config_file_path = Path(config_path)
     config.effective_config = {"service": {"host": "127.0.0.9", "port": 9876}}
     return config
@@ -412,7 +412,7 @@ def test_start_service_child_dies_immediately(monkeypatch: pytest.MonkeyPatch) -
     fake_process = MagicMock()
     fake_process.pid = 9999
     fake_process.poll.return_value = 1
-    monkeypatch.setattr(subprocess, "Popen", lambda cmd: fake_process)
+    monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: fake_process)
     monkeypatch.setattr(
         "recallium.service_manager.get_process_start_time", lambda pid: 5
     )
@@ -437,7 +437,7 @@ def test_start_service_process_ownership_unavailable(
 
     fake_process = MagicMock()
     fake_process.pid = 9999
-    monkeypatch.setattr(subprocess, "Popen", lambda cmd: fake_process)
+    monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: fake_process)
     monkeypatch.setattr(
         "recallium.service_manager.get_process_start_time", lambda pid: None
     )
@@ -460,7 +460,7 @@ def test_start_service_no_conflict(
     fake_process = MagicMock()
     fake_process.pid = 5555
     fake_process.poll.return_value = None
-    monkeypatch.setattr(subprocess, "Popen", lambda cmd: fake_process)
+    monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: fake_process)
     monkeypatch.setattr(
         "recallium.service_manager.get_process_start_time", lambda pid: 5
     )
@@ -483,13 +483,15 @@ def test_start_service_without_db_path(monkeypatch: pytest.MonkeyPatch) -> None:
 
     popen_args: list[list[str]] = []
 
-    def fake_popen(cmd: list[str]) -> MagicMock:
+    def fake_popen(cmd: list[str], **kwargs: object) -> MagicMock:
         popen_args.append(cmd)
+        popen_kwargs.append(kwargs)
         fake = MagicMock()
         fake.pid = 7777
         fake.poll.return_value = None
         return fake
 
+    popen_kwargs: list[dict[str, object]] = []
     monkeypatch.setattr(subprocess, "Popen", fake_popen)
     monkeypatch.setattr(
         "recallium.service_manager.get_process_start_time", lambda pid: 5
@@ -509,6 +511,11 @@ def test_start_service_without_db_path(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "127.0.0.9" in popen_args[0]
     assert "--port" in popen_args[0]
     assert "9876" in popen_args[0]
+    assert popen_kwargs[0]["stdin"] == subprocess.DEVNULL
+    assert popen_kwargs[0]["stderr"] == subprocess.STDOUT
+    assert popen_kwargs[0]["close_fds"] is True
+    assert popen_kwargs[0]["start_new_session"] is True
+    assert popen_kwargs[0]["stdout"] is not None
 
 
 def test_start_service_with_db_path(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -519,7 +526,7 @@ def test_start_service_with_db_path(monkeypatch: pytest.MonkeyPatch) -> None:
 
     popen_args: list[list[str]] = []
 
-    def fake_popen(cmd: list[str]) -> MagicMock:
+    def fake_popen(cmd: list[str], **kwargs: object) -> MagicMock:
         popen_args.append(cmd)
         fake = MagicMock()
         fake.pid = 7777

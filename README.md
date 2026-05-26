@@ -319,6 +319,7 @@ The service manager writes a PID file to the runtime directory (default `$XDG_RU
 ```
 
 The runtime directory can be overridden in config by setting `directories.runtime`.
+Daemon stdout and stderr are redirected to `service-api.log` or `service-mcp.log` in the configured logs directory.
 
 ### Error handling
 
