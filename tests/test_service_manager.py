@@ -15,7 +15,7 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-from pytest import CaptureFixture
+from pytest import CaptureFixture, LogCaptureFixture
 
 from recallium.errors import ServiceConflictError, ServiceError
 from recallium.service_manager import (
@@ -567,7 +567,9 @@ def test_stop_service_no_service(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_stop_service_graceful(
-    monkeypatch: pytest.MonkeyPatch, capsys: CaptureFixture[str]
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: CaptureFixture[str],
+    caplog: LogCaptureFixture,
 ) -> None:
     config = _make_mock_config(Path("/tmp/runtime"))
     monkeypatch.setattr(
@@ -596,6 +598,7 @@ def test_stop_service_graceful(
     log_handler.setLevel(logging.INFO)
     root = logging.getLogger()
     root.addHandler(log_handler)
+    caplog.set_level(logging.INFO, logger="recallium.service_manager")
     try:
         result = stop_service(config)
         assert result == 42
@@ -606,6 +609,10 @@ def test_stop_service_graceful(
         assert captured.out == ""
         assert "Stopping service" in combined
         assert "stopped gracefully" in combined
+        assert any(
+            record.__dict__.get("event") == "service.shutdown"
+            for record in caplog.records
+        )
     finally:
         root.removeHandler(log_handler)
 

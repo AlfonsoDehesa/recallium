@@ -329,7 +329,7 @@ def stop_service(config: RecalliumConfig) -> int | None:
             _log.info(
                 "Service stopped gracefully",
                 extra={
-                    "event": "service.stopped",
+                    "event": "service.shutdown",
                     "context": {"pid": pid, "type": data["type"]},
                 },
             )
