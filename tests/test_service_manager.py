@@ -295,7 +295,9 @@ def test_check_running_service_no_file(tmp_path: Path) -> None:
 
 
 def test_check_running_service_stale(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: LogCaptureFixture,
 ) -> None:
     runtime = tmp_path / "runtime"
     runtime.mkdir()
@@ -304,10 +306,23 @@ def test_check_running_service_stale(
 
     config = _make_mock_config(runtime)
     monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: False)
+    caplog.set_level(logging.ERROR, logger="recallium.service_manager")
 
     result = check_running_service(config)
     assert result is None
     assert not pid_path.exists()
+    crashed_records = [
+        record
+        for record in caplog.records
+        if record.__dict__.get("event") == "service.crashed"
+    ]
+    assert len(crashed_records) == 1
+    assert crashed_records[0].__dict__["context"] == {
+        "pid": 99999,
+        "type": "api",
+        "exit_code": None,
+        "reason": "process_not_running",
+    }
 
 
 def test_check_running_service_alive(
@@ -330,7 +345,9 @@ def test_check_running_service_alive(
 
 
 def test_check_running_service_wrong_process_removes_pid_file(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: LogCaptureFixture,
 ) -> None:
     runtime = tmp_path / "runtime"
     runtime.mkdir()
@@ -343,10 +360,23 @@ def test_check_running_service_wrong_process_removes_pid_file(
         "recallium.service_manager.is_recallium_service_process",
         lambda pid, service_type, process_start_time: False,
     )
+    caplog.set_level(logging.ERROR, logger="recallium.service_manager")
 
     result = check_running_service(config)
     assert result is None
     assert not pid_path.exists()
+    crashed_records = [
+        record
+        for record in caplog.records
+        if record.__dict__.get("event") == "service.crashed"
+    ]
+    assert len(crashed_records) == 1
+    assert crashed_records[0].__dict__["context"] == {
+        "pid": 12345,
+        "type": "api",
+        "exit_code": None,
+        "reason": "process_mismatch",
+    }
 
 
 def test_check_running_service_corrupt_pid_file(tmp_path: Path) -> None:

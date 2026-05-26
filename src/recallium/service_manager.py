@@ -136,6 +136,22 @@ def remove_pid_file(path: Path) -> None:
         pass
 
 
+def _log_service_crashed(data: dict[str, Any], reason: str) -> None:
+    """Log that a previously tracked service is no longer running."""
+    _log.error(
+        "service exited unexpectedly",
+        extra={
+            "event": "service.crashed",
+            "context": {
+                "pid": data["pid"],
+                "type": data["type"],
+                "exit_code": None,
+                "reason": reason,
+            },
+        },
+    )
+
+
 # ---------------------------------------------------------------------------
 # Process liveness
 # ---------------------------------------------------------------------------
@@ -174,12 +190,14 @@ def check_running_service(config: RecalliumConfig) -> dict[str, Any] | None:
         return None
 
     if not is_pid_alive(data["pid"]):
+        _log_service_crashed(data, "process_not_running")
         remove_pid_file(path)
         return None
 
     if not is_recallium_service_process(
         data["pid"], data["type"], data.get("process_start_time")
     ):
+        _log_service_crashed(data, "process_mismatch")
         remove_pid_file(path)
         return None
 
