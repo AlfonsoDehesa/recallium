@@ -303,6 +303,15 @@ def _build_parser() -> argparse.ArgumentParser:
             "Defaults to ~/.local/share/recallium/recallium.db."
         ),
     )
+    parser.add_argument(
+        "--log-level",
+        dest="log_level",
+        choices=["debug", "info", "warning", "error"],
+        help=(
+            "Override the logging.level config value for this invocation. "
+            "Does not modify the config file."
+        ),
+    )
 
     subparsers = parser.add_subparsers(
         dest="command",
@@ -753,7 +762,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         port = args.port
         if host is None or port is None:
             try:
-                cfg = RecalliumConfig(core_config_path)
+                cfg = RecalliumConfig(core_config_path, log_level=args.log_level)
             except FileNotFoundError as exc:
                 _log.error(str(exc), extra={"event": "config.missing"})
                 return 1
@@ -793,7 +802,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             db_path = Path(args.db_path)
         else:
             try:
-                cfg = RecalliumConfig(core_config_path)
+                cfg = RecalliumConfig(core_config_path, log_level=args.log_level)
                 db_path = cfg.resolved_database_path
             except FileNotFoundError as exc:
                 _log.error(str(exc), extra={"event": "config.missing"})
@@ -829,7 +838,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command == "service":
         if args.service_action == "start":
             try:
-                cfg = RecalliumConfig(core_config_path)
+                cfg = RecalliumConfig(core_config_path, log_level=args.log_level)
             except FileNotFoundError as exc:
                 _log.error(str(exc), extra={"event": "config.missing"})
                 return 1
@@ -865,7 +874,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         if args.service_action == "stop":
             try:
-                cfg = RecalliumConfig(core_config_path)
+                cfg = RecalliumConfig(core_config_path, log_level=args.log_level)
             except FileNotFoundError as exc:
                 _log.error(str(exc), extra={"event": "config.missing"})
                 return 1
@@ -881,7 +890,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         if args.service_action == "status":
             try:
-                cfg = RecalliumConfig(core_config_path)
+                cfg = RecalliumConfig(core_config_path, log_level=args.log_level)
             except FileNotFoundError as exc:
                 _log.error(str(exc), extra={"event": "config.missing"})
                 return 1
@@ -921,7 +930,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         if args.service_action == "restart":
             try:
-                cfg = RecalliumConfig(core_config_path)
+                cfg = RecalliumConfig(core_config_path, log_level=args.log_level)
             except FileNotFoundError as exc:
                 _log.error(str(exc), extra={"event": "config.missing"})
                 return 1

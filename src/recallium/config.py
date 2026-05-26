@@ -302,7 +302,12 @@ def validate_config_file(path: Path) -> None:
 class RecalliumConfig:
     """Recallium configuration loaded from disk and merged with defaults."""
 
-    def __init__(self, config_path: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        config_path: str | Path | None = None,
+        *,
+        log_level: str | None = None,
+    ) -> None:
         # 1. Resolve config path
         if config_path is not None:
             self._config_file_path = Path(config_path)
@@ -311,11 +316,11 @@ class RecalliumConfig:
             self._config_file_path = Path(user_config_dir("recallium")) / "config.json"
             explicit = False
 
-        # 2. Explicit path but file missing → error
+        # 2. Explicit path but file missing -> error
         if explicit and not self._config_file_path.exists():
             raise FileNotFoundError(f"config file not found: {self._config_file_path}")
 
-        # 3. Default path missing → write starter config
+        # 3. Default path missing -> write starter config
         if not explicit and not self._config_file_path.exists():
             _write_starter_config(self._config_file_path)
 
@@ -325,16 +330,20 @@ class RecalliumConfig:
         # 5. Deep-merge loaded overrides onto defaults
         merged = _deep_merge(deepcopy(DEFAULTS), raw)
 
-        # 6. Validate
+        # 6. Apply runtime overrides
+        if log_level is not None:
+            merged["logging"]["level"] = log_level.lower()
+
+        # 7. Validate
         _validate_config_value(merged)
 
-        # 7. Resolve XDG directories
+        # 8. Resolve XDG directories
         self._xdg_dirs = _resolve_xdg_dirs(merged.get("directories", {}))
 
-        # 8. Ensure all required directories exist with private permissions
+        # 9. Ensure all required directories exist with private permissions
         _ensure_config_directories(self._xdg_dirs)
 
-        # 9. Resolve database path
+        # 10. Resolve database path
         db_path = Path(merged["database"]["path"])
         if not db_path.is_absolute():
             db_path = self._xdg_dirs["data"] / db_path

@@ -248,6 +248,10 @@ def start_service(
     process_start_time = get_process_start_time(pid)
     if process_start_time is None:
         process.terminate()
+        _log.error(
+            f"could not verify service ownership for PID {pid}",
+            extra={"event": "service.startup_failed", "context": {"pid": pid}},
+        )
         raise ServiceError(f"could not verify service process ownership for PID {pid}")
     write_pid_file(pid_path, pid, service_type, process_start_time)
 
@@ -257,10 +261,29 @@ def start_service(
     time.sleep(0.3)
     if process.poll() is not None or not is_pid_alive(pid):
         remove_pid_file(pid_path)
+        _log.error(
+            "service exited immediately after start",
+            extra={
+                "event": "service.startup_failed",
+                "context": {"pid": pid, "type": service_type},
+            },
+        )
         raise ServiceError(
             f"service process (PID {pid}) exited immediately after start"
         )
 
+    _log.info(
+        "service started",
+        extra={
+            "event": "service.startup",
+            "context": {
+                "type": service_type,
+                "host": host,
+                "port": port,
+                "pid": pid,
+            },
+        },
+    )
     return pid
 
 

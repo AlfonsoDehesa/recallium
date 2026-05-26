@@ -3,13 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import logging
 
 from recallium.embeddings import EmbeddingProvider
 from recallium.errors import ValidationError
 from recallium.models import Memory, SearchResult, validate_limit
-
-_log = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)

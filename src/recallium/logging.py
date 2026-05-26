@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import warnings
 from datetime import UTC, datetime
 from logging.handlers import RotatingFileHandler
 from typing import TYPE_CHECKING
@@ -110,10 +111,34 @@ def setup_logging(config: RecalliumConfig) -> None:
     for lib_name in ("uvicorn", "sqlite3", "httpx"):
         lib_logger = logging.getLogger(lib_name)
         lib_logger.setLevel(logging.WARNING)
-        # Route library warnings through our handlers as well
-        lib_logger.addHandler(file_handler)
-        lib_logger.addHandler(stream_handler)
         lib_logger.propagate = False
+        if not lib_logger.handlers:
+            lib_logger.addHandler(file_handler)
+            lib_logger.addHandler(stream_handler)
+
+    _warnings_logger = logging.getLogger("recallium.warnings")
+
+    def _handle_warning(
+        message: Warning | str,
+        category: type[Warning],
+        filename: str,
+        lineno: int,
+        file: object | None = None,
+        line: str | None = None,
+    ) -> None:
+        _warnings_logger.warning(
+            str(message),
+            extra={
+                "event": "warning.captured",
+                "context": {
+                    "category": category.__name__,
+                    "filename": filename,
+                    "lineno": lineno,
+                },
+            },
+        )
+
+    warnings.showwarning = _handle_warning
 
 
 def get_logger(name: str) -> logging.Logger:
