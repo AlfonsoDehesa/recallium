@@ -787,6 +787,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 port=port,
                 db_path=args.db_path,
                 config_path=core_config_path,
+                log_level=args.log_level,
             )
         except FileNotFoundError as exc:
             _log.error(str(exc), extra={"event": "config.missing"})
@@ -973,7 +974,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return 1
 
             try:
-                pid = start_service(cfg, service_type, db_path=args.db_path)
+                pid = start_service(
+                    cfg,
+                    service_type,
+                    db_path=args.db_path,
+                    log_level=args.log_level,
+                )
                 host = cfg.effective_config["service"]["host"]
                 port = cfg.effective_config["service"]["port"]
                 print(

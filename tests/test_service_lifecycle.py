@@ -577,8 +577,8 @@ def test_restart_running_service(tmp_path: Path, capsys: CaptureFixture[str]) ->
         stop_calls.append(config)
         return 12345
 
-    def _mock_start(config, service_type, db_path=None) -> int:
-        start_calls.append((service_type, db_path))
+    def _mock_start(config, service_type, db_path=None, log_level=None) -> int:
+        start_calls.append((service_type, db_path, log_level))
         return 12346
 
     with (
@@ -606,7 +606,7 @@ def test_restart_running_service(tmp_path: Path, capsys: CaptureFixture[str]) ->
     assert payload["type"] == "api"
     assert payload["pid"] == 12346
     assert len(stop_calls) == 1
-    assert start_calls == [("api", None)]
+    assert start_calls == [("api", None, None)]
 
 
 def test_restart_stale_pid(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
@@ -614,8 +614,8 @@ def test_restart_stale_pid(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
 
     start_calls: list = []
 
-    def _mock_start(config, service_type, db_path=None) -> int:
-        start_calls.append((service_type, db_path))
+    def _mock_start(config, service_type, db_path=None, log_level=None) -> int:
+        start_calls.append((service_type, db_path, log_level))
         return 12345
 
     with (
@@ -633,7 +633,7 @@ def test_restart_stale_pid(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
         )
 
     assert exit_code == 0
-    assert start_calls == [("mcp", None)]
+    assert start_calls == [("mcp", None, None)]
     payload = json.loads(stdout)
     assert payload["status"] == "restarted"
     assert payload["type"] == "mcp"
@@ -666,8 +666,8 @@ def test_restart_with_type_flag(tmp_path: Path, capsys: CaptureFixture[str]) -> 
 
     start_calls: list = []
 
-    def _mock_start(config, service_type, db_path=None) -> int:
-        start_calls.append((service_type, db_path))
+    def _mock_start(config, service_type, db_path=None, log_level=None) -> int:
+        start_calls.append((service_type, db_path, log_level))
         return 12345
 
     with (
@@ -682,7 +682,7 @@ def test_restart_with_type_flag(tmp_path: Path, capsys: CaptureFixture[str]) -> 
         )
 
     assert exit_code == 0
-    assert start_calls == [("api", None)]
+    assert start_calls == [("api", None, None)]
     payload = json.loads(stdout)
     assert payload["status"] == "restarted"
     assert payload["type"] == "api"
@@ -694,7 +694,7 @@ def test_restart_value_error_on_start(
     """start_service raises ValueError during restart — handler returns 2."""
     config_path = _make_config(tmp_path)
 
-    def _raise_value_error(config, service_type, db_path=None) -> int:
+    def _raise_value_error(config, service_type, db_path=None, log_level=None) -> int:
         raise ValueError("unknown service type: xyz")
 
     with (
@@ -719,7 +719,7 @@ def test_restart_conflict_error_on_start(
     """start_service raises ServiceConflictError during restart — handler returns 1."""
     config_path = _make_config(tmp_path)
 
-    def _raise_conflict(config, service_type, db_path=None) -> int:
+    def _raise_conflict(config, service_type, db_path=None, log_level=None) -> int:
         raise ServiceConflictError("a mcp service is already running")
 
     with (
@@ -743,7 +743,7 @@ def test_restart_service_error_on_start(
 ) -> None:
     config_path = _make_config(tmp_path)
 
-    def _raise_service_error(config, service_type, db_path=None) -> int:
+    def _raise_service_error(config, service_type, db_path=None, log_level=None) -> int:
         raise ServiceError("service process exited immediately after start")
 
     with (
@@ -914,7 +914,7 @@ def test_start_service_passes_db_path(
     start_calls: list = []
 
     def _mock_start(config, service_type, db_path=None, log_level=None) -> int:
-        start_calls.append((service_type, db_path))
+        start_calls.append((service_type, db_path, log_level))
         return 42
 
     with patch("recallium.cli.start_service", _mock_start):
@@ -933,7 +933,7 @@ def test_start_service_passes_db_path(
 
     assert exit_code == 0
     assert len(start_calls) == 1
-    assert start_calls[0] == ("api", str(db_path))
+    assert start_calls[0] == ("api", str(db_path), None)
 
 
 def test_restart_passes_db_path(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
@@ -943,7 +943,7 @@ def test_restart_passes_db_path(tmp_path: Path, capsys: CaptureFixture[str]) -> 
     start_calls: list = []
 
     def _mock_start(config, service_type, db_path=None, log_level=None) -> int:
-        start_calls.append((service_type, db_path))
+        start_calls.append((service_type, db_path, log_level))
         return 42
 
     with (
@@ -958,6 +958,8 @@ def test_restart_passes_db_path(tmp_path: Path, capsys: CaptureFixture[str]) -> 
                 str(config_path),
                 "--db",
                 str(db_path),
+                "--log-level",
+                "debug",
                 "service",
                 "restart",
                 "--type",
@@ -968,7 +970,7 @@ def test_restart_passes_db_path(tmp_path: Path, capsys: CaptureFixture[str]) -> 
 
     assert exit_code == 0
     assert len(start_calls) == 1
-    assert start_calls[0] == ("mcp", str(db_path))
+    assert start_calls[0] == ("mcp", str(db_path), "debug")
 
 
 # ---------------------------------------------------------------------------

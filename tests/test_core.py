@@ -1,7 +1,9 @@
+from contextlib import contextmanager
 import json
 from pathlib import Path
 import sqlite3
 import threading
+from typing import Iterator
 
 import pytest
 
@@ -15,6 +17,16 @@ from recallium.errors import (
     ValidationError,
 )
 from recallium.models import SPACE_USER, SPACE_WORKSPACE, STATUS_ARCHIVED
+
+
+@contextmanager
+def sqlite_connection(db_path: Path) -> Iterator[sqlite3.Connection]:
+    connection = sqlite3.connect(db_path)
+    try:
+        yield connection
+    finally:
+        connection.commit()
+        connection.close()
 
 
 class FakeEmbeddingProvider:
@@ -79,7 +91,7 @@ def make_memories_stale(
     }
     stale_json = json.dumps(stale_profile, sort_keys=True)
     placeholders = ", ".join("?" for _ in memory_ids)
-    with sqlite3.connect(db_path) as connection:
+    with sqlite_connection(db_path) as connection:
         connection.execute(
             f"UPDATE memories SET embedding_profile_json = ? WHERE id IN ({placeholders})",
             [stale_json, *memory_ids],
@@ -320,7 +332,7 @@ def test_add_memory_persists_chunk_embeddings_and_searches_from_chunks(
     assert results[0].matched_text is not None
     assert results[0].chunk_index == 0
 
-    with sqlite3.connect(db_path) as connection:
+    with sqlite_connection(db_path) as connection:
         chunk_count = connection.execute(
             "SELECT COUNT(*) FROM embedding_chunks WHERE memory_id = ?",
             (created.id,),
@@ -340,7 +352,7 @@ def test_update_memory_content_refreshes_chunks(tmp_path: Path) -> None:
     updated = core.update_memory(created.id, content="new launch checklist")
     assert updated.content == "new launch checklist"
 
-    with sqlite3.connect(db_path) as connection:
+    with sqlite_connection(db_path) as connection:
         chunk_texts = connection.execute(
             "SELECT content FROM embedding_chunks WHERE memory_id = ? ORDER BY chunk_index ASC",
             (created.id,),
@@ -393,7 +405,7 @@ def test_search_reembeds_missing_profile_chunks_below_threshold(tmp_path: Path) 
         workspace_uid="shop",
     )
 
-    with sqlite3.connect(db_path) as connection:
+    with sqlite_connection(db_path) as connection:
         connection.execute(
             "DELETE FROM embedding_chunks WHERE memory_id = ?", (created.id,)
         )
@@ -401,7 +413,7 @@ def test_search_reembeds_missing_profile_chunks_below_threshold(tmp_path: Path) 
     results = core.search_workspace_memories("laser calibration", workspace_uid="shop")
     assert [result.memory.id for result in results] == [created.id]
 
-    with sqlite3.connect(db_path) as connection:
+    with sqlite_connection(db_path) as connection:
         refreshed_chunk_count = connection.execute(
             "SELECT COUNT(*) FROM embedding_chunks WHERE memory_id = ?",
             (created.id,),
@@ -608,7 +620,7 @@ def test_deferred_reembedding_worker_completes_and_preserves_memory_fields(
         space=SPACE_USER,
     )
     assert stale_count == 0
-    with sqlite3.connect(db_path) as connection:
+    with sqlite_connection(db_path) as connection:
         chunk_count = connection.execute(
             "SELECT COUNT(*) FROM embedding_chunks WHERE memory_id = ?",
             (first.id,),
@@ -718,7 +730,7 @@ def test_deferred_reembedding_scope_safety_and_archived_exclusion(
     assert workspace_b_stale == 1
     assert user_stale == 1
 
-    with sqlite3.connect(db_path) as connection:
+    with sqlite_connection(db_path) as connection:
         archived_profile_json = connection.execute(
             "SELECT embedding_profile_json FROM memories WHERE id = ?",
             (archived.id,),
@@ -737,7 +749,7 @@ def test_reembedding_preserves_updated_at_for_startup_and_runtime(
         **core.embedding_provider.embedding_profile,
         "profile": "stale-profile",
     }
-    with sqlite3.connect(startup_db) as connection:
+    with sqlite_connection(startup_db) as connection:
         connection.execute(
             "UPDATE memories SET embedding_profile_json = ? WHERE id = ?",
             (json.dumps(stale_profile, sort_keys=True), startup_memory.id),
@@ -753,7 +765,7 @@ def test_reembedding_preserves_updated_at_for_startup_and_runtime(
         space=SPACE_USER, type="fact", content="beta"
     )
 
-    with sqlite3.connect(runtime_db) as connection:
+    with sqlite_connection(runtime_db) as connection:
         connection.execute(
             "UPDATE memories SET embedding_profile_json = ? WHERE id = ?",
             (json.dumps(stale_profile, sort_keys=True), runtime_memory.id),
@@ -777,7 +789,7 @@ def test_runtime_reembedding_failure_blocks_partial_results(
         "profile": "stale-profile",
     }
     stale_json = json.dumps(stale_profile, sort_keys=True)
-    with sqlite3.connect(db_path) as connection:
+    with sqlite_connection(db_path) as connection:
         connection.execute(
             "UPDATE memories SET embedding_profile_json = ? WHERE id IN (?, ?)",
             (stale_json, first.id, second.id),

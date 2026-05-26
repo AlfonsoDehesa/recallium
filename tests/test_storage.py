@@ -1,5 +1,7 @@
+from contextlib import contextmanager
 from pathlib import Path
 import sqlite3
+from typing import Iterator
 
 import pytest
 
@@ -22,6 +24,16 @@ EMBEDDING_PROFILE = {
     "dimensions": 2,
     "version": "1",
 }
+
+
+@contextmanager
+def sqlite_connection(db_path: Path) -> Iterator[sqlite3.Connection]:
+    connection = sqlite3.connect(db_path)
+    try:
+        yield connection
+    finally:
+        connection.commit()
+        connection.close()
 
 
 def build_memory(memory_id: str, **overrides: object) -> Memory:
@@ -76,7 +88,7 @@ def test_store_uses_latest_schema_version(tmp_path: Path) -> None:
     db_path = tmp_path / "schema.db"
     SQLiteMemoryStore(db_path)
 
-    with sqlite3.connect(db_path) as connection:
+    with sqlite_connection(db_path) as connection:
         row = connection.execute("PRAGMA user_version").fetchone()
 
     assert row is not None
@@ -87,7 +99,7 @@ def test_fresh_database_tracks_schema_migrations_metadata(tmp_path: Path) -> Non
     db_path = tmp_path / "schema-metadata.db"
     SQLiteMemoryStore(db_path)
 
-    with sqlite3.connect(db_path) as connection:
+    with sqlite_connection(db_path) as connection:
         versions = [
             row[0]
             for row in connection.execute(
@@ -102,7 +114,7 @@ def test_fresh_schema_creates_chunk_and_job_tables(tmp_path: Path) -> None:
     db_path = tmp_path / "schema-v2.db"
     SQLiteMemoryStore(db_path)
 
-    with sqlite3.connect(db_path) as connection:
+    with sqlite_connection(db_path) as connection:
         tables = {
             row[0]
             for row in connection.execute(
@@ -119,7 +131,7 @@ def test_v1_database_migrates_to_v2_without_losing_memories(tmp_path: Path) -> N
     db_path = tmp_path / "migrate-v1.db"
     memory = build_memory("legacy")
 
-    with sqlite3.connect(db_path) as connection:
+    with sqlite_connection(db_path) as connection:
         connection.execute(
             """
             CREATE TABLE memories (
@@ -174,7 +186,7 @@ def test_v1_database_migrates_to_v2_without_losing_memories(tmp_path: Path) -> N
     assert loaded.id == "legacy"
     assert loaded.content == memory.content
 
-    with sqlite3.connect(db_path) as connection:
+    with sqlite_connection(db_path) as connection:
         version = connection.execute("PRAGMA user_version").fetchone()
     assert version is not None
     assert version[0] == 2
@@ -185,7 +197,7 @@ def test_current_v2_database_without_metadata_remains_compatible(
 ) -> None:
     db_path = tmp_path / "v2-without-metadata.db"
 
-    with sqlite3.connect(db_path) as connection:
+    with sqlite_connection(db_path) as connection:
         connection.execute(
             """
             CREATE TABLE memories (
@@ -251,7 +263,7 @@ def test_current_v2_database_without_metadata_remains_compatible(
     assert status["pending_versions"] == []
     assert status["up_to_date"] is True
 
-    with sqlite3.connect(db_path) as connection:
+    with sqlite_connection(db_path) as connection:
         versions = [
             row[0]
             for row in connection.execute(
@@ -327,7 +339,7 @@ def test_migration_failure_does_not_mark_version_upgraded(tmp_path: Path) -> Non
     with pytest.raises(MigrationError):
         runner.migrate()
 
-    with sqlite3.connect(db_path) as connection:
+    with sqlite_connection(db_path) as connection:
         version = connection.execute("PRAGMA user_version").fetchone()
         applied = [
             row[0]
@@ -343,7 +355,7 @@ def test_migration_failure_does_not_mark_version_upgraded(tmp_path: Path) -> Non
 
 def test_newer_database_version_raises_migration_error(tmp_path: Path) -> None:
     db_path = tmp_path / "future.db"
-    with sqlite3.connect(db_path) as connection:
+    with sqlite_connection(db_path) as connection:
         connection.execute("PRAGMA user_version = 999")
 
     with pytest.raises(MigrationError):

@@ -135,12 +135,18 @@ def test_cli_serve_passes_flags_to_service_runner(tmp_path, monkeypatch) -> None
     call: dict[str, object] = {}
 
     def _fake_run_service(
-        *, host: str, port: int, db_path: str | None, config_path: str | None
+        *,
+        host: str,
+        port: int,
+        db_path: str | None,
+        config_path: str | None,
+        log_level: str | None,
     ) -> None:
         call["host"] = host
         call["port"] = port
         call["db_path"] = db_path
         call["config_path"] = config_path
+        call["log_level"] = log_level
 
     monkeypatch.setattr("recallium.cli.run_service", _fake_run_service)
 
@@ -152,6 +158,8 @@ def test_cli_serve_passes_flags_to_service_runner(tmp_path, monkeypatch) -> None
             str(config_path),
             "--db",
             str(db_path),
+            "--log-level",
+            "debug",
             "serve",
             "--host",
             "127.0.0.2",
@@ -165,6 +173,7 @@ def test_cli_serve_passes_flags_to_service_runner(tmp_path, monkeypatch) -> None
     assert call["port"] == 9001
     assert call["db_path"] == str(db_path)
     assert str(call["config_path"]) == str(config_path)
+    assert call["log_level"] == "debug"
 
 
 def test_cli_serve_uses_default_host_and_port_without_explicit_config(
@@ -173,12 +182,18 @@ def test_cli_serve_uses_default_host_and_port_without_explicit_config(
     call: dict[str, object] = {}
 
     def _fake_run_service(
-        *, host: str, port: int, db_path: str | None, config_path: str | None
+        *,
+        host: str,
+        port: int,
+        db_path: str | None,
+        config_path: str | None,
+        log_level: str | None,
     ) -> None:
         call["host"] = host
         call["port"] = port
         call["db_path"] = db_path
         call["config_path"] = config_path
+        call["log_level"] = log_level
 
     monkeypatch.setattr("recallium.cli.run_service", _fake_run_service)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
@@ -194,6 +209,7 @@ def test_cli_serve_uses_default_host_and_port_without_explicit_config(
     assert call["port"] == 8765
     assert call["db_path"] is None
     assert call["config_path"] is None
+    assert call["log_level"] is None
     assert (tmp_path / "config" / "recallium" / "config.json").exists()
 
 
@@ -201,7 +217,12 @@ def test_cli_serve_explicit_missing_config_fails_clearly(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def _fake_run_service(
-        *, host: str, port: int, db_path: str | None, config_path: str | None
+        *,
+        host: str,
+        port: int,
+        db_path: str | None,
+        config_path: str | None,
+        log_level: str | None,
     ) -> None:
         raise AssertionError("run_service should not run with a missing config")
 
@@ -221,7 +242,12 @@ def test_cli_serve_invalid_config_fails_clearly(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def _fake_run_service(
-        *, host: str, port: int, db_path: str | None, config_path: str | None
+        *,
+        host: str,
+        port: int,
+        db_path: str | None,
+        config_path: str | None,
+        log_level: str | None,
     ) -> None:
         raise AssertionError("run_service should not run with invalid config")
 
@@ -245,7 +271,12 @@ def test_cli_serve_explicit_missing_config_fails_after_flag_overrides(
     config_path = tmp_path / "missing" / "config.json"
 
     def _fake_run_service(
-        *, host: str, port: int, db_path: str | None, config_path: str | None
+        *,
+        host: str,
+        port: int,
+        db_path: str | None,
+        config_path: str | None,
+        log_level: str | None,
     ) -> None:
         raise FileNotFoundError(f"config file not found: {config_path}")
 
@@ -275,7 +306,12 @@ def test_cli_serve_invalid_config_fails_after_flag_overrides(
     config_path = tmp_path / "config.json"
 
     def _fake_run_service(
-        *, host: str, port: int, db_path: str | None, config_path: str | None
+        *,
+        host: str,
+        port: int,
+        db_path: str | None,
+        config_path: str | None,
+        log_level: str | None,
     ) -> None:
         raise ValidationError("invalid JSON in config file")
 
