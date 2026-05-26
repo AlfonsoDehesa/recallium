@@ -200,6 +200,16 @@ Two service types are available:
 - **API** (`recallium service start api`): REST API server with all memory operations, embedding status, and health checks. Mounted at the configured `service.host` and `service.port`.
 - **MCP** (`recallium service start mcp`): MCP (Model Context Protocol) HTTP server with memory tools for AI assistant integration. Uses SSE transport at the configured address.
 
+  MCP tools exposed:
+
+  - `add_memory` -- create a new memory
+  - `get_memory` -- retrieve a single memory by ID
+  - `update_memory` -- update a memory's content
+  - `archive_memory` -- archive a memory by ID
+  - `list_memories` -- list memories, optionally filtered
+  - `search_user_memory` -- semantic search across user-space memories
+  - `search_workspace_memory` -- semantic search within a workspace
+
 Only one service can run at a time. The service manager uses a PID file to track the running process and prevent conflicts.
 
 ### Starting a service

@@ -400,8 +400,10 @@ async def _exercise_mcp_service(endpoint: str) -> None:
             await session.initialize()
 
             tools = await session.list_tools()
-            assert {tool.name for tool in tools.tools} >= {
+            tool_names = {tool.name for tool in tools.tools}
+            assert tool_names >= {
                 "add_memory",
+                "get_memory",
                 "search_user_memory",
             }
 
@@ -428,6 +430,17 @@ async def _exercise_mcp_service(endpoint: str) -> None:
             assert isinstance(search_content, TextContent)
             results = json.loads(search_content.text)
             assert results[0]["memory"]["id"] == added_memory["id"]
+
+            got = await session.call_tool(
+                "get_memory",
+                {"id": added_memory["id"]},
+            )
+            assert not got.isError
+            got_content = got.content[0]
+            assert isinstance(got_content, TextContent)
+            got_memory = json.loads(got_content.text)
+            assert got_memory["id"] == added_memory["id"]
+            assert got_memory["content"] == "mcp daemon memory"
 
 
 # ---------------------------------------------------------------------------
