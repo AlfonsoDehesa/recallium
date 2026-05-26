@@ -13,6 +13,7 @@ from recallium.service import (
     _parse_optional_bool,
     _parse_optional_positive_int,
     create_app,
+    create_mcp_app,
     run_service,
 )
 from recallium.service_contract import (
@@ -727,3 +728,54 @@ def test_run_service_builds_core_and_starts_uvicorn(monkeypatch) -> None:
     assert calls["host"] == "127.0.0.2"
     assert calls["port"] == 9002
     assert calls["log_level"] == "debug"
+
+
+def test_create_mcp_app_instantiates_fastapi_with_sse_mount(
+    tmp_path: Path,
+) -> None:
+    db_path = str(tmp_path / "mcp-app.db")
+    core = RecalliumCore(db_path=db_path)
+    app = create_mcp_app(core)
+
+    from fastapi import FastAPI
+
+    assert isinstance(app, FastAPI)
+    assert app.title == "Recallium MCP Server"
+
+
+def test_run_service_mcp_uses_create_mcp_app(monkeypatch) -> None:
+    calls: dict[str, object] = {}
+
+    class FakeCore:
+        def __init__(
+            self, *, db_path: str | None, config_path: str | None = None
+        ) -> None:
+            self.config = type(
+                "FakeConfig",
+                (),
+                {"effective_config": {"logging": {"level": "info"}}},
+            )()
+
+    def fake_create_mcp_app(core: object) -> str:
+        calls["mcp_core"] = core
+        return "fake-mcp-app"
+
+    def fake_run(app: object, *, host: str, port: int, log_level: str) -> None:
+        calls["app"] = app
+        calls["host"] = host
+
+    monkeypatch.setattr("recallium.service.RecalliumCore", FakeCore)
+    monkeypatch.setattr("recallium.service.create_mcp_app", fake_create_mcp_app)
+
+    import uvicorn
+
+    monkeypatch.setattr(uvicorn, "run", fake_run)
+
+    run_service(
+        host="127.0.0.1",
+        port=8900,
+        db_path="mcp.db",
+        service_type="mcp",
+    )
+
+    assert calls["app"] == "fake-mcp-app"
