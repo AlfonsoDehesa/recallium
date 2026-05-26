@@ -19,6 +19,7 @@ def test_create_mcp_server_registers_tools(tmp_path: Path) -> None:
         "search_user_memory",
         "search_workspace_memory",
         "add_memory",
+        "get_memory",
         "update_memory",
         "archive_memory",
         "list_memories",
@@ -60,6 +61,20 @@ def test_mcp_tool_search_user_memory(tmp_path: Path) -> None:
     assert len(results) >= 1
     assert results[0]["memory"]["id"] == added.id
     assert results[0]["memory"]["content"] == "Recallium stores memories locally"
+
+
+def test_mcp_tool_get_memory(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "test.db")
+    core = RecalliumCore(db_path=db_path)
+    added = core.add_memory(space="user", type="fact", content="Get this memory")
+    mcp = create_mcp_server(core)
+
+    get_fn = mcp._tool_manager._tools["get_memory"].fn
+    result_json = get_fn(id=added.id)
+    memory = json.loads(result_json)
+    assert memory["id"] == added.id
+    assert memory["content"] == "Get this memory"
+    assert memory["space"] == "user"
 
 
 def test_mcp_tool_archive_memory(tmp_path: Path) -> None:
@@ -149,6 +164,18 @@ def test_archive_memory_not_found_error(tmp_path: Path) -> None:
 
     archive_fn = mcp._tool_manager._tools["archive_memory"].fn
     result_json = archive_fn(id="nonexistent-id")
+    data = json.loads(result_json)
+    assert "error" in data
+
+
+def test_get_memory_not_found_error(tmp_path: Path) -> None:
+    """get_memory with a non-existent ID returns an error JSON."""
+    db_path = str(tmp_path / "test.db")
+    core = RecalliumCore(db_path=db_path)
+    mcp = create_mcp_server(core)
+
+    get_fn = mcp._tool_manager._tools["get_memory"].fn
+    result_json = get_fn(id="nonexistent-id")
     data = json.loads(result_json)
     assert "error" in data
 
