@@ -427,3 +427,13 @@ print(results[0].score if results else None)
 - `GET /v1/embedding/status`
 - `GET /v1/embedding/jobs`
 - `GET /v1/embedding/jobs/{job_id}`
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for the feature plan and version targets.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. The short
+version: open an issue for bugs and feature requests, submit PRs from
+feature branches, and keep your commits clean and your tests passing.

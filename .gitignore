@@ -1,13 +1,62 @@
+# Python
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
 .pyright/
 .venv/
+
 dist/
 build/
 *.egg-info/
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+
+# SQLite
 *.db
 *.sqlite
 *.sqlite3
+
+# Logs
+*.log
+logs/
+
+# Runtime
+*.pid
+data/
+cache/
+state/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Synology
 @eaDir/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# AI tooling — do not commit your editor or agent config to the repo
+.opencode/
+.cursor/
+.copilot/
+.windsurf/
+.continue/
+.aider*
+.claude/
+.agents/
+.codex/
+.cursorrules
+*.aider.conf.yml
