@@ -35,7 +35,7 @@ This MVP does not include:
 
 ## Install for development
 
-Recallium Core requires Python 3.14 or newer. Use `uv` for environment and dependency management.
+Recallium Core requires Python 3.12 or newer. Use `uv` for environment and dependency management.
 
 ```bash
 uv sync --group dev

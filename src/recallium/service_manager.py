@@ -67,13 +67,13 @@ def get_process_start_time(pid: int) -> int | None:
     """Return the Linux process start time ticks for *pid*, if available."""
     try:
         stat_text = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8")
-    except FileNotFoundError, PermissionError, OSError:
+    except (FileNotFoundError, PermissionError, OSError):
         return None
 
     try:
         fields_after_name = stat_text[stat_text.rfind(")") + 2 :].split()
         return int(fields_after_name[19])
-    except IndexError, ValueError:
+    except (IndexError, ValueError):
         return None
 
 
@@ -81,7 +81,7 @@ def get_process_cmdline(pid: int) -> list[str] | None:
     """Return the process command line for *pid*, if available."""
     try:
         raw = Path(f"/proc/{pid}/cmdline").read_bytes()
-    except FileNotFoundError, PermissionError, OSError:
+    except (FileNotFoundError, PermissionError, OSError):
         return None
     return [part.decode("utf-8", errors="replace") for part in raw.split(b"\0") if part]
 
