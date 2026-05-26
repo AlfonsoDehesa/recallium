@@ -883,8 +883,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(f"ValidationError: {exc}", file=sys.stderr)
                 return 2
             pid_path = get_pid_file_path(cfg)
-            raw_pid_info = read_pid_file(pid_path)
-            running = check_running_service(cfg)
+            try:
+                raw_pid_info = read_pid_file(pid_path)
+                running = check_running_service(cfg)
+            except ServiceError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
             if running is not None:
                 host = cfg.effective_config["service"]["host"]
                 port = cfg.effective_config["service"]["port"]
@@ -920,8 +924,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return 2
 
             pid_path = get_pid_file_path(cfg)
-            raw_pid_info = read_pid_file(pid_path)
-            running = check_running_service(cfg)
+            try:
+                raw_pid_info = read_pid_file(pid_path)
+                running = check_running_service(cfg)
+            except ServiceError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
             if running is not None:
                 # Service is running: stop it first, then restart same type
                 service_type = running["type"]

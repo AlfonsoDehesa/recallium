@@ -991,3 +991,43 @@ def test_restart_running_stop_fails_with_conflict(
                     "restart",
                 ]
             )
+
+
+def test_status_corrupt_pid_file(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
+    config_path = _make_config(tmp_path)
+
+    with (
+        patch("recallium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
+        patch(
+            "recallium.cli.read_pid_file",
+            side_effect=ServiceError("corrupted PID file"),
+        ),
+    ):
+        exit_code, stdout, stderr = _run_cli(
+            ["--config", str(config_path), "service", "status"],
+            capsys,
+        )
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert "corrupted PID file" in stderr
+
+
+def test_restart_corrupt_pid_file(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
+    config_path = _make_config(tmp_path)
+
+    with (
+        patch("recallium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
+        patch(
+            "recallium.cli.read_pid_file",
+            side_effect=ServiceError("corrupted PID file"),
+        ),
+    ):
+        exit_code, stdout, stderr = _run_cli(
+            ["--config", str(config_path), "service", "restart"],
+            capsys,
+        )
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert "corrupted PID file" in stderr
