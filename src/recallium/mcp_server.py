@@ -55,19 +55,19 @@ def create_mcp_server(core: RecalliumCore) -> FastMCP:
             return json.dumps({"error": str(e)}, sort_keys=True)
 
     @mcp.tool()
-    def update_memory(memory_id: str, content: str | None = None) -> str:
+    def update_memory(id: str, content: str | None = None) -> str:
         """Update an existing memory's content. Returns the updated memory as JSON."""
         try:
-            memory = core.update_memory(memory_id, content=content)
+            memory = core.update_memory(id, content=content)
             return json.dumps(memory.to_dict(), sort_keys=True)
         except RecalliumError as e:
             return json.dumps({"error": str(e)}, sort_keys=True)
 
     @mcp.tool()
-    def archive_memory(memory_id: str) -> str:
+    def archive_memory(id: str) -> str:
         """Archive a memory. Returns the archived memory as JSON."""
         try:
-            memory = core.archive_memory(memory_id)
+            memory = core.archive_memory(id)
             return json.dumps(memory.to_dict(), sort_keys=True)
         except RecalliumError as e:
             return json.dumps({"error": str(e)}, sort_keys=True)

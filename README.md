@@ -322,8 +322,8 @@ The runtime directory can be overridden in config by setting `directories.runtim
 
 ### Error handling
 
-- Starting a different service type while one is running produces a clear error: `ServiceConflictError: a mcp service is already running (PID 12345). Stop it before starting an api service.`
-- Starting the same type acts as a restart.
+- Starting any service while another service is running produces a clear error: `ServiceConflictError: a mcp service is already running (PID 12345). Stop it before starting an api service.`
+- Use `recallium service restart` to restart a running service.
 - Stale PID files from crashed processes are cleaned automatically.
 
 ## CLI examples

@@ -69,7 +69,7 @@ def test_mcp_tool_archive_memory(tmp_path: Path) -> None:
     mcp = create_mcp_server(core)
 
     archive_fn = mcp._tool_manager._tools["archive_memory"].fn
-    result_json = archive_fn(memory_id=added.id)
+    result_json = archive_fn(id=added.id)
     archived = json.loads(result_json)
     assert archived["id"] == added.id
     assert archived["status"] == "archived"
@@ -87,7 +87,7 @@ def test_mcp_tool_update_memory(tmp_path: Path) -> None:
     mcp = create_mcp_server(core)
 
     update_fn = mcp._tool_manager._tools["update_memory"].fn
-    result_json = update_fn(memory_id=added.id, content="Updated content")
+    result_json = update_fn(id=added.id, content="Updated content")
     updated = json.loads(result_json)
     assert updated["id"] == added.id
     assert updated["content"] == "Updated content"
@@ -136,7 +136,7 @@ def test_update_memory_not_found_error(tmp_path: Path) -> None:
     mcp = create_mcp_server(core)
 
     update_fn = mcp._tool_manager._tools["update_memory"].fn
-    result_json = update_fn(memory_id="nonexistent-id", content="new content")
+    result_json = update_fn(id="nonexistent-id", content="new content")
     data = json.loads(result_json)
     assert "error" in data
 
@@ -148,7 +148,7 @@ def test_archive_memory_not_found_error(tmp_path: Path) -> None:
     mcp = create_mcp_server(core)
 
     archive_fn = mcp._tool_manager._tools["archive_memory"].fn
-    result_json = archive_fn(memory_id="nonexistent-id")
+    result_json = archive_fn(id="nonexistent-id")
     data = json.loads(result_json)
     assert "error" in data
 

@@ -16,7 +16,7 @@ from pytest import CaptureFixture
 
 from recallium.cli import main
 from recallium.config import DEFAULTS
-from recallium.errors import ServiceConflictError
+from recallium.errors import ServiceConflictError, ServiceError
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -174,6 +174,25 @@ def test_start_service_value_error(tmp_path: Path, capsys: CaptureFixture[str]) 
     assert exit_code == 2
     assert stdout == ""
     assert "unknown service type: xyz" in stderr
+
+
+def test_start_service_service_error(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    config_path = _make_config(tmp_path)
+
+    def _raise_service_error(*args, **kwargs) -> int:
+        raise ServiceError("service process exited immediately after start")
+
+    with patch("recallium.cli.start_service", _raise_service_error):
+        exit_code, stdout, stderr = _run_cli(
+            ["--config", str(config_path), "service", "start", "api"],
+            capsys,
+        )
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert "service process exited immediately" in stderr
 
 
 # ---------------------------------------------------------------------------
@@ -459,6 +478,30 @@ def test_restart_conflict_error_on_start(
     assert exit_code == 1
     assert stdout == ""
     assert "a mcp service is already running" in stderr
+
+
+def test_restart_service_error_on_start(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    config_path = _make_config(tmp_path)
+
+    def _raise_service_error(config, service_type, db_path=None) -> int:
+        raise ServiceError("service process exited immediately after start")
+
+    with (
+        patch("recallium.cli.check_running_service", return_value=None),
+        patch("recallium.cli.read_pid_file", return_value=None),
+        patch("recallium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
+        patch("recallium.cli.start_service", _raise_service_error),
+    ):
+        exit_code, stdout, stderr = _run_cli(
+            ["--config", str(config_path), "service", "restart", "--type", "api"],
+            capsys,
+        )
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert "service process exited immediately" in stderr
 
 
 # ---------------------------------------------------------------------------

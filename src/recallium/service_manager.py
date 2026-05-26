@@ -134,21 +134,23 @@ def start_service(
 
     Returns the child PID.
 
-    Raises ``ServiceConflictError`` if a service of a **different** type is
-    already running.  A service of the same type is allowed (restart
-    scenario).
+    Raises ``ServiceConflictError`` if any service is already running. Use
+    ``service restart`` for restart semantics so the PID file always tracks
+    the process that is actually serving requests.
     """
     if service_type not in {"api", "mcp"}:
         raise ValueError(f"service_type must be 'api' or 'mcp' (got {service_type!r})")
 
     existing = check_running_service(config)
-    if existing is not None and existing["type"] != service_type:
+    if existing is not None:
         raise ServiceConflictError(
             f"a {existing['type']} service is already running (PID {existing['pid']}). "
             f"Stop it before starting a {service_type} service."
         )
 
     config_path = str(config.config_file_path)
+    host = str(config.effective_config["service"]["host"])
+    port = int(config.effective_config["service"]["port"])
 
     cmd: list[str] = [
         sys.executable,
@@ -160,6 +162,7 @@ def start_service(
     if db_path is not None:
         cmd.extend(["--db-path", db_path])
     cmd.extend(["--config-path", config_path])
+    cmd.extend(["--host", host, "--port", str(port)])
 
     process = subprocess.Popen(cmd)
     pid = process.pid
@@ -170,7 +173,7 @@ def start_service(
     # If the child dies quickly (config error, port conflict, etc.),
     # clean up and report failure rather than leaving a stale PID file.
     time.sleep(0.3)
-    if not is_pid_alive(pid):
+    if process.poll() is not None or not is_pid_alive(pid):
         remove_pid_file(pid_path)
         raise ServiceError(
             f"service process (PID {pid}) exited immediately after start"
@@ -233,6 +236,8 @@ def _run_server(
     service_type: str,
     db_path: str | None = None,
     config_path: str | None = None,
+    host: str | None = None,
+    port: int | None = None,
 ) -> None:
     """Internal entry point called by the subprocess.
 
@@ -242,14 +247,19 @@ def _run_server(
     """
     from recallium.service import run_service
 
+    service_kwargs: dict[str, Any] = {
+        "db_path": db_path,
+        "config_path": config_path,
+    }
+    if host is not None:
+        service_kwargs["host"] = host
+    if port is not None:
+        service_kwargs["port"] = port
+
     if service_type == "api":
-        run_service(db_path=db_path, config_path=config_path)
+        run_service(**service_kwargs)
     elif service_type == "mcp":
-        run_service(
-            db_path=db_path,
-            config_path=config_path,
-            service_type="mcp",
-        )
+        run_service(**service_kwargs, service_type="mcp")
     else:
         print(f"Unknown service type: {service_type!r}", file=sys.stderr)
         sys.exit(1)
@@ -263,13 +273,15 @@ if __name__ == "__main__":
     # When spawned as: python -m recallium.service_manager _run_server <type> [...]
     if len(sys.argv) < 2 or sys.argv[1] != "_run_server":
         print(
-            "usage: python -m recallium.service_manager _run_server <api|mcp> [--db-path PATH] [--config-path PATH]"
+            "usage: python -m recallium.service_manager _run_server <api|mcp> [--db-path PATH] [--config-path PATH] [--host HOST] [--port PORT]"
         )
         sys.exit(2)
 
     service_type = sys.argv[2]
     db_path: str | None = None
     config_path: str | None = None
+    host: str | None = None
+    port: int | None = None
 
     # Simple argument parsing for the remaining args
     remaining = sys.argv[3:]
@@ -281,8 +293,20 @@ if __name__ == "__main__":
         elif remaining[i] == "--config-path" and i + 1 < len(remaining):
             config_path = remaining[i + 1]
             i += 2
+        elif remaining[i] == "--host" and i + 1 < len(remaining):
+            host = remaining[i + 1]
+            i += 2
+        elif remaining[i] == "--port" and i + 1 < len(remaining):
+            try:
+                port = int(remaining[i + 1])
+            except ValueError:
+                print(f"Invalid port: {remaining[i + 1]!r}", file=sys.stderr)
+                sys.exit(2)
+            i += 2
         else:
             print(f"Unknown option: {remaining[i]}", file=sys.stderr)
             sys.exit(2)
 
-    _run_server(service_type, db_path=db_path, config_path=config_path)
+    _run_server(
+        service_type, db_path=db_path, config_path=config_path, host=host, port=port
+    )

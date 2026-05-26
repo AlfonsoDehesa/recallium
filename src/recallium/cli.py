@@ -26,7 +26,7 @@ from recallium.models import SearchResult
 from recallium.mcp_server import create_mcp_server
 from recallium.service import run_service
 from recallium.service_contract import SERVICE_DEFAULT_HOST, SERVICE_DEFAULT_PORT
-from recallium.errors import ServiceConflictError
+from recallium.errors import ServiceConflictError, ServiceError
 from recallium.service_manager import (
     check_running_service,
     get_pid_file_path,
@@ -849,6 +849,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             except ServiceConflictError as exc:
                 print(str(exc), file=sys.stderr)
                 return 1
+            except ServiceError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
             except ValueError as exc:
                 print(str(exc), file=sys.stderr)
                 return 2
@@ -953,6 +956,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     )
                 )
             except ServiceConflictError as exc:
+                print(str(exc), file=sys.stderr)
+                return 1
+            except ServiceError as exc:
                 print(str(exc), file=sys.stderr)
                 return 1
             except ValueError as exc:

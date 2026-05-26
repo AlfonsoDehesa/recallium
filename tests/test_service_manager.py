@@ -39,6 +39,7 @@ def _make_mock_config(
     config = MagicMock()
     config.xdg_dirs = {"runtime": runtime_dir}
     config.config_file_path = Path(config_path)
+    config.effective_config = {"service": {"host": "127.0.0.9", "port": 9876}}
     return config
 
 
@@ -261,7 +262,7 @@ def test_start_service_conflict(monkeypatch: pytest.MonkeyPatch) -> None:
         start_service(config, "mcp")
 
 
-def test_start_service_same_type_allowed(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_start_service_same_type_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
     config = _make_mock_config(Path("/tmp/runtime"))
 
     def mock_check_running(cfg: object) -> dict[str, str | int]:
@@ -271,21 +272,13 @@ def test_start_service_same_type_allowed(monkeypatch: pytest.MonkeyPatch) -> Non
         "recallium.service_manager.check_running_service", mock_check_running
     )
 
-    fake_process = MagicMock()
-    fake_process.pid = 12345
-    monkeypatch.setattr(subprocess, "Popen", lambda cmd: fake_process)
+    popen_calls: list[list[str]] = []
+    monkeypatch.setattr(subprocess, "Popen", lambda cmd: popen_calls.append(cmd))
 
-    write_calls: list[tuple[Path, int, str]] = []
-    monkeypatch.setattr(
-        "recallium.service_manager.write_pid_file",
-        lambda path, pid, st: write_calls.append((path, pid, st)),
-    )
-    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: True)
+    with pytest.raises(ServiceConflictError, match="api service is already running"):
+        start_service(config, "api")
 
-    pid = start_service(config, "api")
-    assert pid == 12345
-    assert len(write_calls) == 1
-    assert write_calls[0][1] == 12345
+    assert popen_calls == []
 
 
 def test_start_service_invalid_service_type() -> None:
@@ -303,12 +296,13 @@ def test_start_service_child_dies_immediately(monkeypatch: pytest.MonkeyPatch) -
 
     fake_process = MagicMock()
     fake_process.pid = 9999
+    fake_process.poll.return_value = 1
     monkeypatch.setattr(subprocess, "Popen", lambda cmd: fake_process)
 
     monkeypatch.setattr(
         "recallium.service_manager.write_pid_file", lambda path, pid, st: None
     )
-    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: False)
+    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: True)
     monkeypatch.setattr("recallium.service_manager.remove_pid_file", lambda path: None)
 
     with pytest.raises(ServiceError, match="exited immediately after start"):
@@ -323,6 +317,7 @@ def test_start_service_no_conflict(monkeypatch: pytest.MonkeyPatch) -> None:
 
     fake_process = MagicMock()
     fake_process.pid = 5555
+    fake_process.poll.return_value = None
     monkeypatch.setattr(subprocess, "Popen", lambda cmd: fake_process)
     monkeypatch.setattr(
         "recallium.service_manager.write_pid_file", lambda path, pid, st: None
@@ -345,6 +340,7 @@ def test_start_service_without_db_path(monkeypatch: pytest.MonkeyPatch) -> None:
         popen_args.append(cmd)
         fake = MagicMock()
         fake.pid = 7777
+        fake.poll.return_value = None
         return fake
 
     monkeypatch.setattr(subprocess, "Popen", fake_popen)
@@ -359,6 +355,10 @@ def test_start_service_without_db_path(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "--db-path" not in popen_args[0]
     assert "--config-path" in popen_args[0]
     assert "/mock/config.json" in popen_args[0]
+    assert "--host" in popen_args[0]
+    assert "127.0.0.9" in popen_args[0]
+    assert "--port" in popen_args[0]
+    assert "9876" in popen_args[0]
 
 
 def test_start_service_with_db_path(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -373,6 +373,7 @@ def test_start_service_with_db_path(monkeypatch: pytest.MonkeyPatch) -> None:
         popen_args.append(cmd)
         fake = MagicMock()
         fake.pid = 7777
+        fake.poll.return_value = None
         return fake
 
     monkeypatch.setattr(subprocess, "Popen", fake_popen)
@@ -552,41 +553,70 @@ def test_stop_service_mcp(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_run_server_api(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: dict[str, str | None] = {}
-
-    def fake_run_service(
-        *, db_path: str | None = None, config_path: str | None = None
-    ) -> None:
-        calls["db_path"] = db_path
-        calls["config_path"] = config_path
-
-    monkeypatch.setattr("recallium.service.run_service", fake_run_service)
-    monkeypatch.setattr(sys, "exit", lambda code: None)
-
-    _run_server("api", db_path="/tmp/db", config_path="/tmp/config.json")
-    assert calls == {"db_path": "/tmp/db", "config_path": "/tmp/config.json"}
-
-
-def test_run_server_mcp(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls: dict[str, str | None] = {}
+    calls: dict[str, str | int | None] = {}
 
     def fake_run_service(
         *,
         db_path: str | None = None,
         config_path: str | None = None,
+        host: str | None = None,
+        port: int | None = None,
+    ) -> None:
+        calls["db_path"] = db_path
+        calls["config_path"] = config_path
+        calls["host"] = host
+        calls["port"] = port
+
+    monkeypatch.setattr("recallium.service.run_service", fake_run_service)
+    monkeypatch.setattr(sys, "exit", lambda code: None)
+
+    _run_server(
+        "api",
+        db_path="/tmp/db",
+        config_path="/tmp/config.json",
+        host="127.0.0.9",
+        port=9876,
+    )
+    assert calls == {
+        "db_path": "/tmp/db",
+        "config_path": "/tmp/config.json",
+        "host": "127.0.0.9",
+        "port": 9876,
+    }
+
+
+def test_run_server_mcp(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: dict[str, str | int | None] = {}
+
+    def fake_run_service(
+        *,
+        db_path: str | None = None,
+        config_path: str | None = None,
+        host: str | None = None,
+        port: int | None = None,
         service_type: str | None = None,
     ) -> None:
         calls["db_path"] = db_path
         calls["config_path"] = config_path
+        calls["host"] = host
+        calls["port"] = port
         calls["service_type"] = service_type
 
     monkeypatch.setattr("recallium.service.run_service", fake_run_service)
     monkeypatch.setattr(sys, "exit", lambda code: None)
 
-    _run_server("mcp", db_path="/tmp/db", config_path="/tmp/cfg.json")
+    _run_server(
+        "mcp",
+        db_path="/tmp/db",
+        config_path="/tmp/cfg.json",
+        host="127.0.0.9",
+        port=9876,
+    )
     assert calls == {
         "db_path": "/tmp/db",
         "config_path": "/tmp/cfg.json",
+        "host": "127.0.0.9",
+        "port": 9876,
         "service_type": "mcp",
     }
 
@@ -629,21 +659,29 @@ def test_main_entry_point_api(monkeypatch: pytest.MonkeyPatch) -> None:
             "/tmp/db",
             "--config-path",
             "/tmp/config.json",
+            "--host",
+            "127.0.0.9",
+            "--port",
+            "9876",
         ],
     )
     monkeypatch.setattr(sys, "exit", _fake_exit)
 
-    run_service_calls: list[tuple[str | None, str | None]] = []
+    run_service_calls: list[tuple[str | None, str | None, str | None, int | None]] = []
 
     def fake_run_service(
-        *, db_path: str | None = None, config_path: str | None = None
+        *,
+        db_path: str | None = None,
+        config_path: str | None = None,
+        host: str | None = None,
+        port: int | None = None,
     ) -> None:
-        run_service_calls.append((db_path, config_path))
+        run_service_calls.append((db_path, config_path, host, port))
 
     monkeypatch.setattr("recallium.service.run_service", fake_run_service)
 
     runpy.run_module("recallium.service_manager", run_name="__main__")
-    assert run_service_calls == [("/tmp/db", "/tmp/config.json")]
+    assert run_service_calls == [("/tmp/db", "/tmp/config.json", "127.0.0.9", 9876)]
 
 
 def test_main_entry_point_api_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -681,6 +719,21 @@ def test_main_entry_point_unknown_option(
 ) -> None:
     monkeypatch.setattr(
         sys, "argv", ["recallium.service_manager", "_run_server", "api", "--bad-flag"]
+    )
+    monkeypatch.setattr(sys, "exit", _fake_exit)
+
+    with pytest.raises(SystemExit) as exc_info:
+        runpy.run_module("recallium.service_manager", run_name="__main__")
+    assert exc_info.value.code == 2
+
+
+def test_main_entry_point_invalid_port(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["recallium.service_manager", "_run_server", "api", "--port", "bad"],
     )
     monkeypatch.setattr(sys, "exit", _fake_exit)
 
