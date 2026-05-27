@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import argcomplete
+from argcomplete.completers import ChoicesCompleter
 from copy import deepcopy
 import json
 import logging
@@ -56,6 +58,23 @@ from recallium.storage import SQLiteMemoryStore
 _log = logging.getLogger(__name__)
 _INSTALL_METADATA_FILE = "install.json"
 _PURGE_CONFIRMATION = "delete all recallium data"
+
+_COMPLETABLE_CONFIG_KEYS = [
+    "version",
+    "database.path",
+    "embedding.provider",
+    "embedding.model",
+    "service.host",
+    "service.port",
+    "logging.level",
+    "logging.format",
+    "logging.max_bytes",
+    "logging.backup_count",
+    "directories.data",
+    "directories.cache",
+    "directories.logs",
+    "directories.runtime",
+]
 
 
 class _CliLoggingConfig:
@@ -408,6 +427,123 @@ def _handle_package_update_command() -> int:
     return 0
 
 
+_COMPLETION_RC_FILES: dict[str, str] = {
+    "bash": ".bashrc",
+    "zsh": ".zshrc",
+    "fish": ".config/fish/config.fish",
+}
+
+
+def _detect_shell() -> str | None:
+    shell_path = os.environ.get("SHELL", "")
+    if not shell_path:
+        return None
+    basename = Path(shell_path).name
+    if basename in _COMPLETION_RC_FILES:
+        return basename
+    return None
+
+
+def _handle_completion_command(args: argparse.Namespace) -> int:
+    shell = args.shell
+    if shell is None:
+        shell = _detect_shell()
+    if shell is None:
+        _log.error(
+            "Could not detect shell from $SHELL. "
+            "Pass the shell name explicitly: recallium completion bash",
+            extra={"event": "completion.unknown_shell"},
+        )
+        return 2
+
+    if args.source:
+        output = argcomplete.shellcode(["recallium"], shell=shell)  # pyright: ignore[reportPrivateImportUsage]
+        sys.stdout.write(output)
+        return 0
+
+    eval_line = f'eval "$(recallium completion --source {shell})"'
+
+    if args.install:
+        rc_filename = _COMPLETION_RC_FILES.get(shell)
+        if rc_filename is None:
+            _log.error(
+                f"No rc file mapping for shell {shell}",
+                extra={"event": "completion.unknown_rc"},
+            )
+            return 1
+        rc_path = Path.home() / rc_filename
+
+        try:
+            existing = rc_path.read_text(encoding="utf-8") if rc_path.exists() else ""
+        except OSError as exc:
+            _log.error(
+                f"Could not read rc file {rc_path}: {exc}",
+                extra={"event": "completion.rc_read_error"},
+            )
+            return 1
+
+        if eval_line in existing:
+            print(
+                json.dumps(
+                    {"status": "already_installed", "rc_file": str(rc_path)},
+                    sort_keys=True,
+                )
+            )
+            return 0
+
+        block = (
+            f"# >>> recallium completion >>>\n"
+            f"{eval_line}\n"
+            f"# <<< recallium completion <<<\n"
+        )
+
+        if not args.yes:
+            sys.stderr.write(
+                f"Will append the following block to {rc_path}:\n\n{block}\n"
+            )
+            sys.stderr.write("Proceed? Type 'yes' to confirm: ")
+            response = sys.stdin.readline().strip()
+            if response.lower() != "yes":
+                _log.warning(
+                    "Completion installation cancelled.",
+                    extra={"event": "completion.cancelled"},
+                )
+                return 1
+
+        try:
+            with rc_path.open("a", encoding="utf-8") as f:
+                f.write("\n" + block)
+        except OSError as exc:
+            _log.error(
+                f"Could not write to {rc_path}: {exc}",
+                extra={"event": "completion.rc_write_error"},
+            )
+            return 1
+
+        print(
+            json.dumps(
+                {"status": "installed", "rc_file": str(rc_path)},
+                sort_keys=True,
+            )
+        )
+        return 0
+
+    instructions = [
+        f"Add this line to your shell rc file for {shell} tab completion:",
+        "",
+        f"  {eval_line}",
+        "",
+        "Or run this to install it automatically:",
+        "",
+        f"  recallium completion --install {shell}",
+        "",
+        "After adding the line, restart your shell or run:",
+        f"  source ~/{_COMPLETION_RC_FILES[shell]}",
+    ]
+    sys.stdout.write("\n".join(instructions) + "\n")
+    return 0
+
+
 def _load_uninstall_plan(config_path: Path, *, explicit: bool) -> _UninstallPlan:
     """Resolve uninstall targets without creating files or directories."""
     if explicit and not config_path.exists():
@@ -747,7 +883,7 @@ def _build_parser() -> argparse.ArgumentParser:
     get_parser.add_argument(
         "key",
         help='Dot-notation config key, e.g. "service.port".',
-    )
+    ).completer = ChoicesCompleter(_COMPLETABLE_CONFIG_KEYS)  # pyright: ignore[reportAttributeAccessIssue]
 
     set_parser = config_sub.add_parser(
         "set",
@@ -757,7 +893,7 @@ def _build_parser() -> argparse.ArgumentParser:
     set_parser.add_argument(
         "key",
         help='Dot-notation config key, e.g. "service.port".',
-    )
+    ).completer = ChoicesCompleter(_COMPLETABLE_CONFIG_KEYS)  # pyright: ignore[reportAttributeAccessIssue]
     set_parser.add_argument(
         "value",
         help="Value to write. Parsed as JSON when possible; stored as string otherwise.",
@@ -771,7 +907,7 @@ def _build_parser() -> argparse.ArgumentParser:
     unset_parser.add_argument(
         "key",
         help='Dot-notation config key, e.g. "service.port".',
-    )
+    ).completer = ChoicesCompleter(_COMPLETABLE_CONFIG_KEYS)  # pyright: ignore[reportAttributeAccessIssue]
 
     init_parser = config_sub.add_parser(
         "init",
@@ -1153,6 +1289,46 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    # -- completion ---------------------------------------------------------
+    completion_parser = subparsers.add_parser(
+        "completion",
+        help="print shell completion setup instructions",
+        description=(
+            "Print shell completion setup instructions for bash, zsh, or fish. "
+            "With --source, prints only the raw completion function definition "
+            "for eval consumption."
+        ),
+    )
+    completion_parser.add_argument(
+        "shell",
+        nargs="?",
+        choices=["bash", "zsh", "fish"],
+        help="Shell to generate completion for (default: auto-detect from $SHELL).",
+    )
+    action_group = completion_parser.add_mutually_exclusive_group()
+    action_group.add_argument(
+        "--source",
+        action="store_true",
+        help=(
+            "Print only the raw completion function definition for eval "
+            "consumption. No instructions or human-readable output."
+        ),
+    )
+    action_group.add_argument(
+        "--install",
+        action="store_true",
+        help=(
+            "Append the completion eval line to the current shell's rc file "
+            "inside a managed comment block. Prompts for confirmation before "
+            "modifying any file."
+        ),
+    )
+    completion_parser.add_argument(
+        "--yes",
+        action="store_true",
+        help="Skip confirmation prompt when used with --install.",
+    )
+
     return parser
 
 
@@ -1164,6 +1340,7 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the Recallium CLI."""
     parser = _build_parser()
+    argcomplete.autocomplete(parser)
     if argv == [] or (argv is None and len(sys.argv) == 1):
         parser.print_help()
         return 0
@@ -1180,6 +1357,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command is None:
         parser.print_help()
         return 0
+
+    if args.command == "completion":
+        return _handle_completion_command(args)
 
     # Resolve config path
     config_path = _resolve_config_path(args.config_path)

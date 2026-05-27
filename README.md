@@ -64,6 +64,35 @@ recallium init
 SQLite database, runs migrations, and downloads the built-in FastEmbed model.
 It is safe to run more than once.
 
+### Shell completion
+
+Bootstrap install configures tab completion for bash, zsh, and fish
+automatically. After `curl | sh`, open a new shell session and `recallium
+<TAB>` works.
+
+To set up completion manually:
+
+```bash
+recallium completion --install
+```
+
+To see the setup instructions for a specific shell:
+
+```bash
+recallium completion bash
+recallium completion zsh
+recallium completion fish
+```
+
+The completion eval line uses a managed comment block so uninstall can
+identify and remove it cleanly:
+
+```bash
+# >>> recallium completion >>>
+eval "$(recallium completion --source bash)"
+# <<< recallium completion <<<
+```
+
 ### Python package managers
 
 If you already have Python 3.12 or newer:

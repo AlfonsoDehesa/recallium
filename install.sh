@@ -5,6 +5,7 @@ REPO="AlfonsoDehesa/recallium"
 INSTALL_DIR="${HOME}/.local/bin"
 UV_BIN="${INSTALL_DIR}/uv"
 MANAGED_PATH_EDIT=""
+COMPLETION_RC=""
 
 info() {
   printf '%s\n' "$1"
@@ -96,13 +97,45 @@ record_install_metadata() {
   installed_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
   mkdir -p "$state_dir"
   escaped_ref=$(json_escape "$ref")
+
+  path_edits="["
+  first=1
   if [ -n "$MANAGED_PATH_EDIT" ]; then
     escaped_path_edit=$(json_escape "$MANAGED_PATH_EDIT")
-    path_edits="[\"${escaped_path_edit}\"]"
-  else
-    path_edits="[]"
+    path_edits="${path_edits}\"${escaped_path_edit}\""
+    first=0
   fi
+  if [ -n "$COMPLETION_RC" ]; then
+    escaped_completion_edit=$(json_escape "$COMPLETION_RC")
+    if [ $first -eq 0 ]; then
+      path_edits="${path_edits}, "
+    fi
+    path_edits="${path_edits}\"${escaped_completion_edit}\""
+  fi
+  path_edits="${path_edits}]"
+
   printf '{\n  "install_method": "bootstrap",\n  "source_ref": "%s",\n  "installed_at": "%s",\n  "managed_path_edits": %s\n}\n' "$escaped_ref" "$installed_at" "$path_edits" > "$metadata_path"
+}
+
+configure_shell_completion() {
+  shell="${SHELL##*/}"
+  case "$shell" in
+    bash) rc="${HOME}/.bashrc" ;;
+    zsh)  rc="${HOME}/.zshrc" ;;
+    fish) rc="${HOME}/.config/fish/config.fish" ;;
+    *)    rc="${HOME}/.bashrc" ;;  # default to bash per spec
+  esac
+
+  eval_line='eval "$(recallium completion --source '"${shell}"')"'
+  if [ -f "$rc" ] && grep -F "$eval_line" "$rc" >/dev/null 2>&1; then
+    info "Shell completion already configured in ${rc}."
+    return
+  fi
+
+  mkdir -p "$(dirname "$rc")" 2>/dev/null || true
+  printf '\n# >>> recallium completion >>>\n%s\n# <<< recallium completion <<<\n' "$eval_line" >> "$rc"
+  COMPLETION_RC="${rc}: ${eval_line}"
+  info "Shell completion configured in ${rc}."
 }
 
 install_uv
@@ -111,5 +144,6 @@ package="git+https://github.com/${REPO}.git@${ref}"
 info "Installing Recallium from ${ref}..."
 "$UV_BIN" tool install --python 3.12 --force "$package"
 ensure_path_hint
+configure_shell_completion
 record_install_metadata
 info "Recallium installed. Try: recallium --version"

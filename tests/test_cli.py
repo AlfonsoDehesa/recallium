@@ -10,6 +10,7 @@ from importlib.metadata import PackageNotFoundError
 from pathlib import Path
 import runpy
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -61,6 +62,7 @@ def test_cli_help_documents_commands_and_flags(capsys) -> None:
     assert "embedding-jobs" in top_level_help
     assert "db-status" in top_level_help
     assert "uninstall" in top_level_help
+    assert "completion" in top_level_help
 
     add_help = _run_help(["add", "--help"], capsys)
     assert "User memories must not include" in add_help
@@ -2381,3 +2383,311 @@ class TestServiceStatusCorruptConfig:
         assert exit_code == 2
         assert stdout == ""
         assert "logging.level must be one of" in stderr
+
+
+# ---------------------------------------------------------------------------
+#  shell completion tests
+# ---------------------------------------------------------------------------
+
+
+def test_cli_completion_help_prints_human_readable_instructions(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    exit_code, stdout, stderr = _run_cli(["completion", "bash"], capsys)
+
+    assert exit_code == 0
+    assert stderr == ""
+    assert "Add this line to your shell rc file" in stdout
+    assert 'eval "$(recallium completion --source bash)"' in stdout
+    assert "recallium completion --install bash" in stdout
+
+
+def test_cli_completion_default_prints_human_readable_instructions(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    exit_code, stdout, stderr = _run_cli(["completion", "zsh"], capsys)
+
+    assert exit_code == 0
+    assert stderr == ""
+    assert "Add this line to your shell rc file" in stdout
+    assert 'eval "$(recallium completion --source zsh)"' in stdout
+    assert "recallium completion --install zsh" in stdout
+
+
+def test_cli_completion_default_prints_human_readable_instructions_fish(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    exit_code, stdout, stderr = _run_cli(["completion", "fish"], capsys)
+
+    assert exit_code == 0
+    assert stderr == ""
+    assert "Add this line to your shell rc file" in stdout
+    assert 'eval "$(recallium completion --source fish)"' in stdout
+    assert "recallium completion --install fish" in stdout
+
+
+def test_cli_completion_source_bash_prints_shellcode(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    exit_code, stdout, stderr = _run_cli(["completion", "--source", "bash"], capsys)
+
+    assert exit_code == 0
+    assert stderr == ""
+    assert "register-python-argcomplete" in stdout or "complete " in stdout
+    assert "recallium" in stdout
+
+
+def test_cli_completion_source_zsh_prints_shellcode(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    exit_code, stdout, stderr = _run_cli(["completion", "--source", "zsh"], capsys)
+
+    assert exit_code == 0
+    assert stderr == ""
+    assert len(stdout) > 0
+
+
+def test_cli_completion_source_fish_prints_shellcode(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    exit_code, stdout, stderr = _run_cli(["completion", "--source", "fish"], capsys)
+
+    assert exit_code == 0
+    assert stderr == ""
+    assert len(stdout) > 0
+
+
+def test_cli_completion_auto_detect_shell(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SHELL", "/bin/bash")
+
+    exit_code, stdout, stderr = _run_cli(["completion", "--source"], capsys)
+
+    assert exit_code == 0
+    assert stderr == ""
+    assert "recallium" in stdout
+
+
+def test_cli_completion_unknown_shell(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SHELL", raising=False)
+
+    exit_code, stdout, stderr = _run_cli(["completion"], capsys)
+
+    assert exit_code == 2
+    assert stderr != ""
+    assert "Could not detect shell" in stderr
+
+
+def test_cli_completion_auto_detect_non_standard_shell(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SHELL", "/bin/tcsh")
+
+    exit_code, stdout, stderr = _run_cli(["completion"], capsys)
+
+    assert exit_code == 2
+    assert "Could not detect shell" in stderr
+
+
+def test_cli_completion_auto_detect_with_source(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SHELL", "/bin/zsh")
+
+    exit_code, stdout, stderr = _run_cli(["completion", "--source"], capsys)
+
+    assert exit_code == 0
+    assert stderr == ""
+    assert len(stdout) > 0
+
+
+def test_cli_completion_install_yes_writes_rc_file(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rc_path = tmp_path / ".bashrc"
+    monkeypatch.setattr("recallium.cli.Path.home", lambda: tmp_path)
+
+    exit_code, stdout, stderr = _run_cli(
+        ["completion", "--install", "bash", "--yes"], capsys
+    )
+
+    assert exit_code == 0
+    assert stderr == ""
+    payload = json.loads(stdout)
+    assert payload["status"] == "installed"
+    assert payload["rc_file"] == str(rc_path)
+    content = rc_path.read_text(encoding="utf-8")
+    assert "# >>> recallium completion >>>" in content
+    assert 'eval "$(recallium completion --source bash)"' in content
+    assert "# <<< recallium completion <<<" in content
+
+
+def test_cli_completion_install_dedup_when_already_present(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rc_path = tmp_path / ".bashrc"
+    rc_path.write_text(
+        'eval "$(recallium completion --source bash)"\n', encoding="utf-8"
+    )
+    monkeypatch.setattr("recallium.cli.Path.home", lambda: tmp_path)
+
+    exit_code, stdout, stderr = _run_cli(
+        ["completion", "--install", "bash", "--yes"], capsys
+    )
+
+    assert exit_code == 0
+    assert stderr == ""
+    payload = json.loads(stdout)
+    assert payload["status"] == "already_installed"
+    occurrences = rc_path.read_text(encoding="utf-8").count(
+        "recallium completion --source"
+    )
+    assert occurrences == 1
+
+
+def test_cli_completion_install_unknown_shell(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("recallium.cli._COMPLETION_RC_FILES", {"bash": ".bashrc"})
+    monkeypatch.setenv("SHELL", "/bin/zsh")
+
+    exit_code, stdout, stderr = _run_cli(
+        ["completion", "--install", "zsh", "--yes"], capsys
+    )
+
+    assert exit_code == 1
+    assert "No rc file mapping" in stderr
+
+
+def test_cli_completion_install_refuses_without_confirm_in_non_tty(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("recallium.cli.Path.home", lambda: tmp_path)
+    monkeypatch.setattr("sys.stdin.readline", lambda: "no\n")
+
+    exit_code, stdout, stderr = _run_cli(["completion", "--install", "bash"], capsys)
+
+    assert exit_code == 1
+    assert "Cancelled" in stderr or "cancelled" in stderr
+
+
+def test_cli_completion_install_accepts_confirm(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rc_path = tmp_path / ".bashrc"
+    monkeypatch.setattr("recallium.cli.Path.home", lambda: tmp_path)
+    monkeypatch.setattr("sys.stdin.readline", lambda: "yes\n")
+
+    exit_code, stdout, stderr = _run_cli(["completion", "--install", "bash"], capsys)
+
+    assert exit_code == 0
+    payload = json.loads(stdout)
+    assert payload["status"] == "installed"
+    assert payload["rc_file"] == str(rc_path)
+
+
+def test_cli_completion_unreadable_rc_file(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rc_path = tmp_path / ".bashrc"
+    rc_path.mkdir()
+    monkeypatch.setattr("recallium.cli.Path.home", lambda: tmp_path)
+
+    exit_code, stdout, stderr = _run_cli(
+        ["completion", "--install", "bash", "--yes"], capsys
+    )
+
+    assert exit_code == 1
+    assert "Could not read rc file" in stderr
+
+
+def test_cli_completion_unwritable_rc_file(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rc_path = tmp_path / ".bashrc"
+    rc_path.write_text("", encoding="utf-8")
+    monkeypatch.setattr("recallium.cli.Path.home", lambda: tmp_path)
+
+    original_open = Path.open
+
+    def _fake_open(self: Path, *args: Any, **kwargs: Any) -> Any:
+        if self == rc_path and args == ("a",):
+            raise OSError("Permission denied")
+        return original_open(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", _fake_open)
+
+    exit_code, stdout, stderr = _run_cli(
+        ["completion", "--install", "bash", "--yes"], capsys
+    )
+
+    assert exit_code == 1
+    assert "Could not write to" in stderr
+
+
+def test_cli_completion_help_includes_completion(
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    top_level = _run_help(["--help"], capsys)
+    assert "completion" in top_level
+
+    completion_help = _run_help(["completion", "--help"], capsys)
+    assert "--source" in completion_help
+    assert "--install" in completion_help
+    assert "--yes" in completion_help
+    assert "bash" in completion_help
+    assert "zsh" in completion_help
+    assert "fish" in completion_help
+
+
+def test_cli_completion_does_not_interfere_with_normal_commands(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """argcomplete.autocomplete(parser) must be a silent no-op for normal invocations."""
+    _set_xdg_home(monkeypatch, tmp_path)
+    exit_code, stdout, stderr = _run_cli(["--version"], capsys)
+    assert exit_code == 0
+    assert "recallium" in stdout
+    assert stderr == ""
+
+
+def test_cli_completion_config_key_completer_registered(
+    capsys: CaptureFixture[str],
+) -> None:
+    config_get_help = _run_help(["config", "get", "--help"], capsys)
+    assert "key" in config_get_help
+
+    config_set_help = _run_help(["config", "set", "--help"], capsys)
+    assert "key" in config_set_help
+
+    config_unset_help = _run_help(["config", "unset", "--help"], capsys)
+    assert "key" in config_unset_help

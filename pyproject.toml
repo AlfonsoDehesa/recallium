@@ -26,6 +26,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
+    "argcomplete>=3.0",
     "cryptography==46.0.3",
     "fastapi>=0.124",
     "fastembed>=0.7.3",
