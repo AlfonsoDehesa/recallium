@@ -78,6 +78,42 @@ of feeling like Recallium silently hung or failed.
 - Add tests for success, timeout, unavailable provider, unavailable model, and
   user-facing error text.
 
+### Install-time initialization and model readiness
+
+Release goal: bootstrap install leaves Recallium ready to use by default, and
+embedding-using commands always run against the configured model.
+
+- Keep the normal package install flow first.
+- During bootstrap install, automatically run init if no config file exists.
+- If a config file already exists, skip init and preserve the existing config.
+- After install and any needed init, automatically prepare the configured
+  FastEmbed model with no extra user action.
+- If the configured model is missing, download or warm it before install
+  finishes.
+- If the configured model differs from the currently prepared Recallium model,
+  download or warm the new configured model and switch to it only after it is
+  ready.
+- Delete and replace old Recallium-managed model state only when it is safe and
+  clearly owned by Recallium.
+- Keep `recallium init` available as an explicit user command.
+- Keep model preparation available through explicit user-facing commands where
+  appropriate.
+- On service startup, verify the configured model is ready before the service
+  finishes starting.
+- Before any CLI command that needs embeddings completes, verify the configured
+  model is ready.
+- Do not check or report model mismatch for commands that do not need
+  embeddings.
+- Add a code comment at the central model-readiness wrapper explaining that
+  future commands that need embeddings must use this flow.
+- Ensure the model-readiness flow works with embedding profile migration and
+  re-embedding jobs when the configured model changes.
+- Extend the model download UX work to include progress or status for model
+  migration and re-embedding triggered by model changes.
+- Add tests for absent config install, existing config install, missing model,
+  changed model, service startup readiness, embedding CLI readiness,
+  non-embedding commands skipping model checks, and migration progress/status.
+
 ### OpenCode adapter readiness handoff
 
 Release goal: Core is ready for the future OpenCode adapter even though the
