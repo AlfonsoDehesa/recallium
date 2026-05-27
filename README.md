@@ -543,6 +543,18 @@ Workspace memories are keyed by a stable workspace UID. Future adapters, such as
 the OpenCode plugin, should create and pass that UID rather than using filesystem
 paths as workspace identity.
 
+List known workspace UIDs:
+
+```bash
+recallium --db /tmp/recallium.db workspace list
+```
+
+Rename a workspace (migrates all its memories to a new UID):
+
+```bash
+recallium --db /tmp/recallium.db workspace rename old-project new-project
+```
+
 All successful CLI commands return JSON.
 
 Check embedding profile status:

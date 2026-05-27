@@ -730,6 +730,76 @@ Unsupported route/method:
 }
 ```
 
+## Workspace operations
+
+### `GET /v1/workspaces`
+
+List distinct workspace UIDs visible through the API.
+
+**Query parameters**
+
+| Param | Type | Default | Description |
+|---|---|---|---|
+| `include_archived` | bool | `false` | Include UIDs that appear only on archived memories. |
+
+**Response 200**
+
+```json
+{
+  "data": ["generalist-ai", "recallium"]
+}
+```
+
+### `POST /v1/workspaces/{uid}/rename`
+
+Rename a workspace. Migrates all workspace memories (including archived) from
+the old UID to a new UID. Both UIDs are normalized according to the
+`workspace.uid_normalization` config setting before the operation.
+
+**Request body**
+
+```json
+{
+  "new_uid": "recallium"
+}
+```
+
+**Response 200**
+
+```json
+{
+  "data": {
+    "old_uid": "recallium-core",
+    "new_uid": "recallium",
+    "memories_updated": 42
+  }
+}
+```
+
+**Error 404 (workspace not found)**
+
+```json
+{
+  "error": {
+    "code": "not_found",
+    "message": "no workspace memories found for uid: nonexistent",
+    "details": {}
+  }
+}
+```
+
+**Error 400 (empty new_uid after normalization)**
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "workspace UID normalizes to an empty string: '!!!'",
+    "details": {}
+  }
+}
+```
+
 ## Notes
 
 - Only documented fields are supported.
