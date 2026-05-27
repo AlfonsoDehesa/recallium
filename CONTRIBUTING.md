@@ -175,15 +175,90 @@ Added cross-platform bootstrap installer. `curl | sh` on Linux and macOS,
 The release workflow combines this with an auto-generated list of merged
 PRs.
 
+### Pre-release checklist
+
+Before cutting a release, run through this checklist. Every item must be
+confirmed before the version-bump PR is opened.
+
+#### Surface parity
+
+- [ ] Every functionality reachable through the CLI is also reachable
+      through the API and the MCP server. No surface is missing an operation
+      the others expose.
+- [ ] `recallium config` get/set/unset covers every configurable key in
+      `config.json`.
+
+#### Documentation
+
+- [ ] API docs (`docs/local-service-api.md` and
+      `docs/local-service-openapi.json`) match the running service. The
+      OpenAPI spec is served by the service and matches the repo copy.
+- [ ] MCP tools are documented and the doc matches every tool the server
+      actually exposes.
+- [ ] Every CLI command, subcommand, flag, and positional argument has help
+      text. No undocumented paths. Run `recallium --help` for every
+      subcommand and confirm nothing is missing.
+- [ ] README is current: install instructions, config reference, CLI
+      examples, service management, uninstall, Python API examples.
+- [ ] ROADMAP.md reflects current progress and upcoming version targets.
+- [ ] CONTRIBUTING.md is current.
+
+#### Shell completion
+
+- [ ] Every CLI command and flag is reachable through argcomplete. Run
+      `recallium <TAB>` through every subcommand and confirm completions
+      work.
+- [ ] `recallium config get/set/unset <TAB>` completes config keys.
+
+#### Install and update
+
+- [ ] Bootstrap install works on Linux and macOS: `curl -LsSf
+      <install.sh URL> | sh` succeeds, `recallium --version` prints the
+      correct version, and `recallium init` completes.
+- [ ] Bootstrap install works on Windows: `irm <install.ps1 URL> | iex`
+      succeeds end-to-end.
+- [ ] `pip install recallium` works from test PyPI or a local wheel.
+- [ ] `pipx install recallium` works from test PyPI or a local wheel.
+- [ ] `recallium update` prints correct upgrade commands for each install
+      method.
+- [ ] `recallium uninstall` prints correct package-manager commands for
+      each install method and preserves data by default.
+- [ ] `recallium uninstall --purge` works correctly and safely.
+
+#### Cross-environment
+
+- [ ] All CLI commands work on Linux, macOS, and Windows.
+- [ ] All commands work with Python 3.12 and the latest Python release.
+- [ ] The service starts, responds to health checks, and stops cleanly on
+      all supported platforms.
+
+#### Quality gates
+
+- [ ] `uv run ruff format .` -- clean.
+- [ ] `uv run ruff check .` -- clean.
+- [ ] `uv run pyright` -- zero errors, zero warnings.
+- [ ] `uv run pytest` -- all passing.
+- [ ] `uv run pytest --cov=src/recallium --cov-report=term-missing` --
+      100 percent coverage. Any uncovered lines are documented and accepted.
+
+#### Release metadata
+
+- [ ] `version` in `pyproject.toml` is bumped to the target version.
+- [ ] `CHANGELOG.md` has an entry for this release under the new version
+      header.
+- [ ] The changelog entry summarizes user-facing changes clearly. No
+      internal-only commit noise.
+
 ### Releases
 
 Releases are created automatically when a version tag is pushed.
 
-1. Open a PR that does exactly two things:
+1. Run the pre-release checklist above and confirm every item.
+2. Open a PR that does exactly two things:
    - Bumps `version` in `pyproject.toml`.
    - Adds the release section to `CHANGELOG.md`.
-2. Merge the PR.
-3. Tag and push:
+3. Merge the PR.
+4. Tag and push:
 
    ```bash
    git checkout main
