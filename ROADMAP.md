@@ -9,19 +9,99 @@ discovery are already in place.
 
 Remaining release blockers:
 
-- Packaging and distribution readiness: verify wheel and source distribution
-  builds, verify `pip`, `pipx`, and `uv tool` installs, and confirm the release
-  workflow can publish from a version tag.
-- Workspace UID registry: define and implement the stable workspace identifier
-  contract Core expects adapters to use.
-- OpenCode adapter readiness handoff: ensure Core exposes and documents the
-  service discovery, workspace UID, API, and capability contracts needed by the
-  future adapter.
-- PowerShell dynamic shell completion for Windows users, including config-key
-  completion parity with argcomplete.
-- Final release sweep: run the full pre-release checklist in `CONTRIBUTING.md`,
-  refresh README, API docs, local access notes, roadmap, changelog, version, and
-  quality gates.
+### Packaging and distribution readiness
+
+Release goal: strangers can install Recallium without cloning the repository.
+
+- Verify `pyproject.toml` package metadata: name, version, license, Python
+  version, dependencies, and CLI entry point.
+- Build a wheel and source distribution.
+- Install from the local wheel.
+- Install from the source distribution.
+- Verify `pip install recallium` from the intended package index or local
+  release artifact.
+- Verify `pipx install recallium` from the intended package index or local
+  release artifact.
+- Verify `uv tool install recallium` from the intended package index or local
+  release artifact.
+- Confirm `recallium --version` works after each install method.
+- Confirm `recallium init` works after each install method.
+- Confirm the GitHub release workflow can publish from a version tag.
+- Confirm `CHANGELOG.md` and `pyproject.toml` version match.
+
+### Workspace UID registry
+
+Release goal: Core has a stable workspace identity contract that adapters can
+use without treating filesystem paths as canonical memory buckets.
+
+- Decide where workspace IDs live.
+- Decide whether Core creates workspace IDs, reads them, or both.
+- Define the workspace UID file format if the ID is stored on disk.
+- Ensure the same repository maps to the same workspace UID across sessions.
+- Ensure moving a folder does not accidentally create a different memory bucket.
+- Add CLI or API support if needed to inspect or register a workspace.
+- Document how adapters should get or create the workspace UID.
+- Add tests for creating, reading, validating, and reusing workspace IDs.
+
+### OpenCode adapter readiness handoff
+
+Release goal: Core is ready for the future OpenCode adapter even though the
+adapter itself is not part of this repository.
+
+- Document exactly how the adapter discovers the running service.
+- Document how the adapter checks service health, version, and capabilities.
+- Document how the adapter gets or creates the workspace UID.
+- Confirm the API has everything the adapter needs for user and workspace
+  memory operations.
+- Confirm capability names are stable enough for adapter compatibility checks.
+- Confirm errors are clear when the service is not running or incompatible.
+- Write an adapter workflow doc: install Core, start service, discover service,
+  validate service, then use memory endpoints.
+- Add an adapter contract section to the service or API docs if needed.
+
+### PowerShell dynamic shell completion
+
+Release goal: Windows users get dynamic Tab completion in PowerShell with parity
+for the important Recallium CLI paths.
+
+- Add PowerShell as a supported completion target.
+- Generate a `Register-ArgumentCompleter` script.
+- Make PowerShell call Recallium dynamically during Tab completion.
+- Complete top-level commands.
+- Complete subcommands.
+- Complete command flags.
+- Complete config keys for `recallium config get/set/unset`.
+- Add install support so the completion block can be added to the PowerShell
+  profile.
+- Add uninstall support so Recallium can remove the managed completion block.
+- Add tests for generated PowerShell script output.
+- Add docs for manual and automatic PowerShell setup.
+
+### Final release sweep
+
+Release goal: no embarrassing loose ends before tagging.
+
+- Run the full release checklist in `CONTRIBUTING.md`.
+- Confirm all CLI help text is accurate.
+- Confirm README is current.
+- Confirm API docs match the running service.
+- Confirm OpenAPI JSON matches FastAPI output.
+- Confirm config docs list every config key.
+- Confirm install docs match actual installer behavior.
+- Confirm uninstall docs are accurate.
+- Confirm roadmap reflects what is done and what is next.
+- Run `uv run ruff format .`.
+- Run `uv run ruff check .`.
+- Run `uv run pyright`.
+- Run `uv run pytest`.
+- Run coverage and keep it at 100 percent or explicitly document accepted misses.
+- Bump version.
+- Add changelog entry.
+- Open the release PR.
+- Merge the release PR.
+- Tag main.
+- Push the tag.
+- Confirm GitHub Release is created.
 
 ## Phase 1.5 (v0.1.x follow-up): Post-release polish
 
