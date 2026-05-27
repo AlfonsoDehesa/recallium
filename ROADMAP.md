@@ -63,6 +63,21 @@ use without treating filesystem paths as canonical memory buckets.
 - Document how adapters should get or create the workspace UID.
 - Add tests for creating, reading, validating, and reusing workspace IDs.
 
+### FastEmbed model download UX
+
+Release goal: first-run model setup is understandable and recoverable instead
+of feeling like Recallium silently hung or failed.
+
+- Make `recallium init` clearly explain that it may download the built-in
+  FastEmbed model on first run.
+- Surface clear progress or status messaging around model cache warmup where
+  practical without breaking JSON output contracts.
+- Provide actionable offline guidance when the model cannot be fetched.
+- Preserve machine-readable CLI output for automation.
+- Document the first-run model cache behavior in README install guidance.
+- Add tests for success, timeout, unavailable provider, unavailable model, and
+  user-facing error text.
+
 ### OpenCode adapter readiness handoff
 
 Release goal: Core is ready for the future OpenCode adapter even though the
