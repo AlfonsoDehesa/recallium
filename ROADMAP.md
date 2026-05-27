@@ -1,34 +1,40 @@
 # Roadmap
 
-## Phase 1 (v0.1.x): Installable core infrastructure
+## Phase 1 (v0.1.x): Release-ready core
 
-Recallium Core is fully installable, runnable, and ready for integration.
+Recallium Core is installable, runnable, documented, and ready for the first
+public release. The local service, CLI, API, bootstrap installers, service
+lifecycle, shell completion for Unix shells, uninstall behavior, and service
+discovery are already in place.
 
-- Python 3.12+, `uv` for environment and dependency management.
-- Config file with auto-creation, validation, and CLI overrides.
-- Structured JSON logging with rotation and configurable levels.
-- Service lifecycle commands with PID files and graceful shutdown.
-- Smart embeddings via built-in FastEmbed.
-- Database migrations with versioned runner.
-- CLI for memory operations, embedding status, and service management.
-- Local FastAPI + uvicorn HTTP service with OpenAPI docs.
+Remaining release blockers:
 
-In progress:
+- Packaging and distribution readiness: verify wheel and source distribution
+  builds, verify `pip`, `pipx`, and `uv tool` installs, and confirm the release
+  workflow can publish from a version tag.
+- Workspace UID registry: define and implement the stable workspace identifier
+  contract Core expects adapters to use.
+- OpenCode adapter readiness handoff: ensure Core exposes and documents the
+  service discovery, workspace UID, API, and capability contracts needed by the
+  future adapter.
+- PowerShell dynamic shell completion for Windows users, including config-key
+  completion parity with argcomplete.
+- Final release sweep: run the full pre-release checklist in `CONTRIBUTING.md`,
+  refresh README, API docs, local access notes, roadmap, changelog, version, and
+  quality gates.
 
-- Packaging and distribution.
-- Workspace UID registry and OpenCode adapter discovery.
-- CLI polish, shell completion, `--version` flag, and consistent errors.
-- PowerShell dynamic shell completion for Windows users.
-- Install guide, API docs, and local access control documentation.
+## Phase 1.5 (v0.1.x follow-up): Post-release polish
 
-## Phase 1.5 (v0.1.x follow-up): Cross-platform polish
+Phase 1.5 is for useful polish that should not block the first public release.
+It should improve cross-platform feel and adapter ergonomics after the core
+release path is proven.
 
-Recallium keeps Phase 1 focused while capturing polish work that should happen
-before Windows is treated as fully first-class.
-
-- PowerShell shell completion for Windows users.
-- PowerShell install and uninstall integration for managed completion blocks.
-- Completion docs for PowerShell alongside bash, zsh, and fish.
+- PowerShell completion install and uninstall refinements beyond the Phase 1
+  dynamic completion baseline.
+- Windows installer polish discovered during real user testing.
+- Cross-platform release smoke-test hardening beyond the minimum release gate.
+- Adapter-facing documentation examples and troubleshooting guides.
+- Small CLI usability improvements that do not change the core contract.
 
 ## Phase 2 (v0.2.x): Product intelligence
 
