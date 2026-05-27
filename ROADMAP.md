@@ -27,66 +27,9 @@ Completed:
 - [x] Uninstall cleanup for Recallium-managed shell completion blocks.
 - [x] Local service discovery for adapters through `recallium service discover` and `service-discovery.json`.
 - [x] Workspace UID contract: normalization, listing, rename, and CLI/API/MCP parity.
+- [x] Install-time init and model readiness: central `_ensure_model_ready()` wrapper with state file tracking, service startup gate, CLI embedding gate, bootstrap install auto-init, offline error guidance.
 
 Remaining release blockers:
-
-### Install-time initialization and model readiness
-
-Release goal: bootstrap install leaves Recallium ready to use by default, and
-embedding-using commands always run against the configured model.
-
-- [ ] Keep the normal package install flow first.
-- [ ] During bootstrap install, automatically run init if no config file exists.
-- [ ] If a config file already exists, skip init and preserve the existing config.
-- [ ] After install and any needed init, automatically prepare the configured
-  FastEmbed model with no extra user action.
-- [ ] If the configured model is missing, download or warm it before install
-  finishes.
-- [ ] If the configured model differs from the currently prepared Recallium model,
-  download or warm the new configured model and switch to it only after it is
-  ready.
-- [ ] Delete and replace old Recallium-managed model state only when it is safe and
-  clearly owned by Recallium.
-- [ ] Keep `recallium init` available as an explicit user command.
-- [ ] Keep model preparation available through explicit user-facing commands where
-  appropriate.
-- [ ] On service startup, verify the configured model is ready before the service
-  finishes starting.
-- [ ] Before any CLI command that needs embeddings completes, verify the configured
-  model is ready.
-- [ ] On any surface that needs embeddings, if the configured model is not ready,
-  prepare it, then resume and finish the original command, API request, or
-  service operation.
-- [ ] Do not check or report model mismatch for commands that do not need
-  embeddings.
-- [ ] Add a code comment at the central model-readiness wrapper explaining that
-  future commands that need embeddings must use this flow.
-- [ ] Ensure the model-readiness flow works with embedding profile migration and
-  re-embedding jobs when the configured model changes.
-- [ ] Extend the model download UX work to include progress or status for model
-  migration and re-embedding triggered by model changes.
-- [ ] Add tests for absent config install, existing config install, missing model,
-  changed model, service startup readiness, embedding CLI readiness,
-  non-embedding commands skipping model checks, and migration progress/status.
-
-### FastEmbed model download and migration UX
-
-Release goal: first-run model setup and configured-model migration are
-understandable and recoverable instead of feeling like Recallium silently hung or
-failed.
-
-- [ ] Make `recallium init` clearly explain that it may download the built-in
-  FastEmbed model on first run.
-- [ ] Surface clear progress or status messaging around model cache warmup where
-  practical without breaking JSON output contracts.
-- [ ] Surface clear progress or status messaging for embedding migration and
-  re-embedding when the configured model changes.
-- [ ] Provide actionable offline guidance when the model cannot be fetched.
-- [ ] Preserve machine-readable CLI output for automation.
-- [ ] Document first-run model cache behavior and configured-model migration behavior
-  in README install guidance.
-- [ ] Add tests for success, timeout, unavailable provider, unavailable model,
-  migration progress/status, and user-facing error text.
 
 ### Structure around memory types
 

@@ -39,7 +39,9 @@ This MVP does not include:
 
 You do not need Python, pip, pipx, or uv installed first. The bootstrap
 installer downloads uv, installs Recallium in an isolated tool environment,
-and puts the `recallium` command on PATH.
+runs `recallium init` (config, database, model), and puts the `recallium`
+command on PATH. The first run downloads the built-in FastEmbed model
+(~100 MB, 30-120 seconds).
 
 Linux and macOS:
 
@@ -57,12 +59,18 @@ Verify the install:
 
 ```bash
 recallium --version
+```
+
+Bootstrap install runs `recallium init` automatically. If you installed via
+`pip`, `pipx`, or `uv tool`, run init once:
+
+```bash
 recallium init
 ```
 
 `recallium init` creates the config file, data/cache/log/runtime directories,
-SQLite database, runs migrations, and downloads the built-in FastEmbed model.
-It is safe to run more than once.
+SQLite database, runs migrations, and downloads the built-in FastEmbed model
+(~100 MB on first run). It is safe to run more than once.
 
 ### Shell completion
 
