@@ -19,6 +19,7 @@ In progress:
 - Packaging and distribution.
 - Workspace UID registry and OpenCode adapter discovery.
 - CLI polish, shell completion, `--version` flag, and consistent errors.
+- PowerShell dynamic shell completion for Windows users.
 - Install guide, API docs, and local access control documentation.
 
 ## Phase 1.5 (v0.1.x follow-up): Cross-platform polish

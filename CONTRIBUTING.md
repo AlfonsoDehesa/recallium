@@ -209,6 +209,11 @@ confirmed before the version-bump PR is opened.
       `recallium <TAB>` through every subcommand and confirm completions
       work.
 - [ ] `recallium config get/set/unset <TAB>` completes config keys.
+- [ ] PowerShell dynamic completion works through `Register-ArgumentCompleter`.
+      Run `recallium <TAB>` in PowerShell through every subcommand and confirm
+      completions work.
+- [ ] `recallium config get/set/unset <TAB>` completes config keys in
+      PowerShell too.
 
 #### Install and update
 
