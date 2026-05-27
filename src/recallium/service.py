@@ -372,9 +372,7 @@ def create_app(core: RecalliumCore) -> FastAPI:
         f"{SERVICE_API_PREFIX}/workspaces/{{uid}}/rename",
         tags=["workspaces"],
     )
-    def rename_workspace(
-        uid: str, body: RenameWorkspaceRequest
-    ) -> dict[str, Any]:
+    def rename_workspace(uid: str, body: RenameWorkspaceRequest) -> dict[str, Any]:
         result = core.rename_workspace(old_uid=uid, new_uid=body.new_uid)
         return success_payload(result)
 

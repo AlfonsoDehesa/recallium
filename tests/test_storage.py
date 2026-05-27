@@ -864,3 +864,178 @@ def test_embedding_job_persistence_create_update_get_list(tmp_path: Path) -> Non
 
     with pytest.raises(NotFoundError):
         store.get_embedding_job("missing")
+
+
+# -- workspace operations -------------------------------------------------
+
+
+def test_list_workspace_uids_returns_distinct_sorted(tmp_path: Path) -> None:
+    store = SQLiteMemoryStore(tmp_path / "test.db")
+    store.insert_memory(
+        build_memory("mem-1", space=SPACE_WORKSPACE, workspace_uid="project-b"),
+        embedding=[0.1, 0.2],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+    store.insert_memory(
+        build_memory("mem-2", space=SPACE_WORKSPACE, workspace_uid="project-a"),
+        embedding=[0.3, 0.4],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+    store.insert_memory(
+        build_memory("mem-3", space=SPACE_WORKSPACE, workspace_uid="project-a"),
+        embedding=[0.5, 0.6],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+
+    uids = store.list_workspace_uids()
+    assert uids == ["project-a", "project-b"]
+
+
+def test_list_workspace_uids_excludes_archived_by_default(tmp_path: Path) -> None:
+    store = SQLiteMemoryStore(tmp_path / "test.db")
+    store.insert_memory(
+        build_memory("mem-1", space=SPACE_WORKSPACE, workspace_uid="active-ws"),
+        embedding=[0.1, 0.2],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+    store.insert_memory(
+        build_memory(
+            "mem-2",
+            space=SPACE_WORKSPACE,
+            workspace_uid="archived-ws",
+            status=STATUS_ARCHIVED,
+        ),
+        embedding=[0.3, 0.4],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+
+    uids = store.list_workspace_uids()
+    assert uids == ["active-ws"]
+
+
+def test_list_workspace_uids_include_archived_flag(tmp_path: Path) -> None:
+    store = SQLiteMemoryStore(tmp_path / "test.db")
+    store.insert_memory(
+        build_memory("mem-1", space=SPACE_WORKSPACE, workspace_uid="active-ws"),
+        embedding=[0.1, 0.2],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+    store.insert_memory(
+        build_memory(
+            "mem-2",
+            space=SPACE_WORKSPACE,
+            workspace_uid="archived-ws",
+            status=STATUS_ARCHIVED,
+        ),
+        embedding=[0.3, 0.4],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+
+    uids = store.list_workspace_uids(include_archived=True)
+    assert sorted(uids) == ["active-ws", "archived-ws"]
+
+
+def test_list_workspace_uids_empty_database(tmp_path: Path) -> None:
+    store = SQLiteMemoryStore(tmp_path / "test.db")
+    uids = store.list_workspace_uids()
+    assert uids == []
+
+
+def test_list_workspace_uids_ignores_user_memories(tmp_path: Path) -> None:
+    store = SQLiteMemoryStore(tmp_path / "test.db")
+    store.insert_memory(
+        build_memory("mem-1", space=SPACE_USER),
+        embedding=[0.1, 0.2],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+
+    uids = store.list_workspace_uids()
+    assert uids == []
+
+
+def test_rename_workspace_moves_all_memories(tmp_path: Path) -> None:
+    store = SQLiteMemoryStore(tmp_path / "test.db")
+    store.insert_memory(
+        build_memory("mem-1", space=SPACE_WORKSPACE, workspace_uid="old-project"),
+        embedding=[0.1, 0.2],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+    store.insert_memory(
+        build_memory("mem-2", space=SPACE_WORKSPACE, workspace_uid="old-project"),
+        embedding=[0.3, 0.4],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+
+    count = store.rename_workspace("old-project", "new-project")
+    assert count == 2
+
+    uids = store.list_workspace_uids()
+    assert uids == ["new-project"]
+
+
+def test_rename_workspace_preserves_user_memories(tmp_path: Path) -> None:
+    store = SQLiteMemoryStore(tmp_path / "test.db")
+    store.insert_memory(
+        build_memory("mem-1", space=SPACE_WORKSPACE, workspace_uid="ws-1"),
+        embedding=[0.1, 0.2],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+    store.insert_memory(
+        build_memory("mem-2", space=SPACE_USER),
+        embedding=[0.3, 0.4],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+
+    count = store.rename_workspace("ws-1", "ws-2")
+    assert count == 1
+
+    user_memories = store.list_memories(space=SPACE_USER)
+    assert len(user_memories) == 1
+    assert user_memories[0].workspace_uid is None
+
+
+def test_rename_workspace_updates_timestamps(tmp_path: Path) -> None:
+    store = SQLiteMemoryStore(tmp_path / "test.db")
+    store.insert_memory(
+        build_memory(
+            "mem-1",
+            space=SPACE_WORKSPACE,
+            workspace_uid="old-project",
+            created_at="2026-01-01T00:00:00Z",
+            updated_at="2026-01-01T00:00:00Z",
+        ),
+        embedding=[0.1, 0.2],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+
+    store.rename_workspace("old-project", "new-project")
+    memory = store.get_memory("mem-1")
+    assert memory.updated_at != "2026-01-01T00:00:00Z"
+
+
+def test_rename_workspace_raises_not_found(tmp_path: Path) -> None:
+    store = SQLiteMemoryStore(tmp_path / "test.db")
+    with pytest.raises(NotFoundError, match="no workspace memories found"):
+        store.rename_workspace("nonexistent", "new-project")
+
+
+def test_rename_workspace_includes_archived(tmp_path: Path) -> None:
+    store = SQLiteMemoryStore(tmp_path / "test.db")
+    store.insert_memory(
+        build_memory("mem-1", space=SPACE_WORKSPACE, workspace_uid="old-project"),
+        embedding=[0.1, 0.2],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+    store.insert_memory(
+        build_memory(
+            "mem-2",
+            space=SPACE_WORKSPACE,
+            workspace_uid="old-project",
+            status=STATUS_ARCHIVED,
+        ),
+        embedding=[0.3, 0.4],
+        embedding_profile=EMBEDDING_PROFILE,
+    )
+
+    count = store.rename_workspace("old-project", "new-project")
+    assert count == 2

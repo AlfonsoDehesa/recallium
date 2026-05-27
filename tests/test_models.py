@@ -211,3 +211,54 @@ def test_search_result_rejects_invalid_values() -> None:
 
     with pytest.raises(ValidationError, match="memory"):
         SearchResult.from_dict({"memory": "not-an-object", "score": 0.1, "rank": 1})
+
+
+# -- normalize_workspace_uid -----------------------------------------------
+
+
+def test_normalize_workspace_uid_lowercase() -> None:
+    from recallium.models import normalize_workspace_uid
+
+    assert normalize_workspace_uid("FOO") == "foo"
+
+
+def test_normalize_workspace_uid_special_chars_to_dashes() -> None:
+    from recallium.models import normalize_workspace_uid
+
+    assert normalize_workspace_uid("foo bar") == "foo-bar"
+
+
+def test_normalize_workspace_uid_collapse_dashes() -> None:
+    from recallium.models import normalize_workspace_uid
+
+    assert normalize_workspace_uid("foo---bar") == "foo-bar"
+
+
+def test_normalize_workspace_uid_strip_edges() -> None:
+    from recallium.models import normalize_workspace_uid
+
+    assert normalize_workspace_uid("-foo-") == "foo"
+
+
+def test_normalize_workspace_uid_multiple_special() -> None:
+    from recallium.models import normalize_workspace_uid
+
+    assert normalize_workspace_uid("Recallium Core!!!") == "recallium-core"
+
+
+def test_normalize_workspace_uid_already_clean() -> None:
+    from recallium.models import normalize_workspace_uid
+
+    assert normalize_workspace_uid("recallium") == "recallium"
+
+
+def test_normalize_workspace_uid_all_special_returns_empty() -> None:
+    from recallium.models import normalize_workspace_uid
+
+    assert normalize_workspace_uid("!!!") == ""
+
+
+def test_normalize_workspace_uid_leading_trailing_whitespace() -> None:
+    from recallium.models import normalize_workspace_uid
+
+    assert normalize_workspace_uid("  Recallium  ") == "recallium"

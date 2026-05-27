@@ -550,3 +550,49 @@ class TestRecalliumConfig:
         config = {"a": {}}
         with pytest.raises(KeyError, match="not found"):
             unset_config_value(config, "a.b.c")
+
+
+# -- workspace.uid_normalization config -----------------------------------
+
+
+def test_workspace_uid_normalization_default_in_defaults() -> None:
+    from recallium.config import DEFAULTS
+
+    assert DEFAULTS["workspace"]["uid_normalization"] == "normalize"
+
+
+def test_workspace_uid_normalization_rejects_invalid_value() -> None:
+    from recallium.config import _validate_config_value, _deep_merge, DEFAULTS
+    from copy import deepcopy
+
+    merged = _deep_merge(
+        deepcopy(DEFAULTS), {"workspace": {"uid_normalization": "bogus"}}
+    )
+    with pytest.raises(ValidationError, match="workspace.uid_normalization"):
+        _validate_config_value(merged)
+
+
+def test_workspace_uid_normalization_accepts_exact() -> None:
+    from recallium.config import _validate_config_value, _deep_merge, DEFAULTS
+    from copy import deepcopy
+
+    merged = _deep_merge(
+        deepcopy(DEFAULTS), {"workspace": {"uid_normalization": "exact"}}
+    )
+    _validate_config_value(merged)  # should not raise
+
+
+def test_workspace_uid_normalization_accepts_normalize() -> None:
+    from recallium.config import _validate_config_value, _deep_merge, DEFAULTS
+    from copy import deepcopy
+
+    merged = _deep_merge(
+        deepcopy(DEFAULTS), {"workspace": {"uid_normalization": "normalize"}}
+    )
+    _validate_config_value(merged)  # should not raise
+
+
+def test_completable_config_keys_includes_workspace_uid_normalization() -> None:
+    from recallium.cli import _COMPLETABLE_CONFIG_KEYS
+
+    assert "workspace.uid_normalization" in _COMPLETABLE_CONFIG_KEYS

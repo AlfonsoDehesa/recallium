@@ -181,9 +181,7 @@ class SQLiteMemoryStore:
 
     # -- workspace operations ------------------------------------------------
 
-    def list_workspace_uids(
-        self, *, include_archived: bool = False
-    ) -> list[str]:
+    def list_workspace_uids(self, *, include_archived: bool = False) -> list[str]:
         """Return distinct non-null workspace_uid values, sorted alphabetically."""
         where_parts = [
             "workspace_uid IS NOT NULL",
@@ -197,9 +195,7 @@ class SQLiteMemoryStore:
         with self._connect() as connection:
             rows = connection.execute(
                 "SELECT DISTINCT workspace_uid FROM memories "
-                "WHERE "
-                + " AND ".join(where_parts)
-                + " ORDER BY workspace_uid ASC",
+                "WHERE " + " AND ".join(where_parts) + " ORDER BY workspace_uid ASC",
                 values,
             ).fetchall()
 
@@ -220,9 +216,7 @@ class SQLiteMemoryStore:
             )
 
         if result.rowcount == 0:
-            raise NotFoundError(
-                f"no workspace memories found for uid: {old_uid}"
-            )
+            raise NotFoundError(f"no workspace memories found for uid: {old_uid}")
         return result.rowcount
 
     def list_memories(

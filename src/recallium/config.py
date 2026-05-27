@@ -192,7 +192,10 @@ def _validate_config_value(data: dict[str, Any], path: str = "") -> None:
     workspace = data.get("workspace", {})
     if isinstance(workspace, dict):
         normalization = workspace.get("uid_normalization")
-        if isinstance(normalization, str) and normalization not in {"normalize", "exact"}:
+        if isinstance(normalization, str) and normalization not in {
+            "normalize",
+            "exact",
+        }:
             raise ValidationError(
                 "workspace.uid_normalization must be one of: normalize, exact "
                 f"(got {normalization!r})"

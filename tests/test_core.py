@@ -838,3 +838,127 @@ def test_recallium_core_uses_config_db_path(tmp_path: Path) -> None:
 
     assert core.config is not None
     assert core.store.db_path == core.config.resolved_database_path
+
+
+# -- workspace operations -------------------------------------------------
+
+
+def test_core_list_workspaces_returns_sorted(tmp_path: Path) -> None:
+    core = RecalliumCore(
+        db_path=tmp_path / "core.db",
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+    core.add_memory(
+        space=SPACE_WORKSPACE,
+        type="fact",
+        content="ws-b item",
+        workspace_uid="project-b",
+    )
+    core.add_memory(
+        space=SPACE_WORKSPACE,
+        type="fact",
+        content="ws-a item",
+        workspace_uid="project-a",
+    )
+
+    uids = core.list_workspaces()
+    assert uids == ["project-a", "project-b"]
+
+
+def test_core_list_workspaces_empty(tmp_path: Path) -> None:
+    core = RecalliumCore(
+        db_path=tmp_path / "core.db",
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+    assert core.list_workspaces() == []
+
+
+def test_core_rename_workspace_normalizes_uids(tmp_path: Path) -> None:
+    core = RecalliumCore(
+        db_path=tmp_path / "core.db",
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+    core.add_memory(
+        space=SPACE_WORKSPACE,
+        type="fact",
+        content="item",
+        workspace_uid="My Project",
+    )
+
+    result = core.rename_workspace("My Project", "My New Project")
+    assert result["old_uid"] == "my-project"
+    assert result["new_uid"] == "my-new-project"
+    assert result["memories_updated"] == 1
+
+    uids = core.list_workspaces()
+    assert uids == ["my-new-project"]
+
+
+def test_core_rename_workspace_raises_on_empty_normalization(tmp_path: Path) -> None:
+    core = RecalliumCore(
+        db_path=tmp_path / "core.db",
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+    with pytest.raises(ValidationError, match="empty string"):
+        core.rename_workspace("!!!", "valid")
+
+
+def test_core_rename_workspace_raises_not_found(tmp_path: Path) -> None:
+    core = RecalliumCore(
+        db_path=tmp_path / "core.db",
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+    with pytest.raises(NotFoundError, match="no workspace memories"):
+        core.rename_workspace("nonexistent", "new-project")
+
+
+def test_core_add_memory_normalizes_workspace_uid(tmp_path: Path) -> None:
+    core = RecalliumCore(
+        db_path=tmp_path / "core.db",
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+    memory = core.add_memory(
+        space=SPACE_WORKSPACE,
+        type="fact",
+        content="item",
+        workspace_uid="  Recallium Core!!!  ",
+    )
+    assert memory.workspace_uid == "recallium-core"
+
+
+def test_core_search_workspace_normalizes_uid(tmp_path: Path) -> None:
+    core = RecalliumCore(
+        db_path=tmp_path / "core.db",
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+    core.add_memory(
+        space=SPACE_WORKSPACE,
+        type="fact",
+        content="searchable item",
+        workspace_uid="My Project",
+    )
+
+    results = core.search_workspace_memories(
+        query="searchable",
+        workspace_uid="MY PROJECT",
+    )
+    assert len(results) == 1
+
+
+def test_core_list_memories_normalizes_workspace_uid(tmp_path: Path) -> None:
+    core = RecalliumCore(
+        db_path=tmp_path / "core.db",
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+    core.add_memory(
+        space=SPACE_WORKSPACE,
+        type="fact",
+        content="item",
+        workspace_uid="My Project",
+    )
+
+    memories = core.list_memories(
+        space=SPACE_WORKSPACE,
+        workspace_uid="  my-project  ",
+    )
+    assert len(memories) == 1

@@ -395,7 +395,16 @@ class RecalliumCore:
         """
         norm_old = self._normalize_uid(old_uid)
         norm_new = self._normalize_uid(new_uid)
-        assert norm_old is not None and norm_new is not None  # _normalize_uid raises on empty
+        assert (
+            norm_old is not None and norm_new is not None
+        )  # _normalize_uid raises on empty
+
+        if norm_old == norm_new:
+            return {
+                "old_uid": norm_old,
+                "new_uid": norm_new,
+                "memories_updated": 0,
+            }
 
         count = self.store.rename_workspace(norm_old, norm_new)
         _log.info(

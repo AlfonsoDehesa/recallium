@@ -25,6 +25,32 @@ from recallium.errors import (
     ValidationError,
 )
 from recallium.storage import SQLiteMemoryStore
+from recallium.core import RecalliumCore
+
+
+class FakeEmbeddingProvider:
+    """Lightweight fake embedding provider for CLI workspace tests."""
+
+    def __init__(self) -> None:
+        self.embedding_profile = {
+            "provider": "fake",
+            "model": "fake-model",
+            "dimensions": 3,
+            "version": "1",
+            "profile": "fake-profile-v1",
+            "max_tokens": 16,
+            "chunk_tokens": 4,
+            "chunk_overlap_tokens": 0,
+            "query_prompt_policy": "raw",
+        }
+
+    def embed(self, text: str) -> list[float]:
+        size = float(len(text))
+        first = float(ord(text[0])) if text else 0.0
+        return [size, first, 1.0]
+
+    def similarity(self, first: list[float], second: list[float]) -> float:
+        return sum(a * b for a, b in zip(first, second, strict=True))
 
 
 def _run_cli(args: list[str], capsys: CaptureFixture[str]) -> tuple[int, str, str]:
@@ -2947,3 +2973,124 @@ def test_cli_completion_config_key_completer_registered(
 
     config_unset_help = _run_help(["config", "unset", "--help"], capsys)
     assert "key" in config_unset_help
+
+
+# -- workspace CLI --------------------------------------------------------
+
+
+def test_workspace_list_empty_database(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    """workspace list on a fresh database returns an empty array."""
+    db_path = tmp_path / "test.db"
+    SQLiteMemoryStore(db_path)
+    exit_code, out, err = _run_cli(
+        ["--db", str(db_path), "workspace", "list"],
+        capsys,
+    )
+    assert exit_code == 0
+    assert json.loads(out) == []
+
+
+def test_workspace_list_returns_sorted_uids(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    """workspace list returns distinct workspace UIDs sorted."""
+
+    core = RecalliumCore(
+        db_path=tmp_path / "test.db",
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+    core.add_memory(
+        space="workspace", type="fact", content="a", workspace_uid="project-b"
+    )
+    core.add_memory(
+        space="workspace", type="fact", content="b", workspace_uid="project-a"
+    )
+
+    exit_code, out, err = _run_cli(
+        ["--db", str(tmp_path / "test.db"), "workspace", "list"],
+        capsys,
+    )
+    assert exit_code == 0
+    assert json.loads(out) == ["project-a", "project-b"]
+
+
+def test_workspace_rename_moves_memories(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    """workspace rename migrates memories and prints result."""
+
+    core = RecalliumCore(
+        db_path=tmp_path / "test.db",
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+    core.add_memory(space="workspace", type="fact", content="a", workspace_uid="old-ws")
+    core.add_memory(space="workspace", type="fact", content="b", workspace_uid="old-ws")
+
+    exit_code, out, err = _run_cli(
+        [
+            "--db",
+            str(tmp_path / "test.db"),
+            "workspace",
+            "rename",
+            "old-ws",
+            "new-ws",
+        ],
+        capsys,
+    )
+    assert exit_code == 0
+    result = json.loads(out)
+    assert result["old_uid"] == "old-ws"
+    assert result["new_uid"] == "new-ws"
+    assert result["memories_updated"] == 2
+
+
+def test_workspace_rename_nonexistent_fails(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    """workspace rename with nonexistent old_uid returns error."""
+    db_path = tmp_path / "test.db"
+    SQLiteMemoryStore(db_path)
+
+    exit_code, out, err = _run_cli(
+        [
+            "--db",
+            str(db_path),
+            "workspace",
+            "rename",
+            "nonexistent",
+            "new",
+        ],
+        capsys,
+    )
+    assert exit_code == 1
+    assert "no workspace memories found" in err.lower()
+
+
+def test_workspace_rename_noop_same_uid(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    """workspace rename to same UID after normalization is a no-op."""
+
+    core = RecalliumCore(
+        db_path=tmp_path / "test.db",
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+    core.add_memory(space="workspace", type="fact", content="a", workspace_uid="my-ws")
+
+    # "MY-WS" normalizes to "my-ws" — same as stored
+    exit_code, out, err = _run_cli(
+        [
+            "--db",
+            str(tmp_path / "test.db"),
+            "workspace",
+            "rename",
+            "MY-WS",
+            "my-ws",
+        ],
+        capsys,
+    )
+    assert exit_code == 0
+    result = json.loads(out)
+    assert result["memories_updated"] == 0
