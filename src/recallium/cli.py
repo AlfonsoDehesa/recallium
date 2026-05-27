@@ -7,13 +7,14 @@ from copy import deepcopy
 import json
 import logging
 import os
+import shutil
 from importlib.metadata import PackageNotFoundError, version as package_version
 import subprocess
 import sys
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Sequence, cast
 
 from platformdirs import user_state_dir
 
@@ -27,6 +28,9 @@ from recallium import (
 from recallium.config import (
     DEFAULTS,
     RecalliumConfig,
+    _deep_merge,
+    _resolve_xdg_dirs,
+    _validate_config_value,
     get_config_value,
     load_config_file,
     set_config_value,
@@ -50,12 +54,37 @@ from recallium.service_manager import (
 from recallium.storage import SQLiteMemoryStore
 
 _log = logging.getLogger(__name__)
+_INSTALL_METADATA_FILE = "install.json"
+_PURGE_CONFIRMATION = "delete all recallium data"
 
 
 class _CliLoggingConfig:
     def __init__(self, *, effective_config: dict[str, Any], log_dir: Path) -> None:
         self.effective_config = effective_config
         self.xdg_dirs = {"logs": log_dir}
+
+
+class _UninstallConfig:
+    def __init__(
+        self, *, effective_config: dict[str, Any], xdg_dirs: dict[str, Path]
+    ) -> None:
+        self.effective_config = effective_config
+        self.xdg_dirs = xdg_dirs
+
+
+class _UninstallPlan:
+    def __init__(
+        self,
+        *,
+        config: _UninstallConfig,
+        config_path: Path,
+        database_path: Path,
+        install_metadata_path: Path,
+    ) -> None:
+        self.config = config
+        self.config_path = config_path
+        self.database_path = database_path
+        self.install_metadata_path = install_metadata_path
 
 
 def _parse_metadata(raw_metadata: str | None) -> dict[str, object] | None:
@@ -369,6 +398,213 @@ def _handle_package_update_command() -> int:
         },
     }
     print(json.dumps(instructions, sort_keys=True))
+    return 0
+
+
+def _load_uninstall_plan(config_path: Path, *, explicit: bool) -> _UninstallPlan:
+    """Resolve uninstall targets without creating files or directories."""
+    if explicit and not config_path.exists():
+        raise FileNotFoundError(f"config file not found: {config_path}")
+
+    if config_path.exists():
+        raw = load_config_file(config_path)
+    else:
+        raw = {}
+    effective_config = _deep_merge(deepcopy(DEFAULTS), raw)
+    _validate_config_value(effective_config)
+    xdg_dirs = _resolve_xdg_dirs(effective_config.get("directories", {}))
+
+    database_path = Path(effective_config["database"]["path"])
+    if not database_path.is_absolute():
+        database_path = xdg_dirs["data"] / database_path
+
+    install_metadata_path = Path(user_state_dir("recallium")) / _INSTALL_METADATA_FILE
+    return _UninstallPlan(
+        config=_UninstallConfig(
+            effective_config=effective_config,
+            xdg_dirs=xdg_dirs,
+        ),
+        config_path=config_path,
+        database_path=database_path,
+        install_metadata_path=install_metadata_path,
+    )
+
+
+def _load_install_metadata(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return payload
+
+
+def _uninstall_package_instructions(
+    metadata: dict[str, Any] | None,
+) -> dict[str, Any]:
+    commands = {
+        "bootstrap": "uv tool uninstall recallium",
+        "uv_tool": "uv tool uninstall recallium",
+        "pip": "python -m pip uninstall recallium",
+        "pipx": "pipx uninstall recallium",
+        "dev_source": "deactivate this checkout or remove it from your shell path manually",
+    }
+    install_method = None
+    source_ref = None
+    managed_path_edits: list[str] = []
+    if metadata is not None:
+        raw_method = metadata.get("install_method")
+        raw_ref = metadata.get("source_ref")
+        raw_path_edits = metadata.get("managed_path_edits")
+        if isinstance(raw_method, str):
+            install_method = raw_method
+        if isinstance(raw_ref, str):
+            source_ref = raw_ref
+        if isinstance(raw_path_edits, list):
+            managed_path_edits = [
+                item for item in raw_path_edits if isinstance(item, str)
+            ]
+
+    recommended_key = install_method if install_method in commands else "uv_tool"
+    return {
+        "install_method": install_method or "unknown",
+        "source_ref": source_ref,
+        "recommended": commands[recommended_key],
+        "commands": commands,
+        "managed_path_edits": managed_path_edits,
+    }
+
+
+def _is_suspicious_purge_path(path: Path) -> bool:
+    resolved = path.expanduser().resolve(strict=False)
+    home = Path.home().expanduser().resolve(strict=False)
+    cwd = Path.cwd().resolve(strict=False)
+    return resolved in {Path(resolved.anchor), home, cwd}
+
+
+def _is_recallium_owned_path(path: Path) -> bool:
+    resolved = path.expanduser().resolve(strict=False)
+    parts = {part.lower() for part in resolved.parts}
+    if "recallium" in parts:
+        return True
+    if resolved.name in {"config.json", _INSTALL_METADATA_FILE}:
+        return "recallium" in {part.lower() for part in resolved.parent.parts}
+    return False
+
+
+def _path_payload(
+    path: Path, *, deleted: bool, reason: str | None = None
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {"path": str(path), "deleted": deleted}
+    if reason is not None:
+        payload["reason"] = reason
+    return payload
+
+
+def _delete_purge_target(path: Path, *, dry_run: bool) -> dict[str, Any]:
+    if _is_suspicious_purge_path(path):
+        return _path_payload(path, deleted=False, reason="suspicious_path")
+    if not _is_recallium_owned_path(path):
+        return _path_payload(path, deleted=False, reason="not_recallium_owned")
+    if not path.exists():
+        return _path_payload(path, deleted=False, reason="missing")
+    if dry_run:
+        return _path_payload(path, deleted=False, reason="dry_run")
+    if path.is_dir():
+        shutil.rmtree(path)
+    else:
+        path.unlink()
+    return _path_payload(path, deleted=True)
+
+
+def _purge_targets(plan: _UninstallPlan, *, dry_run: bool) -> dict[str, Any]:
+    raw_targets = [
+        plan.config_path,
+        plan.config_path.parent,
+        plan.config.xdg_dirs["data"],
+        plan.config.xdg_dirs["cache"],
+        plan.config.xdg_dirs["logs"],
+        plan.config.xdg_dirs["runtime"],
+        plan.install_metadata_path,
+    ]
+    targets: list[Path] = []
+    seen: set[Path] = set()
+    for target in raw_targets:
+        resolved = target.expanduser().resolve(strict=False)
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        targets.append(target)
+
+    results = [_delete_purge_target(target, dry_run=dry_run) for target in targets]
+    return {
+        "dry_run": dry_run,
+        "targets": results,
+        "deleted": [item for item in results if item["deleted"]],
+        "skipped": [item for item in results if not item["deleted"]],
+    }
+
+
+def _handle_uninstall_command(
+    args: argparse.Namespace,
+    config_path: Path,
+    *,
+    explicit: bool,
+) -> int:
+    """Print uninstall instructions and optionally purge Recallium-owned data."""
+    if args.yes_delete_all_recallium_data and not args.purge:
+        _log.error(
+            "--yes-delete-all-recallium-data requires --purge",
+            extra={"event": "uninstall.invalid_flags"},
+        )
+        return 2
+
+    plan = _load_uninstall_plan(config_path, explicit=explicit)
+    metadata = _load_install_metadata(plan.install_metadata_path)
+    stopped_pid = stop_service(cast(RecalliumConfig, plan.config))
+    service_payload: dict[str, Any] = {"status": "no_service_running"}
+    if stopped_pid is not None:
+        service_payload = {"status": "stopped", "pid": stopped_pid}
+
+    data_payload: dict[str, Any] = {
+        "preserved": not args.purge,
+        "paths": {
+            "config": str(plan.config_path),
+            "data": str(plan.config.xdg_dirs["data"]),
+            "cache": str(plan.config.xdg_dirs["cache"]),
+            "logs": str(plan.config.xdg_dirs["logs"]),
+            "runtime": str(plan.config.xdg_dirs["runtime"]),
+            "database": str(plan.database_path),
+        },
+    }
+
+    if args.purge:
+        if not args.yes_delete_all_recallium_data and not args.dry_run:
+            response = input(
+                "Type 'delete all recallium data' to permanently delete Recallium data: "
+            )
+            if response != _PURGE_CONFIRMATION:
+                _log.warning(
+                    "purge cancelled",
+                    extra={"event": "uninstall.purge_cancelled"},
+                )
+                return 1
+        data_payload["purge"] = _purge_targets(plan, dry_run=args.dry_run)
+
+    result = {
+        "status": "manual_uninstall_required",
+        "package": _uninstall_package_instructions(metadata),
+        "service": service_payload,
+        "data": data_payload,
+    }
+    _log.info(
+        "Uninstall instructions generated",
+        extra={"event": "uninstall.instructions"},
+    )
+    print(json.dumps(result, sort_keys=True))
     return 0
 
 
@@ -715,6 +951,37 @@ def _build_parser() -> argparse.ArgumentParser:
     update_parser.add_argument(
         "--sensitivity",
         help="Replacement sensitivity label for privacy-aware handling later.",
+    )
+
+    # -- uninstall ---------------------------------------------------------
+    uninstall_parser = subparsers.add_parser(
+        "uninstall",
+        help="print safe uninstall instructions or purge Recallium data",
+        description=(
+            "Print package manager uninstall instructions while preserving memories by "
+            "default. Use --purge to delete Recallium-owned config, data, cache, logs, "
+            "and runtime paths after explicit confirmation."
+        ),
+    )
+    uninstall_parser.add_argument(
+        "--purge",
+        action="store_true",
+        help=(
+            "Delete Recallium-owned config, data, cache, logs, and runtime paths. "
+            "Without this flag, memories and local data are preserved for reinstall."
+        ),
+    )
+    uninstall_parser.add_argument(
+        "--yes-delete-all-recallium-data",
+        action="store_true",
+        help=(
+            "Confirm destructive data deletion for non-interactive purge. Requires --purge."
+        ),
+    )
+    uninstall_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show purge targets without deleting files or directories.",
     )
 
     # -- archive -----------------------------------------------------------
@@ -1167,6 +1434,26 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "update" and args.memory_id is None:
         return _handle_package_update_command()
+
+    if args.command == "uninstall":
+        try:
+            return _handle_uninstall_command(
+                args,
+                config_path,
+                explicit=args.config_path is not None,
+            )
+        except FileNotFoundError as exc:
+            _log.error(str(exc), extra={"event": "config.missing"})
+            return 1
+        except ValidationError as exc:
+            _log.error(f"ValidationError: {exc}", extra={"event": "config.invalid"})
+            return 2
+        except ServiceError as exc:
+            _log.error(str(exc), extra={"event": "uninstall.service_stop_failed"})
+            return 1
+        except OSError as exc:
+            _log.error(str(exc), extra={"event": "uninstall.purge_failed"})
+            return 1
 
     # -- all other commands use RecalliumCore ------------------------------
     try:
