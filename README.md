@@ -157,6 +157,8 @@ Safe uninstall preserves local memories and settings by default. Preserved paths
 include the config file, SQLite database, data directory, model cache, logs, and
 runtime directory, so reinstalling Recallium later reuses the existing config and
 database and runs any required migrations without overwriting your memories.
+If Recallium installed a managed shell completion block, safe uninstall removes
+that shell rc block while preserving your memories.
 
 Package removal commands by install method:
 

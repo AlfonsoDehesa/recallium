@@ -9,6 +9,7 @@ from copy import deepcopy
 import json
 import logging
 import os
+import re
 import shutil
 from importlib.metadata import PackageNotFoundError, version as package_version
 import subprocess
@@ -432,6 +433,13 @@ _COMPLETION_RC_FILES: dict[str, str] = {
     "zsh": ".zshrc",
     "fish": ".config/fish/config.fish",
 }
+_COMPLETION_BLOCK_START = "# >>> recallium completion >>>"
+_COMPLETION_BLOCK_END = "# <<< recallium completion <<<"
+_COMPLETION_BLOCK_PATTERN = re.compile(
+    rf"\n?{re.escape(_COMPLETION_BLOCK_START)}\n.*?\n"
+    rf"{re.escape(_COMPLETION_BLOCK_END)}\n?",
+    re.DOTALL,
+)
 
 
 def _detect_shell() -> str | None:
@@ -491,11 +499,7 @@ def _handle_completion_command(args: argparse.Namespace) -> int:
             )
             return 0
 
-        block = (
-            f"# >>> recallium completion >>>\n"
-            f"{eval_line}\n"
-            f"# <<< recallium completion <<<\n"
-        )
+        block = f"{_COMPLETION_BLOCK_START}\n{eval_line}\n{_COMPLETION_BLOCK_END}\n"
 
         if not args.yes:
             sys.stderr.write(
@@ -623,6 +627,82 @@ def _uninstall_package_instructions(
     }
 
 
+def _completion_rc_paths(metadata: dict[str, Any] | None) -> list[Path]:
+    raw_paths: list[Path] = []
+    if metadata is not None:
+        raw_path_edits = metadata.get("managed_path_edits")
+        if isinstance(raw_path_edits, list):
+            for item in raw_path_edits:
+                if not isinstance(item, str):
+                    continue
+                if "recallium completion --source" not in item:
+                    continue
+                raw_paths.append(Path(item.split(": ", 1)[0]))
+
+    home = Path.home()
+    raw_paths.extend(home / filename for filename in _COMPLETION_RC_FILES.values())
+
+    paths: list[Path] = []
+    seen: set[Path] = set()
+    for path in raw_paths:
+        resolved = path.expanduser().resolve(strict=False)
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        paths.append(path)
+    return paths
+
+
+def _remove_completion_blocks(
+    metadata: dict[str, Any] | None,
+    *,
+    dry_run: bool,
+) -> dict[str, Any]:
+    results: list[dict[str, Any]] = []
+    for path in _completion_rc_paths(metadata):
+        payload: dict[str, Any] = {"path": str(path), "removed": False}
+        if not path.exists():
+            payload["reason"] = "missing"
+            results.append(payload)
+            continue
+
+        try:
+            existing = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            payload["reason"] = f"read_error: {exc}"
+            results.append(payload)
+            continue
+
+        updated, count = _COMPLETION_BLOCK_PATTERN.subn("\n", existing)
+        if count == 0:
+            payload["reason"] = "not_found"
+            results.append(payload)
+            continue
+
+        payload["blocks"] = count
+        if dry_run:
+            payload["reason"] = "dry_run"
+            results.append(payload)
+            continue
+
+        try:
+            path.write_text(updated, encoding="utf-8")
+        except OSError as exc:
+            payload["reason"] = f"write_error: {exc}"
+            results.append(payload)
+            continue
+
+        payload["removed"] = True
+        results.append(payload)
+
+    return {
+        "dry_run": dry_run,
+        "targets": results,
+        "removed": [item for item in results if item["removed"]],
+        "skipped": [item for item in results if not item["removed"]],
+    }
+
+
 def _is_suspicious_purge_path(path: Path) -> bool:
     resolved = path.expanduser().resolve(strict=False)
     home = Path.home().expanduser().resolve(strict=False)
@@ -730,6 +810,7 @@ def _handle_uninstall_command(
             "database": str(plan.database_path),
         },
     }
+    completion_payload = _remove_completion_blocks(metadata, dry_run=args.dry_run)
 
     if args.purge:
         if args.dry_run:
@@ -764,6 +845,7 @@ def _handle_uninstall_command(
         "status": "manual_uninstall_required",
         "package": _uninstall_package_instructions(metadata),
         "service": service_payload,
+        "shell_completion": completion_payload,
         "data": data_payload,
     }
     _log.info(

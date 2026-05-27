@@ -1841,6 +1841,175 @@ def test_cli_uninstall_preserves_data_and_uses_install_metadata(
     assert db_path.read_text(encoding="utf-8") == "preserved"
 
 
+def test_cli_uninstall_removes_managed_completion_block(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+    bashrc = tmp_path / ".bashrc"
+    bashrc.write_text(
+        "before\n"
+        "# >>> recallium completion >>>\n"
+        'eval "$(recallium completion --source bash)"\n'
+        "# <<< recallium completion <<<\n"
+        "after\n",
+        encoding="utf-8",
+    )
+
+    exit_code, stdout, stderr = _run_cli(["uninstall"], capsys)
+
+    payload = json.loads(stdout)
+    assert exit_code == 0
+    assert stderr == ""
+    assert bashrc.read_text(encoding="utf-8") == "before\nafter\n"
+    assert payload["shell_completion"]["removed"] == [
+        {"path": str(bashrc), "removed": True, "blocks": 1}
+    ]
+
+
+def test_cli_uninstall_dry_run_preserves_managed_completion_block(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    bashrc = tmp_path / ".bashrc"
+    content = (
+        "# >>> recallium completion >>>\n"
+        'eval "$(recallium completion --source bash)"\n'
+        "# <<< recallium completion <<<\n"
+    )
+    bashrc.write_text(content, encoding="utf-8")
+
+    exit_code, stdout, stderr = _run_cli(["uninstall", "--dry-run"], capsys)
+
+    payload = json.loads(stdout)
+    assert exit_code == 0
+    assert stderr == ""
+    assert bashrc.read_text(encoding="utf-8") == content
+    assert payload["shell_completion"]["removed"] == []
+    assert any(
+        item["path"] == str(bashrc) and item["reason"] == "dry_run"
+        for item in payload["shell_completion"]["skipped"]
+    )
+
+
+def test_cli_uninstall_removes_completion_block_from_install_metadata_path(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+    metadata_path = tmp_path / "state" / "recallium" / "install.json"
+    metadata_path.parent.mkdir(parents=True)
+    custom_rc = tmp_path / "custom" / "recallium-shell-setup"
+    custom_rc.parent.mkdir()
+    custom_rc.write_text(
+        "# >>> recallium completion >>>\n"
+        'eval "$(recallium completion --source bash)"\n'
+        "# <<< recallium completion <<<\n",
+        encoding="utf-8",
+    )
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "managed_path_edits": [
+                    f'{custom_rc}: eval "$(recallium completion --source bash)"'
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code, stdout, stderr = _run_cli(["uninstall"], capsys)
+
+    payload = json.loads(stdout)
+    assert exit_code == 0
+    assert stderr == ""
+    assert custom_rc.read_text(encoding="utf-8") == "\n"
+    assert payload["shell_completion"]["removed"] == [
+        {"path": str(custom_rc), "removed": True, "blocks": 1}
+    ]
+
+
+def test_cli_uninstall_completion_cleanup_skips_duplicate_metadata_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from recallium.cli import _remove_completion_blocks
+
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    bashrc = tmp_path / ".bashrc"
+    bashrc.write_text("", encoding="utf-8")
+
+    payload = _remove_completion_blocks(
+        {
+            "managed_path_edits": [
+                123,
+                f'{bashrc}: eval "$(recallium completion --source bash)"',
+            ]
+        },
+        dry_run=True,
+    )
+
+    paths = [item["path"] for item in payload["targets"]]
+    assert paths.count(str(bashrc)) == 1
+
+
+def test_cli_uninstall_completion_cleanup_reports_read_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from recallium.cli import _remove_completion_blocks
+
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    bashrc = tmp_path / ".bashrc"
+    bashrc.write_text("", encoding="utf-8")
+    original_read_text = Path.read_text
+
+    def _raise_for_bashrc(path: Path, *args: Any, **kwargs: Any) -> str:
+        if path == bashrc:
+            raise OSError("cannot read")
+        return original_read_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", _raise_for_bashrc)
+
+    payload = _remove_completion_blocks(None, dry_run=False)
+
+    assert any(
+        item["path"] == str(bashrc) and item["reason"] == "read_error: cannot read"
+        for item in payload["skipped"]
+    )
+
+
+def test_cli_uninstall_completion_cleanup_reports_write_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from recallium.cli import _remove_completion_blocks
+
+    monkeypatch.setattr(Path, "home", lambda: tmp_path)
+    bashrc = tmp_path / ".bashrc"
+    bashrc.write_text(
+        "# >>> recallium completion >>>\n"
+        'eval "$(recallium completion --source bash)"\n'
+        "# <<< recallium completion <<<\n",
+        encoding="utf-8",
+    )
+    original_write_text = Path.write_text
+
+    def _raise_for_bashrc(path: Path, *args: Any, **kwargs: Any) -> int:
+        if path == bashrc:
+            raise OSError("cannot write")
+        return original_write_text(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "write_text", _raise_for_bashrc)
+
+    payload = _remove_completion_blocks(None, dry_run=False)
+
+    assert any(
+        item["path"] == str(bashrc) and item["reason"] == "write_error: cannot write"
+        for item in payload["skipped"]
+    )
+
+
 def test_cli_uninstall_stops_running_service(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
