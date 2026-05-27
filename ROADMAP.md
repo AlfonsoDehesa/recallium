@@ -29,19 +29,34 @@ Completed:
 
 Remaining release blockers:
 
-### Workspace UID registry
+### Workspace UID contract
 
-Release goal: Core has a stable workspace identity contract that adapters can
-use without treating filesystem paths as canonical memory buckets.
+Release goal: Core has a stable workspace identity contract that works across
+machines, mounts, paths, and adapters with zero registration, zero dotfiles,
+and zero model involvement.
 
-- [ ] Decide where workspace IDs live.
-- [ ] Decide whether Core creates workspace IDs, reads them, or both.
-- [ ] Define the workspace UID file format if the ID is stored on disk.
-- [ ] Ensure the same repository maps to the same workspace UID across sessions.
-- [ ] Ensure moving a folder does not accidentally create a different memory bucket.
-- [ ] Add CLI or API support if needed to inspect or register a workspace.
-- [ ] Document how adapters should get or create the workspace UID.
-- [ ] Add tests for creating, reading, validating, and reusing workspace IDs.
+- [ ] Document the contract: a workspace UID is any non-empty string the caller
+  chooses. Core stores and retrieves memories by that string as-is after
+  normalization. No registration, no dotfiles, no git dependency.
+- [ ] Add `workspace.uid_normalization` config key with two modes:
+  `normalize` (default) and `exact`. In `normalize` mode, every workspace UID
+  is lowercased, non-alphanumeric characters replaced with a single dash,
+  consecutive dashes collapsed, and leading/trailing dashes stripped. In
+  `exact` mode, the UID is passed through unchanged.
+- [ ] Apply normalization at the storage boundary before every write and
+  lookup so all adapters, CLI calls, and API requests benefit automatically.
+- [ ] Add `recallium workspace current` CLI command that returns the
+  normalized directory basename of the current working directory.
+- [ ] Add `recallium workspace list` CLI command that shows all distinct
+  workspace UIDs from the database (no separate registry file).
+- [ ] Document the adapter contract: the adapter resolves the workspace UID
+  from the actual directory the model is working in (not from a session stash
+  or explicit declaration). Follow the file path, derive the basename, and
+  use that as the UID. The adapter injects the resolved UID into every memory
+  call; the model never picks or types the UID.
+- [ ] Add tests for normalization across common collision patterns, exact
+  mode passthrough, `workspace current` in nested and root directories, and
+  `workspace list` with mixed UIDs.
 
 ### Install-time initialization and model readiness
 
