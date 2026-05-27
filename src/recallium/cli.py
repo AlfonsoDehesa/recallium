@@ -28,6 +28,11 @@ from recallium import (
     RecalliumError,
     ValidationError,
 )
+from recallium.errors import (
+    EmbeddingModelUnavailableError,
+    EmbeddingProviderUnavailableError,
+    EmbeddingReadinessTimeoutError,
+)
 from recallium.config import (
     DEFAULTS,
     RecalliumConfig,
@@ -409,6 +414,10 @@ def _handle_init_command(
         Path(db_path) if db_path is not None else cfg.resolved_database_path
     )
     SQLiteMemoryStore(selected_db_path)
+    _log.info(
+        "preparing embedding model (first run may download ~100 MB)",
+        extra={"event": "init.model_prepare"},
+    )
     BuiltinFastEmbedProvider().ensure_ready()
 
     result = {
@@ -955,7 +964,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help="initialize Recallium config, database, and model cache",
         description=(
             "Create the config file and XDG directories, run database migrations, "
-            "and download the built-in FastEmbed model so Recallium is ready to use."
+            "and download the built-in FastEmbed model so Recallium is ready to use. "
+            "The first run downloads ~100 MB and may take 30-120 seconds."
         ),
     )
     init_parser = subparsers.choices["init"]
@@ -1947,6 +1957,30 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
     except FileNotFoundError as exc:
         _log.error(str(exc), extra={"event": "config.missing"})
+        return 1
+    except EmbeddingReadinessTimeoutError as exc:
+        _log.error(
+            f"EmbeddingReadinessTimeoutError: {exc}\n"
+            "Model preparation timed out. The model may be downloading slowly. "
+            "Check your internet connection and try 'recallium init' again.",
+            extra={"event": "embedding.readiness_timeout"},
+        )
+        return 1
+    except EmbeddingModelUnavailableError as exc:
+        _log.error(
+            f"EmbeddingModelUnavailableError: {exc}\n"
+            "The embedding model could not be downloaded. "
+            "Check your internet connection and try 'recallium init' again.",
+            extra={"event": "embedding.model_unavailable"},
+        )
+        return 1
+    except EmbeddingProviderUnavailableError as exc:
+        _log.error(
+            f"EmbeddingProviderUnavailableError: {exc}\n"
+            "The embedding provider is unavailable. "
+            "Check your internet connection and try 'recallium init' again.",
+            extra={"event": "embedding.provider_unavailable"},
+        )
         return 1
     except RecalliumError as exc:
         _log.error(f"{exc.__class__.__name__}: {exc}")
