@@ -129,11 +129,20 @@ parity for the important Recallium CLI paths.
 - Complete subcommands.
 - Complete command flags.
 - Complete config keys for `recallium config get/set/unset`.
-- Add install support so the completion block can be added to the PowerShell
-  profile.
-- Add uninstall support so Recallium can remove the managed completion block.
+- Add install support so the managed completion block can be added to the
+  correct PowerShell profile.
+- Add uninstall support so Recallium can remove the managed PowerShell
+  completion block.
+- Ensure bootstrap install records the PowerShell completion profile edit in
+  install metadata where appropriate.
+- Support both Windows PowerShell and PowerShell 7 where practical, or document
+  the supported shell version clearly.
 - Add tests for generated PowerShell script output.
+- Add tests for PowerShell profile install, duplicate detection, uninstall
+  cleanup, and dry-run uninstall behavior.
 - Add docs for manual and automatic PowerShell setup.
+- Add CI or smoke coverage for the PowerShell completion install path where
+  practical.
 
 ### CLI error-formatting audit
 
@@ -208,8 +217,6 @@ Phase 1.5 is for useful polish that should not block the first public release.
 It should improve cross-platform feel and adapter ergonomics after the core
 release path is proven.
 
-- PowerShell completion install and uninstall refinements beyond the Phase 1
-  dynamic completion baseline.
 - Windows installer polish discovered during real user testing.
 - Cross-platform release smoke-test hardening beyond the minimum release gate.
 - Adapter-facing documentation examples and troubleshooting guides.
