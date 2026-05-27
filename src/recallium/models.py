@@ -66,6 +66,33 @@ def _validate_confidence(confidence: Any) -> float | None:
     return normalized
 
 
+# ---------------------------------------------------------------------------
+# Workspace UID normalization
+# ---------------------------------------------------------------------------
+
+
+def normalize_workspace_uid(raw: str) -> str:
+    """Normalize a workspace UID: lowercase, slugify, collapse dashes.
+
+    Algorithm:
+    1. Lowercase.
+    2. Replace every non-alphanumeric character with a single dash.
+    3. Collapse consecutive dashes into one.
+    4. Strip leading and trailing dashes.
+
+    Returns the empty string when the input contains no alphanumeric
+    characters.  Callers that require a non-empty UID must validate
+    separately.
+    """
+    import re
+
+    slug = raw.lower()
+    slug = re.sub(r"[^a-z0-9]", "-", slug)
+    slug = re.sub(r"-+", "-", slug)
+    slug = slug.strip("-")
+    return slug
+
+
 def validate_memory_create_input(
     *,
     space: Any,
