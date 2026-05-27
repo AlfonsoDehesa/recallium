@@ -4,6 +4,7 @@ set -eu
 REPO="AlfonsoDehesa/recallium"
 INSTALL_DIR="${HOME}/.local/bin"
 UV_BIN="${INSTALL_DIR}/uv"
+MANAGED_PATH_EDIT=""
 
 info() {
   printf '%s\n' "$1"
@@ -16,6 +17,10 @@ fail() {
 
 command_exists() {
   command -v "$1" >/dev/null 2>&1
+}
+
+json_escape() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\x08/\\b/g; s/\f/\\f/g; s/\n/\\n/g; s/\r/\\r/g; s/\t/\\t/g'
 }
 
 detect_uv_archive() {
@@ -80,8 +85,24 @@ ensure_path_hint() {
   line="export PATH=\"${INSTALL_DIR}:\$PATH\""
   if [ ! -f "$profile" ] || ! grep -F "$line" "$profile" >/dev/null 2>&1; then
     printf '\n# Recallium CLI\n%s\n' "$line" >> "$profile"
+    MANAGED_PATH_EDIT="${profile}: ${line}"
   fi
   info "Added ${INSTALL_DIR} to ${profile}. Restart your shell if recallium is not found."
+}
+
+record_install_metadata() {
+  state_dir="${XDG_STATE_HOME:-${HOME}/.local/state}/recallium"
+  metadata_path="${state_dir}/install.json"
+  installed_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+  mkdir -p "$state_dir"
+  escaped_ref=$(json_escape "$ref")
+  if [ -n "$MANAGED_PATH_EDIT" ]; then
+    escaped_path_edit=$(json_escape "$MANAGED_PATH_EDIT")
+    path_edits="[\"${escaped_path_edit}\"]"
+  else
+    path_edits="[]"
+  fi
+  printf '{\n  "install_method": "bootstrap",\n  "source_ref": "%s",\n  "installed_at": "%s",\n  "managed_path_edits": %s\n}\n' "$escaped_ref" "$installed_at" "$path_edits" > "$metadata_path"
 }
 
 install_uv
@@ -90,4 +111,5 @@ package="git+https://github.com/${REPO}.git@${ref}"
 info "Installing Recallium from ${ref}..."
 "$UV_BIN" tool install --python 3.12 --force "$package"
 ensure_path_hint
+record_install_metadata
 info "Recallium installed. Try: recallium --version"

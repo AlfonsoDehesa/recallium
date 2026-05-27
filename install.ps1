@@ -4,6 +4,7 @@ $Repo = "AlfonsoDehesa/recallium"
 $InstallDir = Join-Path $env:LOCALAPPDATA "uv"
 $UvBin = Join-Path $InstallDir "uv.exe"
 $ToolBin = Join-Path $HOME ".local\bin"
+$ManagedPathEdits = @()
 
 function Get-UvArchiveName {
     $arch = $env:PROCESSOR_ARCHITECTURE
@@ -69,5 +70,16 @@ $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if (-not $userPath) { $userPath = "" }
 if ($userPath -notlike "*$ToolBin*") {
     [Environment]::SetEnvironmentVariable("Path", "$ToolBin;$userPath", "User")
+    $ManagedPathEdits += "User Path: $ToolBin"
 }
+$stateDir = Join-Path $env:LOCALAPPDATA "recallium"
+New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
+$metadataPath = Join-Path $stateDir "install.json"
+$metadata = [ordered]@{
+    install_method = "bootstrap"
+    source_ref = $ref
+    installed_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+    managed_path_edits = $ManagedPathEdits
+}
+$metadata | ConvertTo-Json | Set-Content -Path $metadataPath -Encoding utf8
 Write-Host "Recallium installed. Restart your terminal if recallium is not found, then try: recallium --version"

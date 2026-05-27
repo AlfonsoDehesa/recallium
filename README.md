@@ -117,6 +117,54 @@ This prints upgrade commands for the bootstrap installer, pip, pipx, and uv
 tool installs. Existing memory updates still use `recallium update <memory_id>
 ...`.
 
+## Uninstalling
+
+```bash
+recallium uninstall
+```
+
+This prints the package-manager command to remove the installed Recallium CLI.
+Safe uninstall preserves local memories and settings by default. Preserved paths
+include the config file, SQLite database, data directory, model cache, logs, and
+runtime directory, so reinstalling Recallium later reuses the existing config and
+database and runs any required migrations without overwriting your memories.
+
+Package removal commands by install method:
+
+| Install method | Command |
+|---|---|
+| Bootstrap installer or uv tool | `uv tool uninstall recallium` |
+| pipx | `pipx uninstall recallium` |
+| pip | `python -m pip uninstall recallium` |
+| Source checkout | Remove the checkout or shell path entry manually. |
+
+To preview a full data purge without deleting anything:
+
+```bash
+recallium uninstall --purge --dry-run
+```
+
+To permanently delete Recallium-owned config, data, cache, logs, and runtime
+paths -- **this deletes your memories, and cannot be undone**:
+
+```bash
+recallium uninstall --purge
+```
+
+For non-interactive purge automation, use the explicit destructive confirmation
+flag:
+
+```bash
+recallium uninstall --purge --yes-delete-all-recallium-data
+```
+
+Purge only removes paths that look Recallium-owned and refuses broad paths such
+as your home directory, root directory, or current working directory. If the
+configured cache path appears shared with other tools, Recallium skips it and
+reports why. If a Recallium service is running, uninstall stops it cleanly before
+printing package removal guidance or deleting purge targets; `--dry-run` shows
+what would happen without stopping the service or deleting files.
+
 ## Data path behavior
 
 - Default database path: `~/.local/share/recallium/recallium.db`

@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+from copy import deepcopy
 from importlib.metadata import PackageNotFoundError
 from pathlib import Path
 import runpy
@@ -19,6 +20,7 @@ from recallium.cli import main
 from recallium.errors import (
     EmbeddingGenerationError,
     EmbeddingProviderUnavailableError,
+    ServiceError,
     ValidationError,
 )
 from recallium.storage import SQLiteMemoryStore
@@ -58,6 +60,7 @@ def test_cli_help_documents_commands_and_flags(capsys) -> None:
     assert "embedding-status" in top_level_help
     assert "embedding-jobs" in top_level_help
     assert "db-status" in top_level_help
+    assert "uninstall" in top_level_help
 
     add_help = _run_help(["add", "--help"], capsys)
     assert "User memories must not include" in add_help
@@ -106,6 +109,12 @@ def test_cli_help_documents_commands_and_flags(capsys) -> None:
     assert "migration status" in db_status_help
     assert "pending" in db_status_help
     assert "schema versions" in db_status_help
+
+    uninstall_help = _run_help(["uninstall", "--help"], capsys)
+    assert "preserving memories" in uninstall_help
+    assert "--purge" in uninstall_help
+    assert "--yes-delete-all-recallium-data" in uninstall_help
+    assert "--dry-run" in uninstall_help
 
 
 def test_cli_no_args_prints_help(capsys) -> None:
@@ -1778,6 +1787,466 @@ def test_cli_update_without_memory_id_prints_package_update_instructions(
     assert payload["status"] == "manual_update_required"
     assert "install.sh" in payload["commands"]["bootstrap"]
     assert payload["commands"]["pip"] == "pip install --upgrade recallium"
+
+
+def _set_xdg_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / "runtime"))
+
+
+def test_cli_uninstall_preserves_data_and_uses_install_metadata(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    config_path = tmp_path / "config" / "recallium" / "config.json"
+    db_path = tmp_path / "data" / "recallium" / "recallium.db"
+    metadata_path = tmp_path / "state" / "recallium" / "install.json"
+    config_path.parent.mkdir(parents=True)
+    db_path.parent.mkdir(parents=True)
+    metadata_path.parent.mkdir(parents=True)
+    config_path.write_text(json.dumps(DEFAULTS), encoding="utf-8")
+    db_path.write_text("preserved", encoding="utf-8")
+    metadata_path.write_text(
+        json.dumps(
+            {
+                "install_method": "bootstrap",
+                "source_ref": "main",
+                "managed_path_edits": ["profile path edit"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("recallium.cli.RecalliumCore", lambda *args, **kwargs: None)
+    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+
+    exit_code, stdout, stderr = _run_cli(["uninstall"], capsys)
+
+    payload = json.loads(stdout)
+    assert exit_code == 0
+    assert stderr == ""
+    assert payload["status"] == "manual_uninstall_required"
+    assert payload["data"]["preserved"] is True
+    assert payload["data"]["paths"]["database"] == str(db_path)
+    assert payload["package"]["install_method"] == "bootstrap"
+    assert payload["package"]["source_ref"] == "main"
+    assert payload["package"]["recommended"] == "uv tool uninstall recallium"
+    assert payload["package"]["managed_path_edits"] == ["profile path edit"]
+    assert config_path.exists()
+    assert db_path.read_text(encoding="utf-8") == "preserved"
+
+
+def test_cli_uninstall_stops_running_service(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    stopped_configs: list[object] = []
+
+    def _fake_stop(config: object) -> int:
+        stopped_configs.append(config)
+        return 123
+
+    monkeypatch.setattr("recallium.cli.stop_service", _fake_stop)
+
+    exit_code, stdout, stderr = _run_cli(["uninstall"], capsys)
+
+    payload = json.loads(stdout)
+    assert exit_code == 0
+    assert stderr == ""
+    assert payload["service"] == {"status": "stopped", "pid": 123}
+    assert stopped_configs
+
+
+def test_cli_uninstall_rejects_destructive_yes_without_purge(
+    capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+
+    exit_code, stdout, stderr = _run_cli(
+        ["uninstall", "--yes-delete-all-recallium-data"], capsys
+    )
+
+    assert exit_code == 2
+    assert stdout == ""
+    assert "requires --purge" in stderr
+
+
+def test_cli_uninstall_reports_explicit_missing_config(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--config", str(tmp_path / "missing.json"), "uninstall"], capsys
+    )
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert "config file not found" in stderr
+
+
+def test_cli_uninstall_reports_invalid_config(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps({"logging": {"level": "bad"}}), encoding="utf-8")
+    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--config", str(config_path), "uninstall"], capsys
+    )
+
+    assert exit_code == 2
+    assert stdout == ""
+    assert "ValidationError" in stderr
+
+
+def test_cli_uninstall_reports_service_stop_error(
+    capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _raise_service_error(_config: object) -> None:
+        raise ServiceError("service stop failed")
+
+    monkeypatch.setattr("recallium.cli.stop_service", _raise_service_error)
+
+    exit_code, stdout, stderr = _run_cli(["uninstall"], capsys)
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert "service stop failed" in stderr
+
+
+def test_cli_uninstall_ignores_unreadable_install_metadata(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    metadata_path = tmp_path / "state" / "recallium" / "install.json"
+    metadata_path.parent.mkdir(parents=True)
+    metadata_path.write_text("not json", encoding="utf-8")
+    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+
+    exit_code, stdout, stderr = _run_cli(["uninstall"], capsys)
+
+    payload = json.loads(stdout)
+    assert exit_code == 0
+    assert stderr == ""
+    assert payload["package"]["install_method"] == "unknown"
+
+
+def test_cli_uninstall_ignores_non_object_install_metadata(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    metadata_path = tmp_path / "state" / "recallium" / "install.json"
+    metadata_path.parent.mkdir(parents=True)
+    metadata_path.write_text(json.dumps(["bootstrap"]), encoding="utf-8")
+    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+
+    exit_code, stdout, stderr = _run_cli(["uninstall"], capsys)
+
+    payload = json.loads(stdout)
+    assert exit_code == 0
+    assert stderr == ""
+    assert payload["package"]["install_method"] == "unknown"
+
+
+def test_cli_uninstall_purge_dry_run_lists_targets_without_deleting(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    config_path = tmp_path / "config" / "recallium" / "config.json"
+    data_dir = tmp_path / "data" / "recallium"
+    cache_dir = tmp_path / "cache" / "recallium"
+    logs_dir = tmp_path / "state" / "recallium" / "logs"
+    runtime_dir = tmp_path / "runtime" / "recallium"
+    for directory in (config_path.parent, data_dir, cache_dir, logs_dir, runtime_dir):
+        directory.mkdir(parents=True)
+    config_path.write_text(json.dumps(DEFAULTS), encoding="utf-8")
+    (data_dir / "recallium.db").write_text("memory", encoding="utf-8")
+
+    exit_code, stdout, stderr = _run_cli(["uninstall", "--purge", "--dry-run"], capsys)
+
+    payload = json.loads(stdout)
+    assert exit_code == 0
+    assert stderr == ""
+    assert payload["service"] == {
+        "status": "dry_run",
+        "note": "service would be stopped",
+    }
+    assert payload["data"]["preserved"] is False
+    assert payload["data"]["purge"]["dry_run"] is True
+    assert payload["data"]["purge"]["deleted"] == []
+    assert config_path.exists()
+    assert (data_dir / "recallium.db").exists()
+
+
+def test_cli_uninstall_purge_cancelled_by_confirmation(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+    monkeypatch.setattr("sys.stdin.readline", lambda: "no\n")
+
+    exit_code, stdout, stderr = _run_cli(["uninstall", "--purge"], capsys)
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert "purge cancelled" in stderr
+
+
+def test_cli_uninstall_purge_accepts_interactive_confirmation(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    config_path = tmp_path / "config" / "recallium" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(json.dumps(DEFAULTS), encoding="utf-8")
+    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+    monkeypatch.setattr("sys.stdin.readline", lambda: "delete all recallium data\n")
+
+    exit_code, stdout, stderr = _run_cli(["uninstall", "--purge"], capsys)
+
+    payload = json.loads(stdout)
+    assert exit_code == 0
+    assert "permanently deleted" in stderr
+    assert str(config_path) in stderr
+    assert payload["data"]["purge"]["deleted"]
+
+
+def test_cli_uninstall_purge_deletes_recallium_owned_paths(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    config_path = tmp_path / "config" / "recallium" / "config.json"
+    data_dir = tmp_path / "data" / "recallium"
+    cache_dir = tmp_path / "cache" / "recallium"
+    logs_dir = tmp_path / "state" / "recallium" / "logs"
+    runtime_dir = tmp_path / "runtime" / "recallium"
+    metadata_path = tmp_path / "state" / "recallium" / "install.json"
+    for directory in (config_path.parent, data_dir, cache_dir, logs_dir, runtime_dir):
+        directory.mkdir(parents=True)
+    config_path.write_text(json.dumps(DEFAULTS), encoding="utf-8")
+    (data_dir / "recallium.db").write_text("memory", encoding="utf-8")
+    metadata_path.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+
+    exit_code, stdout, stderr = _run_cli(
+        ["uninstall", "--purge", "--yes-delete-all-recallium-data"], capsys
+    )
+
+    payload = json.loads(stdout)
+    assert exit_code == 0
+    assert "permanently deleted" in stderr
+    assert payload["data"]["purge"]["deleted"]
+    assert not config_path.parent.exists()
+    assert not data_dir.exists()
+    assert not cache_dir.exists()
+    assert not logs_dir.exists()
+    assert not runtime_dir.exists()
+    assert (tmp_path / "config").exists()
+    assert (tmp_path / "data").exists()
+
+
+def test_cli_uninstall_purge_reports_delete_errors(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    config_path = tmp_path / "config" / "recallium" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(json.dumps(DEFAULTS), encoding="utf-8")
+    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+
+    def _raise_remove(_path: Path) -> None:
+        raise OSError("delete failed")
+
+    monkeypatch.setattr("recallium.cli.shutil.rmtree", _raise_remove)
+
+    exit_code, stdout, stderr = _run_cli(
+        ["uninstall", "--purge", "--yes-delete-all-recallium-data"], capsys
+    )
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert "delete failed" in stderr
+
+
+def test_cli_uninstall_purge_skips_shared_cache_override(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    shared_cache = tmp_path / "shared-cache"
+    shared_cache.mkdir()
+    config_path = tmp_path / "config" / "recallium" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config_data = deepcopy(DEFAULTS)
+    config_data["directories"] = {"cache": str(shared_cache)}
+    config_path.write_text(json.dumps(config_data), encoding="utf-8")
+    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+
+    exit_code, stdout, stderr = _run_cli(
+        ["uninstall", "--purge", "--yes-delete-all-recallium-data"], capsys
+    )
+
+    payload = json.loads(stdout)
+    skipped = payload["data"]["purge"]["skipped"]
+    assert exit_code == 0
+    assert "permanently deleted" in stderr
+    assert shared_cache.exists()
+    assert any(
+        item["path"] == str(shared_cache) and item["reason"] == "not_recallium_owned"
+        for item in skipped
+    )
+
+
+def test_cli_uninstall_purge_skips_explicit_config_outside_recallium_dir(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(DEFAULTS), encoding="utf-8")
+    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+
+    exit_code, stdout, stderr = _run_cli(
+        [
+            "--config",
+            str(config_path),
+            "uninstall",
+            "--purge",
+            "--yes-delete-all-recallium-data",
+        ],
+        capsys,
+    )
+
+    payload = json.loads(stdout)
+    assert exit_code == 0
+    assert "permanently deleted" in stderr
+    assert config_path.exists()
+    assert any(
+        item["path"] == str(config_path) and item["reason"] == "not_recallium_owned"
+        for item in payload["data"]["purge"]["skipped"]
+    )
+
+
+def test_cli_uninstall_purge_skips_duplicate_targets(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    duplicate_dir = tmp_path / "data" / "recallium"
+    config_path = tmp_path / "config" / "recallium" / "config.json"
+    duplicate_dir.mkdir(parents=True)
+    config_path.parent.mkdir(parents=True)
+    config_data = deepcopy(DEFAULTS)
+    config_data["directories"] = {
+        "data": str(duplicate_dir),
+        "cache": str(duplicate_dir),
+    }
+    config_path.write_text(json.dumps(config_data), encoding="utf-8")
+    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+
+    exit_code, stdout, stderr = _run_cli(["uninstall", "--purge", "--dry-run"], capsys)
+
+    payload = json.loads(stdout)
+    paths = [item["path"] for item in payload["data"]["purge"]["targets"]]
+    assert exit_code == 0
+    assert stderr == ""
+    assert paths.count(str(duplicate_dir)) == 1
+
+
+def test_cli_uninstall_purge_marks_suspicious_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from recallium.cli import _delete_purge_target
+
+    monkeypatch.setattr(Path, "home", lambda: Path.cwd())
+
+    payload = _delete_purge_target(Path.cwd(), dry_run=True)
+
+    assert payload == {
+        "path": str(Path.cwd()),
+        "deleted": False,
+        "reason": "suspicious_path",
+    }
+
+
+def test_cli_reinstall_after_safe_uninstall_reuses_existing_config_and_database(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+    monkeypatch.setattr(
+        "recallium.cli.BuiltinFastEmbedProvider.ensure_ready",
+        lambda self: None,
+    )
+
+    assert _run_cli(["init"], capsys)[0] == 0
+    config_path = tmp_path / "config" / "recallium" / "config.json"
+    db_path = tmp_path / "data" / "recallium" / "recallium.db"
+    config_data = json.loads(config_path.read_text(encoding="utf-8"))
+    config_data["service"]["port"] = 9090
+    config_path.write_text(json.dumps(config_data), encoding="utf-8")
+    db_size = db_path.stat().st_size
+
+    assert _run_cli(["uninstall"], capsys)[0] == 0
+    assert _run_cli(["init"], capsys)[0] == 0
+
+    reloaded = json.loads(config_path.read_text(encoding="utf-8"))
+    assert reloaded["service"]["port"] == 9090
+    assert db_path.stat().st_size == db_size
+
+
+def test_cli_uninstall_dry_run_without_purge_prints_instructions(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    config_path = tmp_path / "config" / "recallium" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(json.dumps(DEFAULTS), encoding="utf-8")
+
+    exit_code, stdout, stderr = _run_cli(["uninstall", "--dry-run"], capsys)
+
+    payload = json.loads(stdout)
+    assert exit_code == 0
+    assert stderr == ""
+    assert payload["status"] == "manual_uninstall_required"
+    assert payload["data"]["preserved"] is True
+    assert payload["service"]["status"] == "dry_run"
+
+
+def test_cli_uninstall_dry_run_does_not_stop_service(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    stop_calls: list[object] = []
+
+    def _record_stop(config: object) -> int:
+        stop_calls.append(config)
+        return 123
+
+    monkeypatch.setattr("recallium.cli.stop_service", _record_stop)
+
+    _run_cli(["uninstall", "--dry-run"], capsys)
+    assert stop_calls == []
+
+    _run_cli(["uninstall", "--purge", "--dry-run"], capsys)
+    assert stop_calls == []
+
+
+def test_cli_uninstall_config_is_recallium_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from recallium.cli import _UninstallConfig
+    from recallium.config import RecalliumConfig
+
+    conf = _UninstallConfig(
+        effective_config={},
+        xdg_dirs={},
+        config_path=tmp_path / "cfg.json",
+        database_path=tmp_path / "db.db",
+    )
+    assert isinstance(conf, RecalliumConfig)
 
 
 class TestMcpStdioErrorPaths:
