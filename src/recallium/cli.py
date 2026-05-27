@@ -49,6 +49,7 @@ from recallium.service_contract import SERVICE_DEFAULT_HOST, SERVICE_DEFAULT_POR
 from recallium.errors import ServiceConflictError, ServiceError
 from recallium.service_manager import (
     check_running_service,
+    discover_service,
     get_pid_file_path,
     read_pid_file,
     start_service,
@@ -1302,6 +1303,17 @@ def _build_parser() -> argparse.ArgumentParser:
     # service status
     service_sub.add_parser("status", help="show running service details")
 
+    # service discover
+    service_sub.add_parser(
+        "discover",
+        help="print machine-readable connection details for the running service",
+        description=(
+            "Print machine-readable connection details for local adapters as JSON. "
+            "The command reports the running endpoint, version and capability URLs, "
+            "PID path, and discovery file path without creating a config file."
+        ),
+    )
+
     # service restart
     restart_parser = service_sub.add_parser(
         "restart", help="restart the running service"
@@ -1564,6 +1576,27 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # -- service commands --------------------------------------------------
     if args.command == "service":
+        if args.service_action == "discover":
+            try:
+                plan = _load_uninstall_plan(
+                    config_path,
+                    explicit=args.config_path is not None,
+                )
+                payload = discover_service(plan.config)
+                print(json.dumps(payload, sort_keys=True))
+                if payload["status"] == "not_running":
+                    return 1
+            except FileNotFoundError as exc:
+                _log.error(str(exc), extra={"event": "config.missing"})
+                return 1
+            except ValidationError as exc:
+                _log.error(f"ValidationError: {exc}", extra={"event": "config.invalid"})
+                return 2
+            except ServiceError as exc:
+                _log.error(str(exc))
+                return 2
+            return 0
+
         if args.service_action == "start":
             try:
                 cfg = RecalliumConfig(core_config_path, log_level=args.log_level)

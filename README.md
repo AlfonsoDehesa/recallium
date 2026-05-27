@@ -398,6 +398,22 @@ When no service is running:
 
 If a stale PID file exists from a previous run that exited unexpectedly, the status output includes the last known service type and PID under `last_service`.
 
+### Discovering a service for adapters
+
+Local adapters and plugins should use the machine-readable discovery command instead of hardcoding the default endpoint or parsing service logs:
+
+```bash
+recallium service discover
+```
+
+When a managed service is running, discovery exits `0` and prints JSON with the service type, PID, endpoint, API prefix, health URL, version URL, capabilities URL, Recallium version, config path, runtime directory, PID file, and discovery file path. `recallium service start api` and `recallium service start mcp` also write the same running metadata to `{runtime_dir}/service-discovery.json`.
+
+When no managed service is running, discovery exits `1`, prints `status="not_running"`, and includes the next step to start the API service. The command does not create a config file just to inspect discovery state. If PID or discovery metadata is stale, discovery removes the stale Recallium-owned files and reports what was cleaned.
+
+Adapters should autodiscover Recallium after the host application loads the plugin. Users should not need to manually configure host, port, PID file, runtime path, or service type in adapter config. Before using the service, adapters must validate the discovered service by calling `health_url`, `version_url`, and `capabilities_url`.
+
+Binding Recallium to a non-local interface can expose memory contents because the Phase 1 local API is unauthenticated.
+
 ### Stopping a service
 
 ```bash

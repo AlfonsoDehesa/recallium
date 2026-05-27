@@ -27,6 +27,76 @@ recallium --db /path/to/recallium.db serve --host 127.0.0.1 --port 8765
 - API prefix: `/v1`
 - Service API version value: `1`
 
+## Adapter discovery workflow
+
+Adapters and plugins should discover the local service with:
+
+```bash
+recallium service discover
+```
+
+The command exits `0` when a managed service is running, exits `1` when no service is running, and exits `2` when config or discovery metadata is invalid. It prints JSON on stdout and does not create a config file just to inspect discovery state.
+
+Running response shape:
+
+```json
+{
+  "status": "running",
+  "service": {
+    "type": "api",
+    "pid": 12345,
+    "process_start_time": 123456789,
+    "endpoint": "http://127.0.0.1:8765",
+    "api_prefix": "/v1",
+    "health_url": "http://127.0.0.1:8765/v1/health",
+    "version_url": "http://127.0.0.1:8765/v1/version",
+    "capabilities_url": "http://127.0.0.1:8765/v1/capabilities"
+  },
+  "versions": {
+    "service_api_version": "1",
+    "recallium_version": "0.x.y"
+  },
+  "paths": {
+    "config": "/home/user/.config/recallium/config.json",
+    "runtime_dir": "/run/user/1000/recallium",
+    "pid_file": "/run/user/1000/recallium/service.pid",
+    "discovery_file": "/run/user/1000/recallium/service-discovery.json"
+  }
+}
+```
+
+Not-running response shape:
+
+```json
+{
+  "status": "not_running",
+  "service": null,
+  "versions": {
+    "service_api_version": "1",
+    "recallium_version": "0.x.y"
+  },
+  "paths": {
+    "config": "/home/user/.config/recallium/config.json",
+    "runtime_dir": "/run/user/1000/recallium",
+    "pid_file": "/run/user/1000/recallium/service.pid",
+    "discovery_file": "/run/user/1000/recallium/service-discovery.json"
+  },
+  "next_step": "Run `recallium service start api` to start the local API service."
+}
+```
+
+`recallium service start api` and `recallium service start mcp` write the running response to `{runtime_dir}/service-discovery.json` after process ownership is verified. `recallium service stop`, `recallium service status`, and `recallium service discover` remove stale Recallium-owned PID and discovery files when they prove the managed process is gone.
+
+Adapters should validate a discovered service before enabling Recallium-backed tools:
+
+1. Call `health_url` and require an ok response.
+2. Call `version_url` and verify compatible `service_api_version`.
+3. Call `capabilities_url` and verify every required capability is present.
+
+Adapters should autodiscover Recallium after the host application loads the plugin. Users should not need to manually configure host, port, PID file, runtime path, or service type in adapter config. Host-level plugin registration remains outside Recallium Core.
+
+The API is local-only and unauthenticated in Phase 1. Binding to a non-local interface can expose memory contents.
+
 ## Envelope shapes
 
 Successful responses use:

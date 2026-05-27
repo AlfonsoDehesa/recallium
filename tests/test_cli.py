@@ -118,6 +118,10 @@ def test_cli_help_documents_commands_and_flags(capsys) -> None:
     assert "--yes-delete-all-recallium-data" in uninstall_help
     assert "--dry-run" in uninstall_help
 
+    service_discover_help = _run_help(["service", "discover", "--help"], capsys)
+    assert "machine-readable connection details" in service_discover_help
+    assert "without creating a config file" in service_discover_help
+
 
 def test_cli_no_args_prints_help(capsys) -> None:
     exit_code = main([])
@@ -1797,6 +1801,89 @@ def _set_xdg_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / "runtime"))
+
+
+def test_cli_service_discover_not_running_does_not_create_config(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+
+    exit_code, stdout, stderr = _run_cli(["service", "discover"], capsys)
+
+    payload = json.loads(stdout)
+    assert exit_code == 1
+    assert stderr == ""
+    assert payload["status"] == "not_running"
+    assert payload["service"] is None
+    assert "service start api" in payload["next_step"]
+    assert not (tmp_path / "config" / "recallium" / "config.json").exists()
+
+
+def test_cli_service_discover_running_returns_success(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+
+    def _fake_discover(config: object) -> dict[str, object]:
+        return {
+            "status": "running",
+            "service": {"type": "api", "pid": 123},
+            "paths": {},
+        }
+
+    monkeypatch.setattr("recallium.cli.discover_service", _fake_discover)
+
+    exit_code, stdout, stderr = _run_cli(["service", "discover"], capsys)
+
+    assert exit_code == 0
+    assert stderr == ""
+    assert json.loads(stdout)["status"] == "running"
+
+
+def test_cli_service_discover_invalid_config_exits_two(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps({"service": {"port": "bad"}}), encoding="utf-8")
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--config", str(config_path), "service", "discover"], capsys
+    )
+
+    assert exit_code == 2
+    assert stdout == ""
+    assert "ValidationError" in stderr
+
+
+def test_cli_service_discover_explicit_missing_config_exits_one(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    missing_path = tmp_path / "missing.json"
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--config", str(missing_path), "service", "discover"], capsys
+    )
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert f"config file not found: {missing_path}" in stderr
+
+
+def test_cli_service_discover_service_error_exits_two(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+
+    def _raise_service_error(config: object) -> dict[str, object]:
+        raise ServiceError("corrupted PID file")
+
+    monkeypatch.setattr("recallium.cli.discover_service", _raise_service_error)
+
+    exit_code, stdout, stderr = _run_cli(["service", "discover"], capsys)
+
+    assert exit_code == 2
+    assert stdout == ""
+    assert "corrupted PID file" in stderr
 
 
 def test_cli_uninstall_preserves_data_and_uses_install_metadata(

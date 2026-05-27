@@ -21,15 +21,20 @@ from recallium.errors import ServiceConflictError, ServiceError
 from recallium.service_manager import (
     _run_server,
     check_running_service,
+    discover_service,
+    get_discovery_file_path,
     get_process_cmdline,
     get_process_start_time,
     get_pid_file_path,
     is_pid_alive,
     is_recallium_service_process,
     read_pid_file,
+    remove_discovery_file,
     remove_pid_file,
+    service_discovery_payload,
     start_service,
     stop_service,
+    write_discovery_file,
     write_pid_file,
 )
 
@@ -170,6 +175,81 @@ def test_remove_pid_file_missing(tmp_path: Path) -> None:
     remove_pid_file(path)  # should not raise
 
 
+def test_get_discovery_file_path(tmp_path: Path) -> None:
+    config = _make_mock_config(tmp_path / "runtime")
+
+    assert (
+        get_discovery_file_path(config)
+        == tmp_path / "runtime" / "service-discovery.json"
+    )
+
+
+def test_remove_discovery_file(tmp_path: Path) -> None:
+    path = tmp_path / "service-discovery.json"
+    path.write_text("{}", encoding="utf-8")
+
+    remove_discovery_file(path)
+
+    assert not path.exists()
+
+
+def test_remove_discovery_file_missing(tmp_path: Path) -> None:
+    remove_discovery_file(tmp_path / "missing.json")
+
+
+def test_service_discovery_payload_not_running(tmp_path: Path) -> None:
+    config = _make_mock_config(tmp_path / "runtime", config_path="/tmp/config.json")
+
+    payload = service_discovery_payload(config, None)
+
+    assert payload["status"] == "not_running"
+    assert payload["service"] is None
+    assert payload["paths"] == {
+        "config": "/tmp/config.json",
+        "runtime_dir": str(tmp_path / "runtime"),
+        "pid_file": str(tmp_path / "runtime" / "service.pid"),
+        "discovery_file": str(tmp_path / "runtime" / "service-discovery.json"),
+    }
+    assert payload["versions"]["service_api_version"] == "1"
+    assert "service start api" in payload["next_step"]
+
+
+def test_service_discovery_payload_running_api(tmp_path: Path) -> None:
+    config = _make_mock_config(tmp_path / "runtime")
+
+    payload = service_discovery_payload(
+        config,
+        {"pid": 12345, "type": "api", "process_start_time": 77},
+    )
+
+    assert payload["status"] == "running"
+    assert payload["service"] == {
+        "type": "api",
+        "pid": 12345,
+        "process_start_time": 77,
+        "endpoint": "http://127.0.0.9:9876",
+        "api_prefix": "/v1",
+        "health_url": "http://127.0.0.9:9876/v1/health",
+        "version_url": "http://127.0.0.9:9876/v1/version",
+        "capabilities_url": "http://127.0.0.9:9876/v1/capabilities",
+    }
+
+
+def test_write_discovery_file_atomically(tmp_path: Path) -> None:
+    config = _make_mock_config(tmp_path / "runtime")
+
+    write_discovery_file(
+        config,
+        {"pid": 12345, "type": "mcp", "process_start_time": 77},
+    )
+
+    discovery_path = tmp_path / "runtime" / "service-discovery.json"
+    payload = json.loads(discovery_path.read_text(encoding="utf-8"))
+    assert payload["status"] == "running"
+    assert payload["service"]["type"] == "mcp"
+    assert not (tmp_path / "runtime" / ".service-discovery.json.tmp").exists()
+
+
 # ---------------------------------------------------------------------------
 # is_pid_alive
 # ---------------------------------------------------------------------------
@@ -294,6 +374,21 @@ def test_check_running_service_no_file(tmp_path: Path) -> None:
     assert result is None
 
 
+def test_check_running_service_no_pid_removes_stale_discovery_file(
+    tmp_path: Path,
+) -> None:
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    discovery_path = runtime / "service-discovery.json"
+    discovery_path.write_text("{}", encoding="utf-8")
+    config = _make_mock_config(runtime)
+
+    result = check_running_service(config)
+
+    assert result is None
+    assert not discovery_path.exists()
+
+
 def test_check_running_service_stale(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -342,6 +437,117 @@ def test_check_running_service_alive(
 
     result = check_running_service(config)
     assert result == {"pid": 12345, "type": "api", "process_start_time": 5}
+
+
+def test_discover_service_running_writes_discovery_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    pid_path = runtime / "service.pid"
+    write_pid_file(pid_path, pid=12345, service_type="api", process_start_time=5)
+    config = _make_mock_config(runtime)
+    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: True)
+    monkeypatch.setattr(
+        "recallium.service_manager.is_recallium_service_process",
+        lambda pid, service_type, process_start_time: True,
+    )
+
+    payload = discover_service(config)
+
+    discovery_path = runtime / "service-discovery.json"
+    file_payload = json.loads(discovery_path.read_text(encoding="utf-8"))
+    assert payload["status"] == "running"
+    assert payload == file_payload
+
+
+def test_discover_service_not_running_reports_stale_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    write_pid_file(
+        runtime / "service.pid", pid=12345, service_type="api", process_start_time=5
+    )
+    (runtime / "service-discovery.json").write_text("{}", encoding="utf-8")
+    config = _make_mock_config(runtime)
+    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: False)
+
+    payload = discover_service(config)
+
+    assert payload["status"] == "not_running"
+    assert payload["stale"] == {
+        "pid_file_removed": True,
+        "discovery_file_removed": True,
+    }
+    assert not (runtime / "service.pid").exists()
+    assert not (runtime / "service-discovery.json").exists()
+
+
+def test_discover_service_removes_discovery_file_without_pid(tmp_path: Path) -> None:
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    (runtime / "service-discovery.json").write_text("{}", encoding="utf-8")
+    config = _make_mock_config(runtime)
+
+    payload = discover_service(config)
+
+    assert payload["status"] == "not_running"
+    assert payload["stale"] == {
+        "pid_file_removed": False,
+        "discovery_file_removed": True,
+    }
+    assert not (runtime / "service-discovery.json").exists()
+
+
+def test_discover_service_uses_custom_host_port_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = tmp_path / "custom-runtime"
+    runtime.mkdir()
+    write_pid_file(
+        runtime / "service.pid", pid=12345, service_type="mcp", process_start_time=5
+    )
+    config = _make_mock_config(runtime)
+    config.effective_config = {"service": {"host": "127.0.0.7", "port": 9010}}
+    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: True)
+    monkeypatch.setattr(
+        "recallium.service_manager.is_recallium_service_process",
+        lambda pid, service_type, process_start_time: True,
+    )
+
+    payload = discover_service(config)
+
+    assert payload["service"]["type"] == "mcp"
+    assert payload["service"]["endpoint"] == "http://127.0.0.7:9010"
+    assert payload["paths"]["runtime_dir"] == str(runtime)
+
+
+def test_discover_service_wraps_discovery_write_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    write_pid_file(
+        runtime / "service.pid", pid=12345, service_type="api", process_start_time=5
+    )
+    config = _make_mock_config(runtime)
+    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: True)
+    monkeypatch.setattr(
+        "recallium.service_manager.is_recallium_service_process",
+        lambda pid, service_type, process_start_time: True,
+    )
+
+    def raise_os_error(*args: object, **kwargs: object) -> None:
+        raise OSError("read-only file system")
+
+    monkeypatch.setattr(
+        "recallium.service_manager.write_discovery_file", raise_os_error
+    )
+
+    with pytest.raises(ServiceError, match="could not write discovery file"):
+        discover_service(config)
+    assert (runtime / "service.pid").exists()
 
 
 def test_check_running_service_wrong_process_removes_pid_file(
@@ -481,6 +687,153 @@ def test_start_service_process_ownership_unavailable(
     fake_process.terminate.assert_called_once_with()
 
 
+def test_start_service_cleans_pid_file_when_discovery_write_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    config = _make_mock_config(runtime)
+    monkeypatch.setattr(
+        "recallium.service_manager.check_running_service", lambda cfg: None
+    )
+
+    fake_process = MagicMock()
+    fake_process.pid = 9999
+    fake_process.poll.return_value = None
+    monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: fake_process)
+    monkeypatch.setattr(
+        "recallium.service_manager.get_process_start_time", lambda pid: 5
+    )
+    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: True)
+
+    def raise_os_error(*args: object, **kwargs: object) -> None:
+        raise OSError("read-only file system")
+
+    monkeypatch.setattr(
+        "recallium.service_manager.write_discovery_file", raise_os_error
+    )
+
+    with pytest.raises(ServiceError, match="could not write discovery file"):
+        start_service(config, "api")
+
+    fake_process.terminate.assert_called_once_with()
+    assert not (runtime / "service.pid").exists()
+
+
+def test_start_service_ignores_missing_process_when_cleanup_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    config = _make_mock_config(runtime)
+    monkeypatch.setattr(
+        "recallium.service_manager.check_running_service", lambda cfg: None
+    )
+
+    fake_process = MagicMock()
+    fake_process.pid = 9998
+    fake_process.poll.return_value = None
+    fake_process.terminate.side_effect = ProcessLookupError("gone")
+    monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: fake_process)
+    monkeypatch.setattr(
+        "recallium.service_manager.get_process_start_time", lambda pid: 5
+    )
+    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: True)
+
+    def raise_os_error(*args: object, **kwargs: object) -> None:
+        raise OSError("read-only file system")
+
+    monkeypatch.setattr(
+        "recallium.service_manager.write_discovery_file", raise_os_error
+    )
+
+    with pytest.raises(ServiceError, match="could not write discovery file"):
+        start_service(config, "api")
+
+    assert not (runtime / "service.pid").exists()
+
+
+def test_start_service_escalates_to_kill_when_terminate_times_out(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    config = _make_mock_config(runtime)
+    monkeypatch.setattr(
+        "recallium.service_manager.check_running_service", lambda cfg: None
+    )
+
+    fake_process = MagicMock()
+    fake_process.pid = 9997
+    fake_process.poll.return_value = None
+    fake_process.wait.side_effect = [
+        subprocess.TimeoutExpired("wait", 5),
+        subprocess.TimeoutExpired("wait", 5),
+    ]
+    fake_process.kill.side_effect = ProcessLookupError("gone")
+    monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: fake_process)
+    monkeypatch.setattr(
+        "recallium.service_manager.get_process_start_time", lambda pid: 5
+    )
+    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: True)
+
+    def raise_os_error(*args: object, **kwargs: object) -> None:
+        raise OSError("read-only file system")
+
+    monkeypatch.setattr(
+        "recallium.service_manager.write_discovery_file", raise_os_error
+    )
+
+    with pytest.raises(ServiceError, match="could not write discovery file"):
+        start_service(config, "api")
+
+    fake_process.terminate.assert_called_once_with()
+    fake_process.kill.assert_called_once_with()
+    assert not (runtime / "service.pid").exists()
+
+
+def test_start_service_ignores_second_wait_timeout_after_kill(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    config = _make_mock_config(runtime)
+    monkeypatch.setattr(
+        "recallium.service_manager.check_running_service", lambda cfg: None
+    )
+
+    fake_process = MagicMock()
+    fake_process.pid = 9996
+    fake_process.poll.return_value = None
+    fake_process.wait.side_effect = [
+        subprocess.TimeoutExpired("wait", 5),
+        subprocess.TimeoutExpired("wait", 5),
+    ]
+    monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: fake_process)
+    monkeypatch.setattr(
+        "recallium.service_manager.get_process_start_time", lambda pid: 5
+    )
+    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: True)
+
+    def raise_os_error(*args: object, **kwargs: object) -> None:
+        raise OSError("read-only file system")
+
+    monkeypatch.setattr(
+        "recallium.service_manager.write_discovery_file", raise_os_error
+    )
+
+    with pytest.raises(ServiceError, match="could not write discovery file"):
+        start_service(config, "api")
+
+    fake_process.terminate.assert_called_once_with()
+    fake_process.kill.assert_called_once_with()
+    assert not (runtime / "service.pid").exists()
+
+
 def test_start_service_no_conflict(
     monkeypatch: pytest.MonkeyPatch, capsys: CaptureFixture[str]
 ) -> None:
@@ -579,6 +932,37 @@ def test_start_service_with_db_path(monkeypatch: pytest.MonkeyPatch) -> None:
     assert len(popen_args) == 1
     assert "--db-path" in popen_args[0]
     assert "/custom/db.sqlite" in popen_args[0]
+
+
+def test_start_service_with_log_level(monkeypatch: pytest.MonkeyPatch) -> None:
+    config = _make_mock_config(Path("/tmp/runtime"))
+    monkeypatch.setattr(
+        "recallium.service_manager.check_running_service", lambda cfg: None
+    )
+
+    popen_args: list[list[str]] = []
+
+    def fake_popen(cmd: list[str], **kwargs: object) -> MagicMock:
+        popen_args.append(cmd)
+        fake = MagicMock()
+        fake.pid = 7777
+        fake.poll.return_value = None
+        return fake
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(
+        "recallium.service_manager.get_process_start_time", lambda pid: 5
+    )
+    monkeypatch.setattr(
+        "recallium.service_manager.write_pid_file", lambda p, pid, st, pst: None
+    )
+    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: True)
+
+    pid = start_service(config, "api", log_level="debug")
+
+    assert pid == 7777
+    assert "--log-level" in popen_args[0]
+    assert "debug" in popen_args[0]
 
 
 # ---------------------------------------------------------------------------
@@ -962,6 +1346,30 @@ def test_main_entry_point_invalid_port(
     with pytest.raises(SystemExit) as exc_info:
         runpy.run_module("recallium.service_manager", run_name="__main__")
     assert exc_info.value.code == 2
+
+
+def test_main_entry_point_log_level(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["recallium.service_manager", "_run_server", "api", "--log-level", "debug"],
+    )
+    monkeypatch.setattr(sys, "exit", _fake_exit)
+
+    run_service_calls: list[str | None] = []
+
+    def fake_run_service(
+        *,
+        db_path: str | None = None,
+        config_path: str | None = None,
+        log_level: str | None = None,
+    ) -> None:
+        run_service_calls.append(log_level)
+
+    monkeypatch.setattr("recallium.service.run_service", fake_run_service)
+
+    runpy.run_module("recallium.service_manager", run_name="__main__")
+    assert run_service_calls == ["debug"]
 
 
 def test_main_entry_point_not_run_server(

@@ -21,6 +21,15 @@ In progress:
 - CLI polish, shell completion, `--version` flag, and consistent errors.
 - Install guide, API docs, and local access control documentation.
 
+## Phase 1.5 (v0.1.x follow-up): Cross-platform polish
+
+Recallium keeps Phase 1 focused while capturing polish work that should happen
+before Windows is treated as fully first-class.
+
+- PowerShell shell completion for Windows users.
+- PowerShell install and uninstall integration for managed completion blocks.
+- Completion docs for PowerShell alongside bash, zsh, and fish.
+
 ## Phase 2 (v0.2.x): Product intelligence
 
 Recallium fulfills its product promise as a personal intelligence engine.

@@ -17,8 +17,10 @@ import time
 from pathlib import Path
 from typing import Any
 
+from recallium import __version__
 from recallium.config import RecalliumConfig
 from recallium.errors import ServiceConflictError, ServiceError
+from recallium.service_contract import SERVICE_API_PREFIX, SERVICE_API_VERSION
 
 _log = logging.getLogger(__name__)
 
@@ -30,6 +32,11 @@ _log = logging.getLogger(__name__)
 def get_pid_file_path(config: RecalliumConfig) -> Path:
     """Return the PID file path: ``runtime_dir / "service.pid"``."""
     return config.xdg_dirs["runtime"] / "service.pid"
+
+
+def get_discovery_file_path(config: RecalliumConfig) -> Path:
+    """Return the service discovery file path."""
+    return config.xdg_dirs["runtime"] / "service-discovery.json"
 
 
 def read_pid_file(path: Path) -> dict[str, Any] | None:
@@ -136,6 +143,105 @@ def remove_pid_file(path: Path) -> None:
         pass
 
 
+def remove_discovery_file(path: Path) -> None:
+    """Remove the service discovery file if it exists."""
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def _service_endpoint(config: RecalliumConfig) -> str:
+    host = str(config.effective_config["service"]["host"])
+    port = int(config.effective_config["service"]["port"])
+    return f"http://{host}:{port}"
+
+
+def _discovery_paths(config: RecalliumConfig) -> dict[str, str]:
+    pid_file = get_pid_file_path(config)
+    discovery_file = get_discovery_file_path(config)
+    return {
+        "config": str(config.config_file_path),
+        "runtime_dir": str(config.xdg_dirs["runtime"]),
+        "pid_file": str(pid_file),
+        "discovery_file": str(discovery_file),
+    }
+
+
+def service_discovery_payload(
+    config: RecalliumConfig,
+    running: dict[str, Any] | None,
+    *,
+    stale: dict[str, bool] | None = None,
+) -> dict[str, Any]:
+    """Build the JSON-ready service discovery payload."""
+    endpoint = _service_endpoint(config)
+    paths = _discovery_paths(config)
+    versions = {
+        "service_api_version": SERVICE_API_VERSION,
+        "recallium_version": __version__,
+    }
+    if running is None:
+        payload: dict[str, Any] = {
+            "status": "not_running",
+            "service": None,
+            "versions": versions,
+            "paths": paths,
+            "next_step": "Run `recallium service start api` to start the local API service.",
+        }
+        if stale is not None:
+            payload["stale"] = stale
+        return payload
+
+    service = {
+        "type": running["type"],
+        "pid": running["pid"],
+        "process_start_time": running.get("process_start_time"),
+        "endpoint": endpoint,
+        "api_prefix": SERVICE_API_PREFIX,
+        "health_url": f"{endpoint}{SERVICE_API_PREFIX}/health",
+        "version_url": f"{endpoint}{SERVICE_API_PREFIX}/version",
+        "capabilities_url": f"{endpoint}{SERVICE_API_PREFIX}/capabilities",
+    }
+    return {
+        "status": "running",
+        "service": service,
+        "versions": versions,
+        "paths": paths,
+    }
+
+
+def write_discovery_file(config: RecalliumConfig, running: dict[str, Any]) -> None:
+    """Write the service discovery file atomically."""
+    path = get_discovery_file_path(config)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = service_discovery_payload(config, running)
+    temp_path = path.with_name(f".{path.name}.tmp")
+    temp_path.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
+    temp_path.replace(path)
+
+
+def discover_service(config: RecalliumConfig) -> dict[str, Any]:
+    """Return current service discovery details and clean stale files."""
+    pid_path = get_pid_file_path(config)
+    discovery_path = get_discovery_file_path(config)
+    had_pid_file = pid_path.exists()
+    had_discovery_file = discovery_path.exists()
+    running = check_running_service(config)
+    if running is None:
+        remove_discovery_file(discovery_path)
+        stale = {
+            "pid_file_removed": had_pid_file and not pid_path.exists(),
+            "discovery_file_removed": had_discovery_file,
+        }
+        return service_discovery_payload(config, None, stale=stale)
+    try:
+        write_discovery_file(config, running)
+    except OSError as exc:
+        raise ServiceError(f"could not write discovery file: {exc}") from exc
+    return service_discovery_payload(config, running)
+
+
 def _log_service_crashed(data: dict[str, Any], reason: str) -> None:
     """Log that a previously tracked service is no longer running."""
     _log.error(
@@ -187,11 +293,13 @@ def check_running_service(config: RecalliumConfig) -> dict[str, Any] | None:
     path = get_pid_file_path(config)
     data = read_pid_file(path)
     if data is None:
+        remove_discovery_file(get_discovery_file_path(config))
         return None
 
     if not is_pid_alive(data["pid"]):
         _log_service_crashed(data, "process_not_running")
         remove_pid_file(path)
+        remove_discovery_file(get_discovery_file_path(config))
         return None
 
     if not is_recallium_service_process(
@@ -199,6 +307,7 @@ def check_running_service(config: RecalliumConfig) -> dict[str, Any] | None:
     ):
         _log_service_crashed(data, "process_mismatch")
         remove_pid_file(path)
+        remove_discovery_file(get_discovery_file_path(config))
         return None
 
     return data
@@ -275,6 +384,39 @@ def start_service(
         )
         raise ServiceError(f"could not verify service process ownership for PID {pid}")
     write_pid_file(pid_path, pid, service_type, process_start_time)
+    try:
+        write_discovery_file(
+            config,
+            {
+                "pid": pid,
+                "type": service_type,
+                "process_start_time": process_start_time,
+            },
+        )
+    except OSError as exc:
+        try:
+            process.terminate()
+        except ProcessLookupError:
+            pass
+        else:
+            try:
+                process.wait(timeout=5)
+            except (ChildProcessError, ProcessLookupError, subprocess.TimeoutExpired):
+                try:
+                    process.kill()
+                except ProcessLookupError:
+                    pass
+                else:
+                    try:
+                        process.wait(timeout=5)
+                    except (
+                        ChildProcessError,
+                        ProcessLookupError,
+                        subprocess.TimeoutExpired,
+                    ):
+                        pass
+        remove_pid_file(pid_path)
+        raise ServiceError(f"could not write discovery file: {exc}") from exc
 
     # Brief startup grace check: verify the child is still alive.
     # If the child dies quickly (config error, port conflict, etc.),
@@ -282,6 +424,7 @@ def start_service(
     time.sleep(0.3)
     if process.poll() is not None or not is_pid_alive(pid):
         remove_pid_file(pid_path)
+        remove_discovery_file(get_discovery_file_path(config))
         _log.error(
             "service exited immediately after start",
             extra={
@@ -352,6 +495,7 @@ def stop_service(config: RecalliumConfig) -> int | None:
                 },
             )
             remove_pid_file(path)
+            remove_discovery_file(get_discovery_file_path(config))
             return pid
         time.sleep(0.1)
 
@@ -369,6 +513,7 @@ def stop_service(config: RecalliumConfig) -> int | None:
         pass
     time.sleep(0.5)
     remove_pid_file(path)
+    remove_discovery_file(get_discovery_file_path(config))
     return pid
 
 
