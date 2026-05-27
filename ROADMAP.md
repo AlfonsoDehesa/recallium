@@ -1,11 +1,31 @@
 # Roadmap
 
-## Phase 1 (v0.1.x): Release-ready core
+## Phase 1 (v1.0.0): Release-ready core
 
 Recallium Core is installable, runnable, documented, and ready for the first
 public release. The local service, CLI, API, bootstrap installers, service
 lifecycle, shell completion for Unix shells, uninstall behavior, and service
 discovery are already in place.
+
+Completed:
+
+- Core local memory MVP with user and workspace memory CRUD, search, update, archive, and list operations.
+- Local FastAPI service API with health, version, capabilities, memory, and embedding endpoints.
+- Smart local embeddings with built-in FastEmbed using `jinaai/jina-embeddings-v2-small-en`.
+- Background re-embedding worker with embedding job tracking.
+- Full test coverage push across the implemented core surface.
+- Versioned SQLite schema migrations with an internal migration runner.
+- Config file system and predictable data, cache, log, and runtime directories.
+- Service lifecycle and service type support for API and MCP services.
+- Structured logging, lifecycle events, crash detection, and CLI log-level handling.
+- Python 3.12 compatibility.
+- Repository policy docs, contribution workflow, issue templates, and release checklist.
+- AGPL-3.0 license selection.
+- Cross-platform bootstrap install flow for Linux, macOS, and Windows.
+- Safe uninstall surface with default data preservation and explicit purge.
+- Bash, zsh, and fish shell completion through argcomplete.
+- Uninstall cleanup for Recallium-managed shell completion blocks.
+- Local service discovery for adapters through `recallium service discover` and `service-discovery.json`.
 
 Remaining release blockers:
 
@@ -59,10 +79,10 @@ adapter itself is not part of this repository.
   validate service, then use memory endpoints.
 - Add an adapter contract section to the service or API docs if needed.
 
-### PowerShell dynamic shell completion
+### Rich dynamic PowerShell shell completion
 
-Release goal: Windows users get dynamic Tab completion in PowerShell with parity
-for the important Recallium CLI paths.
+Release goal: Windows users get rich dynamic Tab completion in PowerShell with
+parity for the important Recallium CLI paths.
 
 - Add PowerShell as a supported completion target.
 - Generate a `Register-ArgumentCompleter` script.
@@ -103,7 +123,7 @@ Release goal: no embarrassing loose ends before tagging.
 - Push the tag.
 - Confirm GitHub Release is created.
 
-## Phase 1.5 (v0.1.x follow-up): Post-release polish
+## Phase 1.5 (post-1.0.0 follow-up): Post-release polish
 
 Phase 1.5 is for useful polish that should not block the first public release.
 It should improve cross-platform feel and adapter ergonomics after the core
