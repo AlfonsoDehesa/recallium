@@ -715,6 +715,9 @@ def test_run_service_builds_core_and_starts_uvicorn(monkeypatch) -> None:
                 {"effective_config": {"logging": {"level": "debug"}}},
             )()
 
+        def _ensure_model_ready(self) -> None:
+            pass
+
     def fake_create_app(core: object) -> str:
         calls["core"] = core
         return "fake-app"
@@ -779,6 +782,9 @@ def test_run_service_mcp_uses_create_mcp_app(monkeypatch) -> None:
                 (),
                 {"effective_config": {"logging": {"level": "info"}}},
             )()
+
+        def _ensure_model_ready(self) -> None:
+            pass
 
     def fake_create_mcp_app(core: object) -> str:
         calls["mcp_core"] = core
