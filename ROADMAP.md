@@ -112,6 +112,30 @@ parity for the important Recallium CLI paths.
 - Add tests for generated PowerShell script output.
 - Add docs for manual and automatic PowerShell setup.
 
+### CLI error-formatting audit
+
+Release goal: users and automation get predictable command failures across the
+whole CLI.
+
+- Audit every CLI command for consistent exit codes.
+- Audit stderr messages so validation, not-found, config, service, embedding,
+  and install errors are clear and actionable.
+- Preserve stdout JSON contracts for successful machine-readable commands.
+- Confirm commands that are meant for automation return structured JSON where
+  appropriate.
+- Add or update tests for representative error paths across the CLI.
+
+### Local access and security documentation audit
+
+Release goal: users understand the local-only security model before exposing the
+service outside localhost.
+
+- Document that the Phase 1 local service is unauthenticated.
+- Document that binding to non-local interfaces can expose memory contents.
+- Confirm README, service API docs, and config docs explain host and port risks.
+- Confirm install and service docs recommend local-only defaults.
+- Add release checklist coverage for local access and security assumptions.
+
 ### Final release sweep
 
 Release goal: no embarrassing loose ends before tagging.
