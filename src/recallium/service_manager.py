@@ -394,6 +394,27 @@ def start_service(
             },
         )
     except OSError as exc:
+        try:
+            process.terminate()
+        except ProcessLookupError:
+            pass
+        else:
+            try:
+                process.wait(timeout=5)
+            except (ChildProcessError, ProcessLookupError, subprocess.TimeoutExpired):
+                try:
+                    process.kill()
+                except ProcessLookupError:
+                    pass
+                else:
+                    try:
+                        process.wait(timeout=5)
+                    except (
+                        ChildProcessError,
+                        ProcessLookupError,
+                        subprocess.TimeoutExpired,
+                    ):
+                        pass
         remove_pid_file(pid_path)
         raise ServiceError(f"could not write discovery file: {exc}") from exc
 

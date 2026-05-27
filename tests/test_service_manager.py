@@ -717,6 +717,120 @@ def test_start_service_cleans_pid_file_when_discovery_write_fails(
     with pytest.raises(ServiceError, match="could not write discovery file"):
         start_service(config, "api")
 
+    fake_process.terminate.assert_called_once_with()
+    assert not (runtime / "service.pid").exists()
+
+
+def test_start_service_ignores_missing_process_when_cleanup_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    config = _make_mock_config(runtime)
+    monkeypatch.setattr(
+        "recallium.service_manager.check_running_service", lambda cfg: None
+    )
+
+    fake_process = MagicMock()
+    fake_process.pid = 9998
+    fake_process.poll.return_value = None
+    fake_process.terminate.side_effect = ProcessLookupError("gone")
+    monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: fake_process)
+    monkeypatch.setattr(
+        "recallium.service_manager.get_process_start_time", lambda pid: 5
+    )
+    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: True)
+
+    def raise_os_error(*args: object, **kwargs: object) -> None:
+        raise OSError("read-only file system")
+
+    monkeypatch.setattr(
+        "recallium.service_manager.write_discovery_file", raise_os_error
+    )
+
+    with pytest.raises(ServiceError, match="could not write discovery file"):
+        start_service(config, "api")
+
+    assert not (runtime / "service.pid").exists()
+
+
+def test_start_service_escalates_to_kill_when_terminate_times_out(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    config = _make_mock_config(runtime)
+    monkeypatch.setattr(
+        "recallium.service_manager.check_running_service", lambda cfg: None
+    )
+
+    fake_process = MagicMock()
+    fake_process.pid = 9997
+    fake_process.poll.return_value = None
+    fake_process.wait.side_effect = [
+        subprocess.TimeoutExpired("wait", 5),
+        subprocess.TimeoutExpired("wait", 5),
+    ]
+    fake_process.kill.side_effect = ProcessLookupError("gone")
+    monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: fake_process)
+    monkeypatch.setattr(
+        "recallium.service_manager.get_process_start_time", lambda pid: 5
+    )
+    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: True)
+
+    def raise_os_error(*args: object, **kwargs: object) -> None:
+        raise OSError("read-only file system")
+
+    monkeypatch.setattr(
+        "recallium.service_manager.write_discovery_file", raise_os_error
+    )
+
+    with pytest.raises(ServiceError, match="could not write discovery file"):
+        start_service(config, "api")
+
+    fake_process.terminate.assert_called_once_with()
+    fake_process.kill.assert_called_once_with()
+    assert not (runtime / "service.pid").exists()
+
+
+def test_start_service_ignores_second_wait_timeout_after_kill(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = tmp_path / "runtime"
+    runtime.mkdir()
+    config = _make_mock_config(runtime)
+    monkeypatch.setattr(
+        "recallium.service_manager.check_running_service", lambda cfg: None
+    )
+
+    fake_process = MagicMock()
+    fake_process.pid = 9996
+    fake_process.poll.return_value = None
+    fake_process.wait.side_effect = [
+        subprocess.TimeoutExpired("wait", 5),
+        subprocess.TimeoutExpired("wait", 5),
+    ]
+    monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: fake_process)
+    monkeypatch.setattr(
+        "recallium.service_manager.get_process_start_time", lambda pid: 5
+    )
+    monkeypatch.setattr("recallium.service_manager.is_pid_alive", lambda pid: True)
+
+    def raise_os_error(*args: object, **kwargs: object) -> None:
+        raise OSError("read-only file system")
+
+    monkeypatch.setattr(
+        "recallium.service_manager.write_discovery_file", raise_os_error
+    )
+
+    with pytest.raises(ServiceError, match="could not write discovery file"):
+        start_service(config, "api")
+
+    fake_process.terminate.assert_called_once_with()
+    fake_process.kill.assert_called_once_with()
     assert not (runtime / "service.pid").exists()
 
 
