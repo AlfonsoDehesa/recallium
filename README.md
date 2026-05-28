@@ -422,7 +422,7 @@ When a managed service is running, discovery exits `0` and prints JSON with the 
 
 When no managed service is running, discovery exits `1`, prints `status="not_running"`, and includes the next step to start the API service. The command does not create a config file just to inspect discovery state. If PID or discovery metadata is stale, discovery removes the stale Recallium-owned files and reports what was cleaned.
 
-Adapters should autodiscover Recallium after the host application loads the plugin. Users should not need to manually configure host, port, PID file, runtime path, or service type in adapter config. Before using the service, adapters must validate the discovered service by calling `health_url`, `version_url`, and `capabilities_url`.
+Adapters should autodiscover Recallium after the host application loads the plugin. Users should not need to manually configure host, port, PID file, runtime path, or service type in adapter config. Before using the service, adapters must validate the discovered service by calling `health_url`, `version_url`, and `capabilities_url`. See `docs/opencode-adapter-contract.md` for the full adapter contract.
 
 Binding Recallium to a non-local interface can expose memory contents because the Phase 1 local API is unauthenticated.
 
@@ -553,7 +553,8 @@ Searches default to all buckets in the selected scope. Add `--type` when you wan
 
 Workspace memories are keyed by a stable workspace UID. Future adapters, such as
 the OpenCode plugin, should create and pass that UID rather than using filesystem
-paths as workspace identity.
+paths as workspace identity. See `docs/opencode-adapter-contract.md` for the
+adapter-side workspace UID rules.
 
 List known workspace UIDs:
 

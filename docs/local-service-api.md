@@ -93,7 +93,7 @@ Adapters should validate a discovered service before enabling Recallium-backed t
 2. Call `version_url` and verify compatible `service_api_version`.
 3. Call `capabilities_url` and verify every required capability is present.
 
-Adapters should autodiscover Recallium after the host application loads the plugin. Users should not need to manually configure host, port, PID file, runtime path, or service type in adapter config. Host-level plugin registration remains outside Recallium Core.
+Adapters should autodiscover Recallium after the host application loads the plugin. Users should not need to manually configure host, port, PID file, runtime path, or service type in adapter config. Host-level plugin registration remains outside Recallium Core. See `docs/opencode-adapter-contract.md` for the adapter contract and workspace UID rules.
 
 The API is local-only and unauthenticated in Phase 1. Binding to a non-local interface can expose memory contents.
 
