@@ -186,13 +186,21 @@ path is proven.
 
 - [ ] Build the OpenCode plugin or adapter outside the Core release scope.
 - [ ] Consume Core service discovery from the plugin.
+- [ ] Support explicit remote Core base-URL configuration for hosted Core
+  instances and validate those endpoints with health, version, and capabilities.
 - [ ] Consume Core workspace UID behavior from the plugin.
-- [ ] Add workspace aliases so a canonical workspace UID can own multiple
-  normalized alias names, and alias hits during recording or search resolve to
-  that canonical workspace after workspace-boundary resolution and UID
-  normalization.
 - [ ] Expose Recallium-backed tools inside OpenCode.
 - [ ] Add plugin-facing documentation and troubleshooting guides.
+
+### Workspace aliases
+
+- [ ] Add workspace aliases so a canonical workspace UID can own multiple
+  normalized alias names.
+- [ ] Resolve alias hits during recording or search back to the canonical
+  workspace after model-selected workspace UID handling and Core UID
+  normalization.
+- [ ] Expose alias management through the relevant CLI, API, MCP, and plugin
+  surfaces.
 
 ## Phase 2 (v0.2.x): Product intelligence
 

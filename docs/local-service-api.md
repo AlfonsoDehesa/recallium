@@ -87,13 +87,25 @@ Not-running response shape:
 
 `recallium service start api` and `recallium service start mcp` write the running response to `{runtime_dir}/service-discovery.json` after process ownership is verified. `recallium service stop`, `recallium service status`, and `recallium service discover` remove stale Recallium-owned PID and discovery files when they prove the managed process is gone.
 
-Adapters should validate a discovered service before enabling Recallium-backed tools:
+Adapters should validate the target service before enabling Recallium-backed tools:
 
-1. Call `health_url` and require an ok response.
-2. Call `version_url` and verify compatible `service_api_version`.
-3. Call `capabilities_url` and verify every required capability is present.
+1. For local discovery, use the returned `health_url`, `version_url`, and
+   `capabilities_url`. For remote Core config, derive `/v1/health`,
+   `/v1/version`, and `/v1/capabilities` from the configured base URL.
+2. Call the health endpoint and require an ok response.
+3. Call the version endpoint and verify compatible `service_api_version`.
+4. Call the capabilities endpoint and verify every required capability is
+   present.
 
-Adapters should autodiscover Recallium after the host application loads the plugin. Users should not need to manually configure host, port, PID file, runtime path, or service type in adapter config. Host-level plugin registration remains outside Recallium Core. See `docs/opencode-adapter-contract.md` for the adapter contract and workspace UID rules.
+Adapters should autodiscover Recallium after the host application loads the
+plugin when the adapter and Core run on the same machine. Users should not need
+to manually configure host, port, PID file, runtime path, or service type for
+that local path. Hosted or remote Core instances are different: the user points
+the plugin at the Core base URL in plugin config, and the adapter validates that
+configured endpoint by calling `/v1/health`, `/v1/version`, and
+`/v1/capabilities`. Host-level plugin registration remains outside Recallium
+Core. See `docs/opencode-adapter-contract.md` for the adapter contract and
+workspace UID rules.
 
 The API is local-only and unauthenticated in Phase 1. Binding to a non-local interface can expose memory contents.
 

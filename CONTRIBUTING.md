@@ -134,6 +134,11 @@ If the PR changes user-facing behavior, docs, configuration, CLI surface, or
 API surface, keep the GitHub Wiki up to date in the same PR alongside the
 README and API docs.
 
+If the PR changes service discovery, remote Core addressing, version or
+capability validation, or workspace UID behavior, update
+`docs/opencode-adapter-contract.md`, the matching API docs, and the release
+checklist in the same PR.
+
 ### Commit style
 
 Keep messages short and descriptive. Use the conventional prefix if it
@@ -196,9 +201,10 @@ confirmed before the version-bump PR is opened.
       the others expose.
 - [ ] `recallium config` get/set/unset covers every configurable key in
       `config.json`.
-- [ ] If a PR changes service discovery, version/capabilities, or workspace UID
-      behavior, update `docs/opencode-adapter-contract.md` and the matching API
-      docs in the same PR.
+- [ ] If a PR changes service discovery, remote Core addressing, version or
+      capability validation, or workspace UID behavior, update
+      `docs/opencode-adapter-contract.md` and the matching API docs in the same
+      PR.
 
 #### Documentation
 
