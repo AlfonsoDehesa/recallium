@@ -34,7 +34,7 @@ jobs:
         run: uv run pyright
 
       - name: Test
-        run: uv run pytest --cov=src/recallium --cov-report=term-missing
+        run: uv run pytest --cov=src/recollectium --cov-report=term-missing
 
   install-smoke:
     strategy:
@@ -65,28 +65,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Recallium on Unix
+      - name: Install Recollectium on Unix
         if: runner.os != 'Windows'
         shell: bash
         run: sh ./install.sh
         env:
-          RECALLIUM_INSTALL_REF: ${{ github.head_ref || github.ref_name }}
+          RECOLLECTIUM_INSTALL_REF: ${{ github.head_ref || github.ref_name }}
 
-      - name: Install Recallium on Windows
+      - name: Install Recollectium on Windows
         if: runner.os == 'Windows'
         shell: pwsh
         run: .\install.ps1
         env:
-          RECALLIUM_INSTALL_REF: ${{ github.head_ref || github.ref_name }}
+          RECOLLECTIUM_INSTALL_REF: ${{ github.head_ref || github.ref_name }}
 
-      - name: Verify Recallium on Unix
+      - name: Verify Recollectium on Unix
         if: runner.os != 'Windows'
         shell: bash
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          recallium --version
+          recollectium --version
 
-      - name: Verify Recallium on Windows
+      - name: Verify Recollectium on Windows
         if: runner.os == 'Windows'
         shell: pwsh
-        run: recallium --version
+        run: recollectium --version

@@ -24,7 +24,7 @@
 - [ ] `uv run ruff check .` passes
 - [ ] `uv run pyright` passes
 - [ ] `uv run pytest` passes
-- [ ] `uv run pytest --cov=src/recallium --cov-report=term-missing` targets 100% on changed code
+- [ ] `uv run pytest --cov=src/recollectium --cov-report=term-missing` targets 100% on changed code
 
 ## Policy compliance
 

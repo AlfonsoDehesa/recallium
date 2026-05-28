@@ -1,4 +1,4 @@
-"""MCP server for Recallium memory operations using FastMCP."""
+"""MCP server for Recollectium memory operations using FastMCP."""
 
 from __future__ import annotations
 
@@ -6,14 +6,14 @@ import json
 
 from mcp.server.fastmcp import FastMCP
 
-from recallium.core import RecalliumCore
-from recallium.errors import RecalliumError
+from recollectium.core import RecollectiumCore
+from recollectium.errors import RecollectiumError
 
 
-def create_mcp_server(core: RecalliumCore) -> FastMCP:
-    """Create a FastMCP server with Recallium memory tools."""
+def create_mcp_server(core: RecollectiumCore) -> FastMCP:
+    """Create a FastMCP server with Recollectium memory tools."""
 
-    mcp = FastMCP("Recallium")
+    mcp = FastMCP("Recollectium")
 
     @mcp.tool()
     def search_user_memory(query: str, type: str | None = None, limit: int = 10) -> str:
@@ -21,7 +21,7 @@ def create_mcp_server(core: RecalliumCore) -> FastMCP:
         try:
             results = core.search_user_memories(query=query, type=type, limit=limit)
             return json.dumps([r.to_dict() for r in results], sort_keys=True)
-        except RecalliumError as e:
+        except RecollectiumError as e:
             return json.dumps({"error": str(e)}, sort_keys=True)
 
     @mcp.tool()
@@ -34,7 +34,7 @@ def create_mcp_server(core: RecalliumCore) -> FastMCP:
                 query=query, workspace_uid=workspace_uid, type=type, limit=limit
             )
             return json.dumps([r.to_dict() for r in results], sort_keys=True)
-        except RecalliumError as e:
+        except RecollectiumError as e:
             return json.dumps({"error": str(e)}, sort_keys=True)
 
     @mcp.tool()
@@ -53,7 +53,7 @@ def create_mcp_server(core: RecalliumCore) -> FastMCP:
                 workspace_uid=workspace_uid,
             )
             return json.dumps(memory.to_dict(), sort_keys=True)
-        except RecalliumError as e:
+        except RecollectiumError as e:
             return json.dumps({"error": str(e)}, sort_keys=True)
 
     @mcp.tool()
@@ -62,7 +62,7 @@ def create_mcp_server(core: RecalliumCore) -> FastMCP:
         try:
             memory = core.get_memory(id)
             return json.dumps(memory.to_dict(), sort_keys=True)
-        except RecalliumError as e:
+        except RecollectiumError as e:
             return json.dumps({"error": str(e)}, sort_keys=True)
 
     @mcp.tool()
@@ -73,7 +73,7 @@ def create_mcp_server(core: RecalliumCore) -> FastMCP:
         try:
             memory = core.update_memory(id, type=type, content=content)
             return json.dumps(memory.to_dict(), sort_keys=True)
-        except RecalliumError as e:
+        except RecollectiumError as e:
             return json.dumps({"error": str(e)}, sort_keys=True)
 
     @mcp.tool()
@@ -82,7 +82,7 @@ def create_mcp_server(core: RecalliumCore) -> FastMCP:
         try:
             memory = core.archive_memory(id)
             return json.dumps(memory.to_dict(), sort_keys=True)
-        except RecalliumError as e:
+        except RecollectiumError as e:
             return json.dumps({"error": str(e)}, sort_keys=True)
 
     @mcp.tool()
@@ -98,7 +98,7 @@ def create_mcp_server(core: RecalliumCore) -> FastMCP:
                 space=space, type=type, workspace_uid=workspace_uid, limit=limit
             )
             return json.dumps([r.to_dict() for r in results], sort_keys=True)
-        except RecalliumError as e:
+        except RecollectiumError as e:
             return json.dumps({"error": str(e)}, sort_keys=True)
 
     @mcp.tool()
@@ -107,7 +107,7 @@ def create_mcp_server(core: RecalliumCore) -> FastMCP:
         try:
             uids = core.list_workspaces(include_archived=include_archived)
             return json.dumps(uids, sort_keys=True)
-        except RecalliumError as e:
+        except RecollectiumError as e:
             return json.dumps({"error": str(e)}, sort_keys=True)
 
     @mcp.tool()
@@ -116,7 +116,7 @@ def create_mcp_server(core: RecalliumCore) -> FastMCP:
         try:
             result = core.rename_workspace(old_uid=old_uid, new_uid=new_uid)
             return json.dumps(result, sort_keys=True)
-        except RecalliumError as e:
+        except RecollectiumError as e:
             return json.dumps({"error": str(e)}, sort_keys=True)
 
     return mcp

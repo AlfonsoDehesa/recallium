@@ -1,19 +1,19 @@
-"""Recallium Core package."""
+"""Recollectium Core package."""
 
 from importlib.metadata import PackageNotFoundError, version
 
-from recallium.config import RecalliumConfig
-from recallium.core import RecalliumCore
-from recallium.errors import (
+from recollectium.config import RecollectiumConfig
+from recollectium.core import RecollectiumCore
+from recollectium.errors import (
     MigrationError,
     NotFoundError,
-    RecalliumError,
+    RecollectiumError,
     ServiceConflictError,
     ServiceError,
     ValidationError,
 )
-from recallium.logging import get_logger, setup_logging
-from recallium.models import (
+from recollectium.logging import get_logger, setup_logging
+from recollectium.models import (
     SPACE_USER,
     SPACE_WORKSPACE,
     STATUS_ACTIVE,
@@ -25,9 +25,9 @@ from recallium.models import (
 __all__ = [
     "__version__",
     "Memory",
-    "RecalliumConfig",
-    "RecalliumCore",
-    "RecalliumError",
+    "RecollectiumConfig",
+    "RecollectiumCore",
+    "RecollectiumError",
     "SearchResult",
     "ValidationError",
     "NotFoundError",
@@ -43,6 +43,6 @@ __all__ = [
 ]
 
 try:
-    __version__ = version("recallium")
+    __version__ = version("recollectium")
 except PackageNotFoundError:  # pragma: no cover - source tree fallback
     __version__ = "0.1.0"

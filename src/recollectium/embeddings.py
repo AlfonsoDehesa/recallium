@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from multiprocessing.connection import Connection
 from typing import Any, ClassVar, Protocol, cast
 
-from recallium.errors import (
+from recollectium.errors import (
     EmbeddingDimensionMismatchError,
     EmbeddingGenerationError,
     EmbeddingModelUnavailableError,

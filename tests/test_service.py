@@ -6,10 +6,14 @@ from typing import Any
 from fastapi.testclient import TestClient
 import pytest
 
-from recallium.core import RecalliumCore
-from recallium.models import ALL_MEMORY_TYPES, USER_MEMORY_TYPES, WORKSPACE_MEMORY_TYPES
-from recallium.errors import ValidationError
-from recallium.service import (
+from recollectium.core import RecollectiumCore
+from recollectium.models import (
+    ALL_MEMORY_TYPES,
+    USER_MEMORY_TYPES,
+    WORKSPACE_MEMORY_TYPES,
+)
+from recollectium.errors import ValidationError
+from recollectium.service import (
     _map_boundary_error,
     _parse_optional_bool,
     _parse_optional_positive_int,
@@ -17,7 +21,7 @@ from recallium.service import (
     create_mcp_app,
     run_service,
 )
-from recallium.service_contract import (
+from recollectium.service_contract import (
     OPERATION_EMBEDDING_JOBS_GET,
     OPERATION_EMBEDDING_JOBS_LIST,
     OPERATION_EMBEDDING_STATUS,
@@ -75,7 +79,7 @@ def test_metadata_payload_helpers_are_stable() -> None:
 
     version = version_payload()
     assert version["data"]["service_api_version"] == SERVICE_API_VERSION
-    assert isinstance(version["data"]["recallium_version"], str)
+    assert isinstance(version["data"]["recollectium_version"], str)
 
     capabilities = capabilities_payload()
     assert capabilities["data"] == {
@@ -111,7 +115,7 @@ def test_error_payload_shape_is_stable() -> None:
 
 
 def test_serializers_use_existing_models(tmp_path: Path) -> None:
-    core = RecalliumCore(db_path=tmp_path / "service-contract.db")
+    core = RecollectiumCore(db_path=tmp_path / "service-contract.db")
     memory = core.add_memory(
         space="user",
         type="fact",
@@ -203,7 +207,7 @@ def test_local_service_openapi_contract_is_valid_and_covers_routes(
     assert openapi_path.exists()
 
     contract = json.loads(openapi_path.read_text(encoding="utf-8"))
-    app = create_app(RecalliumCore(db_path=tmp_path / "openapi.db"))
+    app = create_app(RecollectiumCore(db_path=tmp_path / "openapi.db"))
     assert contract == app.openapi()
     assert contract["openapi"] == "3.1.0"
 
@@ -256,7 +260,7 @@ def _service_docs_section_for_route(docs_text: str, route: str) -> str:
     return docs_text[route_index:next_heading_index]
 
 
-def _client(core: RecalliumCore) -> TestClient:
+def _client(core: RecollectiumCore) -> TestClient:
     return TestClient(create_app(core), raise_server_exceptions=False)
 
 
@@ -286,7 +290,7 @@ def _request_raw(
 
 
 def test_http_metadata_routes_return_json(tmp_path: Path) -> None:
-    core = RecalliumCore(db_path=tmp_path / "service-metadata.db")
+    core = RecollectiumCore(db_path=tmp_path / "service-metadata.db")
     client = _client(core)
 
     status, payload = _request_json(client, "GET", "/v1/health")
@@ -303,7 +307,7 @@ def test_http_metadata_routes_return_json(tmp_path: Path) -> None:
 
 
 def test_http_local_service_smoke_end_to_end(tmp_path: Path) -> None:
-    core = RecalliumCore(db_path=tmp_path / "service-smoke.db")
+    core = RecollectiumCore(db_path=tmp_path / "service-smoke.db")
     client = _client(core)
 
     status, health = _request_json(client, "GET", "/v1/health")
@@ -326,7 +330,7 @@ def test_http_local_service_smoke_end_to_end(tmp_path: Path) -> None:
 
 
 def test_http_memory_routes_delegate_to_core(tmp_path: Path) -> None:
-    core = RecalliumCore(db_path=tmp_path / "service-memory-routes.db")
+    core = RecollectiumCore(db_path=tmp_path / "service-memory-routes.db")
     client = _client(core)
 
     status, added_user = _request_json(
@@ -458,7 +462,7 @@ def test_http_query_parsers_accept_valid_values_and_reject_bad_values() -> None:
 
 
 def test_http_invalid_query_params_return_validation_errors(tmp_path: Path) -> None:
-    core = RecalliumCore(db_path=tmp_path / "service-query-validation.db")
+    core = RecollectiumCore(db_path=tmp_path / "service-query-validation.db")
     client = _client(core)
 
     status, payload = _request_json(client, "GET", "/v1/memories?include_archived=yes")
@@ -471,7 +475,7 @@ def test_http_invalid_query_params_return_validation_errors(tmp_path: Path) -> N
 
 
 def test_http_workspace_search_requires_workspace_uid(tmp_path: Path) -> None:
-    core = RecalliumCore(db_path=tmp_path / "service-workspace-validation.db")
+    core = RecollectiumCore(db_path=tmp_path / "service-workspace-validation.db")
     client = _client(core)
 
     status, payload = _request_json(
@@ -485,7 +489,7 @@ def test_http_workspace_search_requires_workspace_uid(tmp_path: Path) -> None:
 
 
 def test_http_unknown_route_returns_unsupported_operation(tmp_path: Path) -> None:
-    core = RecalliumCore(db_path=tmp_path / "service-unknown-route.db")
+    core = RecollectiumCore(db_path=tmp_path / "service-unknown-route.db")
     client = _client(core)
 
     status, payload = _request_json(client, "GET", "/v1/nope")
@@ -494,7 +498,7 @@ def test_http_unknown_route_returns_unsupported_operation(tmp_path: Path) -> Non
 
 
 def test_http_exception_handler_preserves_other_http_errors(tmp_path: Path) -> None:
-    core = RecalliumCore(db_path=tmp_path / "service-http-error.db")
+    core = RecollectiumCore(db_path=tmp_path / "service-http-error.db")
     app = create_app(core)
 
     from fastapi import HTTPException
@@ -515,7 +519,7 @@ def test_http_exception_handler_preserves_other_http_errors(tmp_path: Path) -> N
 
 
 def test_http_get_missing_memory_returns_not_found(tmp_path: Path) -> None:
-    core = RecalliumCore(db_path=tmp_path / "service-missing-memory.db")
+    core = RecollectiumCore(db_path=tmp_path / "service-missing-memory.db")
     client = _client(core)
 
     status, payload = _request_json(client, "GET", "/v1/memories/missing-id")
@@ -524,7 +528,7 @@ def test_http_get_missing_memory_returns_not_found(tmp_path: Path) -> None:
 
 
 def test_http_get_missing_embedding_job_returns_not_found(tmp_path: Path) -> None:
-    core = RecalliumCore(db_path=tmp_path / "service-missing-job.db")
+    core = RecollectiumCore(db_path=tmp_path / "service-missing-job.db")
     client = _client(core)
 
     status, payload = _request_json(client, "GET", "/v1/embedding/jobs/missing-job")
@@ -534,7 +538,7 @@ def test_http_get_missing_embedding_job_returns_not_found(tmp_path: Path) -> Non
 
 
 def test_http_get_embedding_job_returns_existing_job(tmp_path: Path) -> None:
-    core = RecalliumCore(db_path=tmp_path / "service-existing-job.db")
+    core = RecollectiumCore(db_path=tmp_path / "service-existing-job.db")
     job = core.store.create_embedding_job(
         job_id="job-1",
         state="completed",
@@ -555,7 +559,7 @@ def test_http_get_embedding_job_returns_existing_job(tmp_path: Path) -> None:
 
 
 def test_http_invalid_json_returns_invalid_json_error(tmp_path: Path) -> None:
-    core = RecalliumCore(db_path=tmp_path / "service-invalid-json.db")
+    core = RecollectiumCore(db_path=tmp_path / "service-invalid-json.db")
     client = _client(core)
 
     status, payload = _request_raw(
@@ -569,7 +573,7 @@ def test_http_invalid_json_returns_invalid_json_error(tmp_path: Path) -> None:
 
 
 def test_http_unsupported_method_returns_unsupported_operation(tmp_path: Path) -> None:
-    core = RecalliumCore(db_path=tmp_path / "service-unsupported-method.db")
+    core = RecollectiumCore(db_path=tmp_path / "service-unsupported-method.db")
     client = _client(core)
 
     status, payload = _request_json(client, "POST", "/v1/health")
@@ -578,7 +582,7 @@ def test_http_unsupported_method_returns_unsupported_operation(tmp_path: Path) -
 
 
 def test_http_internal_error_is_mapped_without_traceback(tmp_path: Path) -> None:
-    core = RecalliumCore(db_path=tmp_path / "service-internal-error.db")
+    core = RecollectiumCore(db_path=tmp_path / "service-internal-error.db")
     client = _client(core)
     original = core.list_memories
 
@@ -596,11 +600,11 @@ def test_http_internal_error_is_mapped_without_traceback(tmp_path: Path) -> None
 
 
 def test_http_embedding_errors_map_to_stable_boundary_codes(tmp_path: Path) -> None:
-    core = RecalliumCore(db_path=tmp_path / "service-embedding-errors.db")
+    core = RecollectiumCore(db_path=tmp_path / "service-embedding-errors.db")
     client = _client(core)
     original = core.search_user_memories
 
-    from recallium.errors import (
+    from recollectium.errors import (
         EmbeddingDimensionMismatchError,
         EmbeddingGenerationError,
         EmbeddingModelUnavailableError,
@@ -742,8 +746,8 @@ def test_run_service_builds_core_and_starts_uvicorn(monkeypatch) -> None:
         calls["log_level"] = log_level
         calls["log_config"] = log_config
 
-    monkeypatch.setattr("recallium.service.RecalliumCore", FakeCore)
-    monkeypatch.setattr("recallium.service.create_app", fake_create_app)
+    monkeypatch.setattr("recollectium.service.RecollectiumCore", FakeCore)
+    monkeypatch.setattr("recollectium.service.create_app", fake_create_app)
 
     import uvicorn
 
@@ -763,13 +767,13 @@ def test_create_mcp_app_instantiates_fastapi_with_sse_mount(
     tmp_path: Path,
 ) -> None:
     db_path = str(tmp_path / "mcp-app.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     app = create_mcp_app(core)
 
     from fastapi import FastAPI
 
     assert isinstance(app, FastAPI)
-    assert app.title == "Recallium MCP Server"
+    assert app.title == "Recollectium MCP Server"
 
 
 def test_run_service_mcp_uses_create_mcp_app(monkeypatch) -> None:
@@ -808,8 +812,8 @@ def test_run_service_mcp_uses_create_mcp_app(monkeypatch) -> None:
         calls["host"] = host
         calls["log_config"] = log_config
 
-    monkeypatch.setattr("recallium.service.RecalliumCore", FakeCore)
-    monkeypatch.setattr("recallium.service.create_mcp_app", fake_create_mcp_app)
+    monkeypatch.setattr("recollectium.service.RecollectiumCore", FakeCore)
+    monkeypatch.setattr("recollectium.service.create_mcp_app", fake_create_mcp_app)
 
     import uvicorn
 
@@ -838,7 +842,7 @@ def test_run_service_exits_cleanly_on_readiness_failure(monkeypatch) -> None:
         def _ensure_model_ready(self) -> None:
             raise Exception("model download failed")
 
-    monkeypatch.setattr("recallium.service.RecalliumCore", FailingCore)
+    monkeypatch.setattr("recollectium.service.RecollectiumCore", FailingCore)
 
     with pytest.raises(SystemExit) as exc_info:
         run_service(host="127.0.0.1", port=8901, db_path="fail.db")
@@ -850,7 +854,7 @@ def test_run_service_exits_cleanly_on_readiness_failure(monkeypatch) -> None:
 
 def test_get_workspaces_returns_empty_list(tmp_path: Path) -> None:
     """GET /v1/workspaces on empty database returns empty array."""
-    core = RecalliumCore(db_path=tmp_path / "ws.db")
+    core = RecollectiumCore(db_path=tmp_path / "ws.db")
     client = _client(core)
 
     status, payload = _request_json(client, "GET", "/v1/workspaces")
@@ -860,7 +864,7 @@ def test_get_workspaces_returns_empty_list(tmp_path: Path) -> None:
 
 def test_get_workspaces_returns_sorted_uids(tmp_path: Path) -> None:
     """GET /v1/workspaces returns distinct workspace UIDs sorted."""
-    core = RecalliumCore(db_path=tmp_path / "ws.db")
+    core = RecollectiumCore(db_path=tmp_path / "ws.db")
     core.add_memory(
         space="workspace", type="fact", content="a", workspace_uid="project-b"
     )
@@ -876,7 +880,7 @@ def test_get_workspaces_returns_sorted_uids(tmp_path: Path) -> None:
 
 def test_get_workspaces_include_archived(tmp_path: Path) -> None:
     """GET /v1/workspaces?include_archived=true includes archived-only UIDs."""
-    core = RecalliumCore(db_path=tmp_path / "ws.db")
+    core = RecollectiumCore(db_path=tmp_path / "ws.db")
     core.add_memory(
         space="workspace", type="fact", content="a", workspace_uid="active-ws"
     )
@@ -897,7 +901,7 @@ def test_get_workspaces_include_archived(tmp_path: Path) -> None:
 
 def test_rename_workspace_success(tmp_path: Path) -> None:
     """POST /v1/workspaces/{uid}/rename migrates memories."""
-    core = RecalliumCore(db_path=tmp_path / "ws.db")
+    core = RecollectiumCore(db_path=tmp_path / "ws.db")
     core.add_memory(space="workspace", type="fact", content="a", workspace_uid="old-ws")
 
     client = _client(core)
@@ -915,7 +919,7 @@ def test_rename_workspace_success(tmp_path: Path) -> None:
 
 def test_rename_workspace_not_found(tmp_path: Path) -> None:
     """POST /v1/workspaces/{uid}/rename returns 404 for nonexistent UID."""
-    core = RecalliumCore(db_path=tmp_path / "ws.db")
+    core = RecollectiumCore(db_path=tmp_path / "ws.db")
     client = _client(core)
 
     status, payload = _request_json(
@@ -930,7 +934,7 @@ def test_rename_workspace_not_found(tmp_path: Path) -> None:
 
 def test_rename_workspace_validation_error(tmp_path: Path) -> None:
     """POST /v1/workspaces/{uid}/rename returns 400 for empty new_uid."""
-    core = RecalliumCore(db_path=tmp_path / "ws.db")
+    core = RecollectiumCore(db_path=tmp_path / "ws.db")
     core.add_memory(space="workspace", type="fact", content="a", workspace_uid="ws")
 
     client = _client(core)

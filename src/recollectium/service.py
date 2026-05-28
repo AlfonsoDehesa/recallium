@@ -1,4 +1,4 @@
-"""FastAPI local HTTP JSON service for Recallium Core."""
+"""FastAPI local HTTP JSON service for Recollectium Core."""
 
 from __future__ import annotations
 
@@ -13,8 +13,8 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from recallium.core import RecalliumCore
-from recallium.errors import (
+from recollectium.core import RecollectiumCore
+from recollectium.errors import (
     EmbeddingDimensionMismatchError,
     EmbeddingGenerationError,
     EmbeddingModelUnavailableError,
@@ -25,8 +25,8 @@ from recallium.errors import (
     ReembeddingInProgressError,
     ValidationError,
 )
-from recallium.mcp_server import create_mcp_server
-from recallium.service_contract import (
+from recollectium.mcp_server import create_mcp_server
+from recollectium.service_contract import (
     SERVICE_API_PREFIX,
     SERVICE_DEFAULT_HOST,
     SERVICE_DEFAULT_PORT,
@@ -186,12 +186,12 @@ def _parse_optional_positive_int(raw: str | None, *, field_name: str) -> int | N
     return value
 
 
-def create_app(core: RecalliumCore) -> FastAPI:
+def create_app(core: RecollectiumCore) -> FastAPI:
     app = FastAPI(
-        title="Recallium Core Local Service API",
+        title="Recollectium Core Local Service API",
         version="1",
         description=(
-            "Local-only HTTP JSON service contract for Recallium Core. This slice "
+            "Local-only HTTP JSON service contract for Recollectium Core. This slice "
             "is localhost-first and intentionally has no authentication. Do not "
             "expose this service publicly."
         ),
@@ -383,12 +383,12 @@ def create_app(core: RecalliumCore) -> FastAPI:
     return app
 
 
-def create_mcp_app(core: RecalliumCore) -> FastAPI:
+def create_mcp_app(core: RecollectiumCore) -> FastAPI:
     mcp = create_mcp_server(core)
     app = FastAPI(
-        title="Recallium MCP Server",
+        title="Recollectium MCP Server",
         version="1",
-        description="Local-only MCP server for Recallium Core.",
+        description="Local-only MCP server for Recollectium Core.",
     )
     app.mount("/", mcp.sse_app())
     return app
@@ -404,7 +404,9 @@ def run_service(
 ) -> None:
     import uvicorn
 
-    core = RecalliumCore(db_path=db_path, config_path=config_path, log_level=log_level)
+    core = RecollectiumCore(
+        db_path=db_path, config_path=config_path, log_level=log_level
+    )
     log_level = core.config.effective_config["logging"]["level"]
 
     # Block until the embedding model is ready before accepting connections.
@@ -413,9 +415,9 @@ def run_service(
     except Exception as exc:
         import sys
 
-        print(f"recallium serve: model readiness failed: {exc}", file=sys.stderr)
+        print(f"recollectium serve: model readiness failed: {exc}", file=sys.stderr)
         print(
-            "Check your internet connection and try 'recallium init' again.",
+            "Check your internet connection and try 'recollectium init' again.",
             file=sys.stderr,
         )
         raise SystemExit(1) from exc

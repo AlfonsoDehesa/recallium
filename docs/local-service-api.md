@@ -1,6 +1,6 @@
-# Recallium Core Local Service API
+# Recollectium Core Local Service API
 
-This document describes the currently implemented FastAPI local HTTP JSON service in `src/recallium/service.py`.
+This document describes the currently implemented FastAPI local HTTP JSON service in `src/recollectium/service.py`.
 
 ## Local access and security assumptions
 
@@ -12,19 +12,19 @@ This document describes the currently implemented FastAPI local HTTP JSON servic
 For the managed service path used by adapters, start the API service with:
 
 ```bash
-recallium service start api
+recollectium service start api
 ```
 
 For foreground development or debugging, run the same API server directly:
 
 ```bash
-recallium serve
+recollectium serve
 ```
 
 Or run the foreground server with explicit host/port/database path:
 
 ```bash
-recallium --db /path/to/recallium.db serve --host 127.0.0.1 --port 8765
+recollectium --db /path/to/recollectium.db serve --host 127.0.0.1 --port 8765
 ```
 
 ## Base URL and versioning
@@ -38,7 +38,7 @@ recallium --db /path/to/recallium.db serve --host 127.0.0.1 --port 8765
 Adapters and plugins should discover the local service with:
 
 ```bash
-recallium service discover
+recollectium service discover
 ```
 
 The command exits `0` when a managed service is running, exits `1` when no service is running, and exits `2` when config or discovery metadata is invalid. It prints JSON on stdout and does not create a config file just to inspect discovery state.
@@ -60,13 +60,13 @@ Running response shape:
   },
   "versions": {
     "service_api_version": "1",
-    "recallium_version": "0.x.y"
+    "recollectium_version": "0.x.y"
   },
   "paths": {
-    "config": "/home/user/.config/recallium/config.json",
-    "runtime_dir": "/run/user/1000/recallium",
-    "pid_file": "/run/user/1000/recallium/service.pid",
-    "discovery_file": "/run/user/1000/recallium/service-discovery.json"
+    "config": "/home/user/.config/recollectium/config.json",
+    "runtime_dir": "/run/user/1000/recollectium",
+    "pid_file": "/run/user/1000/recollectium/service.pid",
+    "discovery_file": "/run/user/1000/recollectium/service-discovery.json"
   }
 }
 ```
@@ -79,21 +79,21 @@ Not-running response shape:
   "service": null,
   "versions": {
     "service_api_version": "1",
-    "recallium_version": "0.x.y"
+    "recollectium_version": "0.x.y"
   },
   "paths": {
-    "config": "/home/user/.config/recallium/config.json",
-    "runtime_dir": "/run/user/1000/recallium",
-    "pid_file": "/run/user/1000/recallium/service.pid",
-    "discovery_file": "/run/user/1000/recallium/service-discovery.json"
+    "config": "/home/user/.config/recollectium/config.json",
+    "runtime_dir": "/run/user/1000/recollectium",
+    "pid_file": "/run/user/1000/recollectium/service.pid",
+    "discovery_file": "/run/user/1000/recollectium/service-discovery.json"
   },
-  "next_step": "Run `recallium service start api` to start the local API service."
+  "next_step": "Run `recollectium service start api` to start the local API service."
 }
 ```
 
-`recallium service start api` and `recallium service start mcp` write the running response to `{runtime_dir}/service-discovery.json` after process ownership is verified. `recallium service stop`, `recallium service status`, and `recallium service discover` remove stale Recallium-owned PID and discovery files when they prove the managed process is gone.
+`recollectium service start api` and `recollectium service start mcp` write the running response to `{runtime_dir}/service-discovery.json` after process ownership is verified. `recollectium service stop`, `recollectium service status`, and `recollectium service discover` remove stale Recollectium-owned PID and discovery files when they prove the managed process is gone.
 
-Adapters should validate the target service before enabling Recallium-backed tools:
+Adapters should validate the target service before enabling Recollectium-backed tools:
 
 1. For local discovery, use the returned `health_url`, `version_url`, and
    `capabilities_url`. For remote Core config, derive `/v1/health`,
@@ -103,15 +103,15 @@ Adapters should validate the target service before enabling Recallium-backed too
 4. Call the capabilities endpoint and verify every required capability is
    present.
 
-Adapters should autodiscover Recallium after the host application loads the
+Adapters should autodiscover Recollectium after the host application loads the
 plugin when the adapter and Core run on the same machine. Users should not need
 to manually configure host, port, PID file, runtime path, or service type for
 that local path. If local autodiscovery reports `not_running`, the plugin should
-attempt `recallium service start api` and then rerun discovery before guiding
+attempt `recollectium service start api` and then rerun discovery before guiding
 the user. Hosted or remote Core instances are different: the user points the
 plugin at the Core base URL in plugin config, and the adapter validates that
 configured endpoint by calling `/v1/health`, `/v1/version`, and
-`/v1/capabilities`. Host-level plugin registration remains outside Recallium
+`/v1/capabilities`. Host-level plugin registration remains outside Recollectium
 Core. See `docs/opencode-adapter-contract.md` for the adapter contract and
 workspace UID rules.
 
@@ -167,7 +167,7 @@ Response example:
 {
   "data": {
     "service_api_version": "1",
-    "recallium_version": "0.x.y"
+    "recollectium_version": "0.x.y"
   }
 }
 ```
@@ -802,7 +802,7 @@ List distinct workspace UIDs visible through the API.
 
 ```json
 {
-  "data": ["generalist-ai", "recallium"]
+  "data": ["generalist-ai", "recollectium"]
 }
 ```
 
@@ -816,7 +816,7 @@ the old UID to a new UID. Both UIDs are normalized according to the
 
 ```json
 {
-  "new_uid": "recallium"
+  "new_uid": "recollectium"
 }
 ```
 
@@ -825,8 +825,8 @@ the old UID to a new UID. Both UIDs are normalized according to the
 ```json
 {
   "data": {
-    "old_uid": "recallium-core",
-    "new_uid": "recallium",
+    "old_uid": "recollectium-core",
+    "new_uid": "recollectium",
     "memories_updated": 42
   }
 }

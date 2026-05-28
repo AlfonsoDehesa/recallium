@@ -11,8 +11,8 @@ import warnings
 
 import pytest
 
-from recallium.config import RecalliumConfig, DEFAULTS, SUPPORTED_LOGGING_FORMATS
-from recallium.logging import JsonFormatter, get_logger, setup_logging
+from recollectium.config import RecollectiumConfig, DEFAULTS, SUPPORTED_LOGGING_FORMATS
+from recollectium.logging import JsonFormatter, get_logger, setup_logging
 
 
 # ---------------------------------------------------------------------------
@@ -21,7 +21,7 @@ from recallium.logging import JsonFormatter, get_logger, setup_logging
 
 
 def _make_record(
-    name: str = "recallium.test",
+    name: str = "recollectium.test",
     level: int = logging.INFO,
     msg: str = "test message",
     extra: dict[str, object] | None = None,
@@ -46,9 +46,9 @@ class TestJsonFormatter:
     def test_produces_valid_json_with_all_fields(self) -> None:
         formatter = JsonFormatter()
         record = _make_record(
-            name="recallium.core",
+            name="recollectium.core",
             level=logging.INFO,
-            msg="RecalliumCore initialised",
+            msg="RecollectiumCore initialised",
             extra={"event": "core.init", "context": {"db_path": "/tmp/test.db"}},
         )
         line = formatter.format(record)
@@ -66,8 +66,8 @@ class TestJsonFormatter:
         # All 6 fields present
         assert parsed["event"] == "core.init"
         assert parsed["level"] == "INFO"
-        assert parsed["logger"] == "recallium.core"
-        assert parsed["message"] == "RecalliumCore initialised"
+        assert parsed["logger"] == "recollectium.core"
+        assert parsed["message"] == "RecollectiumCore initialised"
         assert parsed["context"] == {"db_path": "/tmp/test.db"}
         # Timestamp is ISO 8601 with microseconds and Z suffix
         ts = parsed["timestamp"]
@@ -78,10 +78,10 @@ class TestJsonFormatter:
     def test_defaults_event_to_logger_name(self) -> None:
         """When no explicit event is provided, fall back to logger name."""
         formatter = JsonFormatter()
-        record = _make_record(name="recallium.cli", msg="some message")
+        record = _make_record(name="recollectium.cli", msg="some message")
         line = formatter.format(record)
         parsed = json.loads(line)
-        assert parsed["event"] == "recallium.cli"
+        assert parsed["event"] == "recollectium.cli"
 
     def test_empty_context_when_none_provided(self) -> None:
         formatter = JsonFormatter()
@@ -118,7 +118,7 @@ class TestJsonFormatter:
         """Verify that %-style formatting in the message is applied."""
         formatter = JsonFormatter()
         record = logging.LogRecord(
-            name="recallium.test",
+            name="recollectium.test",
             level=logging.INFO,
             pathname="/f.py",
             lineno=1,
@@ -146,7 +146,7 @@ class TestSetupLogging:
     def test_creates_log_file(self, tmp_path: Path) -> None:
         config = _make_test_config(tmp_path)
         setup_logging(config)
-        log_file = tmp_path / "logs" / "recallium.log"
+        log_file = tmp_path / "logs" / "recollectium.log"
         assert log_file.exists()
         assert log_file.is_file()
 
@@ -154,7 +154,7 @@ class TestSetupLogging:
         config = _make_test_config(tmp_path)
         setup_logging(config)
 
-        root_logger = logging.getLogger("recallium")
+        root_logger = logging.getLogger("recollectium")
         file_handlers = [
             h
             for h in root_logger.handlers
@@ -169,7 +169,7 @@ class TestSetupLogging:
         config = _make_test_config(tmp_path)
         setup_logging(config)
 
-        root_logger = logging.getLogger("recallium")
+        root_logger = logging.getLogger("recollectium")
         stream_handlers = [
             h
             for h in root_logger.handlers
@@ -183,24 +183,24 @@ class TestSetupLogging:
 
     def test_logger_emits_to_file(self, tmp_path: Path) -> None:
         # Save and clear existing handlers so test setup takes full control
-        recallium_logger = logging.getLogger("recallium")
-        saved_handlers = list(recallium_logger.handlers)
-        recallium_logger.handlers.clear()
+        recollectium_logger = logging.getLogger("recollectium")
+        saved_handlers = list(recollectium_logger.handlers)
+        recollectium_logger.handlers.clear()
 
         config = _make_test_config(tmp_path)
         setup_logging(config)
 
-        logger = get_logger("recallium.test")
+        logger = get_logger("recollectium.test")
         logger.info(
             "event logged",
             extra={"event": "test.event", "context": {"key": "value"}},
         )
 
         # Flush all handlers so content is written to disk
-        for handler in logging.getLogger("recallium").handlers:
+        for handler in logging.getLogger("recollectium").handlers:
             handler.flush()
 
-        log_file = tmp_path / "logs" / "recallium.log"
+        log_file = tmp_path / "logs" / "recollectium.log"
         content = log_file.read_text()
         assert "event logged" in content
         parsed = json.loads(content.strip().split("\n")[-1])
@@ -208,8 +208,8 @@ class TestSetupLogging:
         assert parsed["context"] == {"key": "value"}
 
         # Restore original handlers
-        recallium_logger.handlers.clear()
-        recallium_logger.handlers.extend(saved_handlers)
+        recollectium_logger.handlers.clear()
+        recollectium_logger.handlers.extend(saved_handlers)
 
     def test_library_loggers_are_captured(self, tmp_path: Path) -> None:
         config = _make_test_config(tmp_path)
@@ -240,7 +240,7 @@ class TestSetupLogging:
         for handler in logging.getLogger("uvicorn").handlers:
             handler.flush()
 
-        log_file = tmp_path / "logs" / "recallium.log"
+        log_file = tmp_path / "logs" / "recollectium.log"
         payloads = [
             json.loads(line)
             for line in log_file.read_text(encoding="utf-8").splitlines()
@@ -257,13 +257,13 @@ class TestSetupLogging:
 
         warnings.showwarning("connection leaked", ResourceWarning, "db.py", 7)
 
-        for handler in logging.getLogger("recallium").handlers:
+        for handler in logging.getLogger("recollectium").handlers:
             handler.flush()
 
-        log_file = tmp_path / "logs" / "recallium.log"
+        log_file = tmp_path / "logs" / "recollectium.log"
         payload = json.loads(log_file.read_text(encoding="utf-8").splitlines()[-1])
         assert payload["event"] == "warning.captured"
-        assert payload["logger"] == "recallium.warnings"
+        assert payload["logger"] == "recollectium.warnings"
         assert payload["message"] == "connection leaked"
         assert payload["context"] == {
             "category": "ResourceWarning",
@@ -274,9 +274,9 @@ class TestSetupLogging:
     def test_handlers_not_duplicated_on_repeated_setup(self, tmp_path: Path) -> None:
         config = _make_test_config(tmp_path)
         setup_logging(config)
-        handler_count_before = len(logging.getLogger("recallium").handlers)
+        handler_count_before = len(logging.getLogger("recollectium").handlers)
         setup_logging(config)
-        handler_count_after = len(logging.getLogger("recallium").handlers)
+        handler_count_after = len(logging.getLogger("recollectium").handlers)
         assert handler_count_after == handler_count_before
 
 
@@ -291,7 +291,7 @@ class TestLoggingConfigValidation:
         with pytest.raises(Exception) as exc_info:
             config_path = tmp_path / "config.json"
             config_path.write_text(json.dumps(config_data))
-            RecalliumConfig(config_path)
+            RecollectiumConfig(config_path)
         assert "logging.format" in str(exc_info.value)
 
     def test_rejects_non_positive_max_bytes(self, tmp_path: Path) -> None:
@@ -299,7 +299,7 @@ class TestLoggingConfigValidation:
         with pytest.raises(Exception) as exc_info:
             config_path = tmp_path / "config.json"
             config_path.write_text(json.dumps(config_data))
-            RecalliumConfig(config_path)
+            RecollectiumConfig(config_path)
         assert "logging.max_bytes" in str(exc_info.value)
 
     def test_rejects_negative_max_bytes(self, tmp_path: Path) -> None:
@@ -307,7 +307,7 @@ class TestLoggingConfigValidation:
         with pytest.raises(Exception) as exc_info:
             config_path = tmp_path / "config.json"
             config_path.write_text(json.dumps(config_data))
-            RecalliumConfig(config_path)
+            RecollectiumConfig(config_path)
         assert "logging.max_bytes" in str(exc_info.value)
 
     def test_rejects_zero_backup_count(self, tmp_path: Path) -> None:
@@ -315,7 +315,7 @@ class TestLoggingConfigValidation:
         with pytest.raises(Exception) as exc_info:
             config_path = tmp_path / "config.json"
             config_path.write_text(json.dumps(config_data))
-            RecalliumConfig(config_path)
+            RecollectiumConfig(config_path)
         assert "logging.backup_count" in str(exc_info.value)
 
     def test_rejects_negative_backup_count(self, tmp_path: Path) -> None:
@@ -323,7 +323,7 @@ class TestLoggingConfigValidation:
         with pytest.raises(Exception) as exc_info:
             config_path = tmp_path / "config.json"
             config_path.write_text(json.dumps(config_data))
-            RecalliumConfig(config_path)
+            RecollectiumConfig(config_path)
         assert "logging.backup_count" in str(exc_info.value)
 
     def test_defaults_include_all_logging_fields(self) -> None:
@@ -347,13 +347,13 @@ class TestLoggingConfigValidation:
 
 class TestGetLogger:
     def test_returns_logger_with_given_name(self) -> None:
-        logger = get_logger("recallium.something")
+        logger = get_logger("recollectium.something")
         assert isinstance(logger, logging.Logger)
-        assert logger.name == "recallium.something"
+        assert logger.name == "recollectium.something"
 
-    def test_returns_child_of_recallium_hierarchy(self) -> None:
-        logger = get_logger("recallium.child")
-        assert logger.name.startswith("recallium.")
+    def test_returns_child_of_recollectium_hierarchy(self) -> None:
+        logger = get_logger("recollectium.child")
+        assert logger.name.startswith("recollectium.")
 
 
 # ---------------------------------------------------------------------------
@@ -361,9 +361,9 @@ class TestGetLogger:
 # ---------------------------------------------------------------------------
 
 
-def _make_test_config(tmp_path: Path) -> RecalliumConfig:
+def _make_test_config(tmp_path: Path) -> RecollectiumConfig:
     """Create a minimal mock config for logging setup tests."""
-    config = MagicMock(spec=RecalliumConfig)
+    config = MagicMock(spec=RecollectiumConfig)
     config.xdg_dirs = {"logs": tmp_path / "logs"}
     config.effective_config = {
         "logging": {
@@ -384,7 +384,7 @@ def _make_logging_config(
     """Build a minimal config dict focused on logging fields."""
     return {
         "version": 1,
-        "database": {"path": "recallium.db"},
+        "database": {"path": "recollectium.db"},
         "embedding": {
             "provider": "builtin-fastembed",
             "model": "jinaai/jina-embeddings-v2-small-en",

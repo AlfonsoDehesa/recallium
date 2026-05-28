@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-REPO="AlfonsoDehesa/recallium"
+REPO="AlfonsoDehesa/recollectium"
 INSTALL_DIR="${HOME}/.local/bin"
 UV_BIN="${INSTALL_DIR}/uv"
 MANAGED_PATH_EDIT=""
@@ -61,8 +61,8 @@ install_uv() {
 }
 
 resolve_ref() {
-  if [ -n "${RECALLIUM_INSTALL_REF:-}" ]; then
-    printf '%s' "$RECALLIUM_INSTALL_REF"
+  if [ -n "${RECOLLECTIUM_INSTALL_REF:-}" ]; then
+    printf '%s' "$RECOLLECTIUM_INSTALL_REF"
     return
   fi
 
@@ -85,14 +85,14 @@ ensure_path_hint() {
   profile="${HOME}/.profile"
   line="export PATH=\"${INSTALL_DIR}:\$PATH\""
   if [ ! -f "$profile" ] || ! grep -F "$line" "$profile" >/dev/null 2>&1; then
-    printf '\n# Recallium CLI\n%s\n' "$line" >> "$profile"
+    printf '\n# Recollectium CLI\n%s\n' "$line" >> "$profile"
     MANAGED_PATH_EDIT="${profile}: ${line}"
   fi
-  info "Added ${INSTALL_DIR} to ${profile}. Restart your shell if recallium is not found."
+  info "Added ${INSTALL_DIR} to ${profile}. Restart your shell if recollectium is not found."
 }
 
 record_install_metadata() {
-  state_dir="${XDG_STATE_HOME:-${HOME}/.local/state}/recallium"
+  state_dir="${XDG_STATE_HOME:-${HOME}/.local/state}/recollectium"
   metadata_path="${state_dir}/install.json"
   installed_at=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
   mkdir -p "$state_dir"
@@ -126,14 +126,14 @@ configure_shell_completion() {
     *)    rc="${HOME}/.bashrc" ;;  # default to bash per spec
   esac
 
-  eval_line='eval "$(recallium completion --source '"${shell}"')"'
+  eval_line='eval "$(recollectium completion --source '"${shell}"')"'
   if [ -f "$rc" ] && grep -F "$eval_line" "$rc" >/dev/null 2>&1; then
     info "Shell completion already configured in ${rc}."
     return
   fi
 
   mkdir -p "$(dirname "$rc")" 2>/dev/null || true
-  printf '\n# >>> recallium completion >>>\n%s\n# <<< recallium completion <<<\n' "$eval_line" >> "$rc"
+  printf '\n# >>> recollectium completion >>>\n%s\n# <<< recollectium completion <<<\n' "$eval_line" >> "$rc"
   COMPLETION_RC="${rc}: ${eval_line}"
   info "Shell completion configured in ${rc}."
 }
@@ -141,11 +141,11 @@ configure_shell_completion() {
 install_uv
 ref=$(resolve_ref)
 package="git+https://github.com/${REPO}.git@${ref}"
-info "Installing Recallium from ${ref}..."
+info "Installing Recollectium from ${ref}..."
 "$UV_BIN" tool install --python 3.12 --force "$package"
-info "Initializing Recallium (config, database, model)..."
-"$UV_BIN" tool run --from "$package" recallium init || true
+info "Initializing Recollectium (config, database, model)..."
+"$UV_BIN" tool run --from "$package" recollectium init || true
 ensure_path_hint
 configure_shell_completion
 record_install_metadata
-info "Recallium installed. Try: recallium --version"
+info "Recollectium installed. Try: recollectium --version"

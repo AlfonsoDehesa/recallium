@@ -1,4 +1,4 @@
-"""Domain models and validation helpers for Recallium Core."""
+"""Domain models and validation helpers for Recollectium Core."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import math
 import re
 from typing import Any
 
-from recallium.errors import ValidationError
+from recollectium.errors import ValidationError
 
 SPACE_USER = "user"
 SPACE_WORKSPACE = "workspace"

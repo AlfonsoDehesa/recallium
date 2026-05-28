@@ -1,4 +1,4 @@
-"""CLI tests for Recallium Core."""
+"""CLI tests for Recollectium Core."""
 
 from __future__ import annotations
 
@@ -16,19 +16,24 @@ from unittest.mock import patch
 import pytest
 from pytest import CaptureFixture
 
-from recallium.config import DEFAULTS
-from recallium.cli import main
-from recallium.models import ALL_MEMORY_TYPES, USER_MEMORY_TYPES, WORKSPACE_MEMORY_TYPES
-from recallium.errors import (
+from recollectium.config import DEFAULTS
+from recollectium.cli import main
+from recollectium.models import (
+    ALL_MEMORY_TYPES,
+    USER_MEMORY_TYPES,
+    WORKSPACE_MEMORY_TYPES,
+)
+from recollectium.errors import (
     EmbeddingGenerationError,
     EmbeddingModelUnavailableError,
     EmbeddingProviderUnavailableError,
     EmbeddingReadinessTimeoutError,
+    RecollectiumError,
     ServiceError,
     ValidationError,
 )
-from recallium.storage import SQLiteMemoryStore
-from recallium.core import RecalliumCore
+from recollectium.storage import SQLiteMemoryStore
+from recollectium.core import RecollectiumCore
 
 
 class FakeEmbeddingProvider:
@@ -82,9 +87,9 @@ def _run_help(args: list[str], capsys: CaptureFixture[str]) -> str:
 
 def test_cli_help_documents_commands_and_flags(capsys) -> None:
     top_level_help = _run_help(["--help"], capsys)
-    assert "Recallium Core local memory CLI" in top_level_help
+    assert "Recollectium Core local memory CLI" in top_level_help
     assert "--version" in top_level_help
-    assert "initialize Recallium config" in top_level_help
+    assert "initialize Recollectium config" in top_level_help
     assert "add a user or workspace memory" in top_level_help
     assert "search memories for one workspace UID" in top_level_help
     assert "embedding-status" in top_level_help
@@ -95,7 +100,7 @@ def test_cli_help_documents_commands_and_flags(capsys) -> None:
 
 
 def test_cli_memory_type_completer_prefers_known_space() -> None:
-    from recallium.cli import _memory_type_choices_for_space, _memory_type_completer
+    from recollectium.cli import _memory_type_choices_for_space, _memory_type_completer
 
     assert _memory_type_choices_for_space("user") == USER_MEMORY_TYPES
     assert _memory_type_choices_for_space("workspace") == WORKSPACE_MEMORY_TYPES
@@ -113,7 +118,8 @@ def test_cli_memory_type_completer_prefers_known_space() -> None:
 
 def test_cli_subcommand_help_documents_commands_and_flags(capsys) -> None:
     add_help = _run_help(["add", "--help"], capsys)
-    assert "User memories must not include" in add_help
+    assert "User memories must not" in add_help
+    assert "include --workspace-uid" in add_help
     assert "Workspace memories require --workspace-uid" in add_help
     assert "Memory space: 'user'" in add_help
     assert "inline JSON" in add_help
@@ -163,7 +169,7 @@ def test_cli_subcommand_help_documents_commands_and_flags(capsys) -> None:
     uninstall_help = _run_help(["uninstall", "--help"], capsys)
     assert "preserving memories" in uninstall_help
     assert "--purge" in uninstall_help
-    assert "--yes-delete-all-recallium-data" in uninstall_help
+    assert "--yes-delete-all-recollectium-data" in uninstall_help
     assert "--dry-run" in uninstall_help
 
     service_discover_help = _run_help(["service", "discover", "--help"], capsys)
@@ -176,7 +182,7 @@ def test_cli_no_args_prints_help(capsys) -> None:
 
     captured = capsys.readouterr()
     assert exit_code == 0
-    assert "Recallium Core local memory CLI" in captured.out
+    assert "Recollectium Core local memory CLI" in captured.out
     assert captured.err == ""
 
 
@@ -192,7 +198,7 @@ def test_cli_parser_without_command_prints_help(monkeypatch, capsys) -> None:
         def print_help(self) -> None:
             print("fake help")
 
-    monkeypatch.setattr("recallium.cli._build_parser", lambda: FakeParser())
+    monkeypatch.setattr("recollectium.cli._build_parser", lambda: FakeParser())
 
     assert main(["--not-real-for-fake-parser"]) == 0
     captured = capsys.readouterr()
@@ -225,9 +231,9 @@ def test_cli_logging_falls_back_after_os_error(
         if len(calls) == 1:
             raise OSError("disk unavailable")
 
-    monkeypatch.setattr("recallium.cli.setup_logging", _fake_setup_logging)
+    monkeypatch.setattr("recollectium.cli.setup_logging", _fake_setup_logging)
 
-    from recallium.cli import _setup_cli_logging
+    from recollectium.cli import _setup_cli_logging
 
     _setup_cli_logging(tmp_path / "missing.json", log_level="debug")
 
@@ -241,10 +247,10 @@ def test_module_entrypoint_delegates_to_cli_main(monkeypatch) -> None:
         calls.append(None)
         return 7
 
-    monkeypatch.setattr("recallium.cli.main", fake_main)
+    monkeypatch.setattr("recollectium.cli.main", fake_main)
 
     with pytest.raises(SystemExit) as exc_info:
-        runpy.run_module("recallium.__main__", run_name="__main__")
+        runpy.run_module("recollectium.__main__", run_name="__main__")
 
     assert exc_info.value.code == 7
     assert calls == [None]
@@ -268,7 +274,7 @@ def test_cli_serve_passes_flags_to_service_runner(tmp_path, monkeypatch) -> None
         call["config_path"] = config_path
         call["log_level"] = log_level
 
-    monkeypatch.setattr("recallium.cli.run_service", _fake_run_service)
+    monkeypatch.setattr("recollectium.cli.run_service", _fake_run_service)
 
     config_path = tmp_path / "config.json"
     config_path.write_text(json.dumps(DEFAULTS), encoding="utf-8")
@@ -315,7 +321,7 @@ def test_cli_serve_uses_default_host_and_port_without_explicit_config(
         call["config_path"] = config_path
         call["log_level"] = log_level
 
-    monkeypatch.setattr("recallium.cli.run_service", _fake_run_service)
+    monkeypatch.setattr("recollectium.cli.run_service", _fake_run_service)
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
@@ -330,7 +336,7 @@ def test_cli_serve_uses_default_host_and_port_without_explicit_config(
     assert call["db_path"] is None
     assert call["config_path"] is None
     assert call["log_level"] is None
-    assert (tmp_path / "config" / "recallium" / "config.json").exists()
+    assert (tmp_path / "config" / "recollectium" / "config.json").exists()
 
 
 def test_cli_serve_explicit_missing_config_fails_clearly(
@@ -346,7 +352,7 @@ def test_cli_serve_explicit_missing_config_fails_clearly(
     ) -> None:
         raise AssertionError("run_service should not run with a missing config")
 
-    monkeypatch.setattr("recallium.cli.run_service", _fake_run_service)
+    monkeypatch.setattr("recollectium.cli.run_service", _fake_run_service)
     config_path = tmp_path / "missing" / "config.json"
 
     exit_code, stdout, stderr = _run_cli(
@@ -371,7 +377,7 @@ def test_cli_serve_invalid_config_fails_clearly(
     ) -> None:
         raise AssertionError("run_service should not run with invalid config")
 
-    monkeypatch.setattr("recallium.cli.run_service", _fake_run_service)
+    monkeypatch.setattr("recollectium.cli.run_service", _fake_run_service)
     config_path = tmp_path / "config.json"
     config_path.write_text('{"version": 1, "service": {"port": "bad"}}')
 
@@ -400,7 +406,7 @@ def test_cli_serve_explicit_missing_config_fails_after_flag_overrides(
     ) -> None:
         raise FileNotFoundError(f"config file not found: {config_path}")
 
-    monkeypatch.setattr("recallium.cli.run_service", _fake_run_service)
+    monkeypatch.setattr("recollectium.cli.run_service", _fake_run_service)
 
     exit_code, stdout, stderr = _run_cli(
         [
@@ -435,7 +441,7 @@ def test_cli_serve_invalid_config_fails_after_flag_overrides(
     ) -> None:
         raise ValidationError("invalid JSON in config file")
 
-    monkeypatch.setattr("recallium.cli.run_service", _fake_run_service)
+    monkeypatch.setattr("recollectium.cli.run_service", _fake_run_service)
 
     exit_code, stdout, stderr = _run_cli(
         [
@@ -469,7 +475,7 @@ def test_cli_first_run_without_config_creates_default_config(
         ["--db", str(tmp_path / "first-run.db"), "list", "--limit", "1"], capsys
     )
 
-    config_path = config_home / "recallium" / "config.json"
+    config_path = config_home / "recollectium" / "config.json"
     assert exit_code == 0
     assert stderr == ""
     assert json.loads(stdout) == []
@@ -688,7 +694,7 @@ def test_cli_db_status_invalid_default_config_errors(
     tmp_path, capsys, monkeypatch
 ) -> None:
     config_home = tmp_path / "config"
-    config_path = config_home / "recallium" / "config.json"
+    config_path = config_home / "recollectium" / "config.json"
     config_path.parent.mkdir(parents=True)
     config_path.write_text('{"version": 1, "database": {"path": 3}}')
     monkeypatch.setenv("XDG_CONFIG_HOME", str(config_home))
@@ -792,7 +798,7 @@ def test_cli_embedding_error_returns_clear_message(
         def __init__(self, *args, **kwargs) -> None:
             raise EmbeddingProviderUnavailableError("FastEmbed is unavailable")
 
-    monkeypatch.setattr("recallium.cli.RecalliumCore", UnavailableCore)
+    monkeypatch.setattr("recollectium.cli.RecollectiumCore", UnavailableCore)
 
     exit_code, stdout, stderr = _run_cli(
         ["--db", str(tmp_path / "provider.db"), "embedding-status"], capsys
@@ -810,7 +816,7 @@ def test_cli_model_unavailable_error_returns_guidance(
         def __init__(self, *args, **kwargs) -> None:
             raise EmbeddingModelUnavailableError("failed to load embedding model")
 
-    monkeypatch.setattr("recallium.cli.RecalliumCore", UnavailableCore)
+    monkeypatch.setattr("recollectium.cli.RecollectiumCore", UnavailableCore)
 
     exit_code, stdout, stderr = _run_cli(
         [
@@ -830,7 +836,7 @@ def test_cli_model_unavailable_error_returns_guidance(
     assert exit_code == 1
     assert stdout == ""
     assert "EmbeddingModelUnavailableError: failed to load embedding model" in stderr
-    assert "recallium init" in stderr
+    assert "recollectium init" in stderr
 
 
 def test_cli_readiness_timeout_error_returns_guidance(
@@ -840,7 +846,7 @@ def test_cli_readiness_timeout_error_returns_guidance(
         def __init__(self, *args, **kwargs) -> None:
             raise EmbeddingReadinessTimeoutError("startup timed out")
 
-    monkeypatch.setattr("recallium.cli.RecalliumCore", TimeoutCore)
+    monkeypatch.setattr("recollectium.cli.RecollectiumCore", TimeoutCore)
 
     exit_code, stdout, stderr = _run_cli(
         [
@@ -860,14 +866,14 @@ def test_cli_readiness_timeout_error_returns_guidance(
     assert exit_code == 1
     assert stdout == ""
     assert "EmbeddingReadinessTimeoutError: startup timed out" in stderr
-    assert "recallium init" in stderr
+    assert "recollectium init" in stderr
 
 
 def test_cli_update_with_content_gates_model_readiness(
     tmp_path, capsys, monkeypatch
 ) -> None:
     """Update --content triggers embedding readiness gate."""
-    import recallium.cli as cli_mod
+    import recollectium.cli as cli_mod
 
     readiness_called = []
 
@@ -911,7 +917,7 @@ def test_cli_update_with_content_gates_model_readiness(
         def _ensure_model_ready(self):
             readiness_called.append(True)
 
-    monkeypatch.setattr(cli_mod, "RecalliumCore", TrackingCore)
+    monkeypatch.setattr(cli_mod, "RecollectiumCore", TrackingCore)
 
     # update with --content should gate
     exit_code, stdout, stderr = _run_cli(
@@ -926,7 +932,7 @@ def test_cli_update_metadata_only_skips_readiness_gate(
     tmp_path, capsys, monkeypatch
 ) -> None:
     """Update without --content skips the embedding readiness gate."""
-    import recallium.cli as cli_mod
+    import recollectium.cli as cli_mod
 
     readiness_called = []
 
@@ -965,7 +971,7 @@ def test_cli_update_metadata_only_skips_readiness_gate(
         def _ensure_model_ready(self):
             readiness_called.append(True)
 
-    monkeypatch.setattr(cli_mod, "RecalliumCore", TrackingCore)
+    monkeypatch.setattr(cli_mod, "RecollectiumCore", TrackingCore)
 
     # update with --source only should skip gate
     exit_code, stdout, stderr = _run_cli(
@@ -986,7 +992,7 @@ def test_cli_embedding_generation_error_returns_1(
         def active_embedding_status(self) -> dict[str, object]:
             raise EmbeddingGenerationError("provider returned no vector")
 
-    monkeypatch.setattr("recallium.cli.RecalliumCore", FailingCore)
+    monkeypatch.setattr("recollectium.cli.RecollectiumCore", FailingCore)
 
     exit_code, stdout, stderr = _run_cli(
         ["--db", str(tmp_path / "generation.db"), "embedding-status"], capsys
@@ -1048,8 +1054,8 @@ def test_cli_unknown_command_defensive_branch(monkeypatch: pytest.MonkeyPatch) -
         ) -> None:
             assert db_path is None
 
-    monkeypatch.setattr("recallium.cli._build_parser", lambda: FakeParser())
-    monkeypatch.setattr("recallium.cli.RecalliumCore", FakeCore)
+    monkeypatch.setattr("recollectium.cli._build_parser", lambda: FakeParser())
+    monkeypatch.setattr("recollectium.cli.RecollectiumCore", FakeCore)
 
     assert main(["mystery"]) == 2
 
@@ -1166,7 +1172,7 @@ def test_cli_embedding_status_and_jobs_output_json(tmp_path, capsys) -> None:
 
 class TestConfigCommand:
     def test_directory_writable_returns_false_for_file_path(self, tmp_path) -> None:
-        from recallium.cli import _directory_writable
+        from recollectium.cli import _directory_writable
 
         non_directory = tmp_path / "not-a-dir"
         non_directory.write_text("x", encoding="utf-8")
@@ -1231,7 +1237,7 @@ class TestConfigCommand:
 
         exit_code, stdout, stderr = _run_cli(["config", "--validate"], capsys)
 
-        config_path = config_home / "recallium" / "config.json"
+        config_path = config_home / "recollectium" / "config.json"
         assert exit_code == 0
         assert stdout == ""
         assert stderr == ""
@@ -1258,8 +1264,8 @@ class TestConfigCommand:
 
         exit_code, stdout, stderr = _run_cli(["config", "--path"], capsys)
 
-        config_path = config_home / "recallium" / "config.json"
-        log_file = state_home / "recallium" / "logs" / "recallium.log"
+        config_path = config_home / "recollectium" / "config.json"
+        log_file = state_home / "recollectium" / "logs" / "recollectium.log"
         assert exit_code == 0
         assert stderr == ""
         assert str(config_path) in stdout
@@ -1401,7 +1407,7 @@ class TestConfigCommand:
         assert "config file not found" in stderr
 
     def test_config_init_creates_file(self, tmp_path, capsys) -> None:
-        config_path = tmp_path / "recallium" / "config.json"
+        config_path = tmp_path / "recollectium" / "config.json"
         exit_code, stdout, stderr = _run_cli(
             ["--config", str(config_path), "config", "init"], capsys
         )
@@ -1467,7 +1473,7 @@ class TestConfigCommand:
 
         exit_code, stdout, stderr = _run_cli(["config"], capsys)
 
-        config_path = config_home / "recallium" / "config.json"
+        config_path = config_home / "recollectium" / "config.json"
         assert exit_code == 0
         assert stderr == ""
         assert config_path.exists()
@@ -1486,7 +1492,7 @@ class TestConfigCommand:
 
         exit_code, stdout, stderr = _run_cli(["config", "get", "service.port"], capsys)
 
-        config_path = config_home / "recallium" / "config.json"
+        config_path = config_home / "recollectium" / "config.json"
         assert exit_code == 0
         assert stderr == ""
         assert json.loads(stdout) == 8765
@@ -1503,7 +1509,7 @@ class TestConfigCommand:
             ["config", "--defaults"], capsys
         )
 
-        config_path = config_home / "recallium" / "config.json"
+        config_path = config_home / "recollectium" / "config.json"
         assert path_code == 0
         assert path_stderr == ""
         assert str(config_path) in path_stdout
@@ -1524,7 +1530,7 @@ class TestConfigCommand:
 
         exit_code, stdout, stderr = _run_cli(["config", "doctor"], capsys)
 
-        config_path = config_home / "recallium" / "config.json"
+        config_path = config_home / "recollectium" / "config.json"
         assert exit_code == 0
         assert stderr == ""
         assert config_path.exists()
@@ -1577,7 +1583,7 @@ class TestConfigCommand:
     ) -> None:
         config_path = tmp_path / "config.json"
         config_path.write_text(json.dumps({"version": 1}), encoding="utf-8")
-        monkeypatch.setattr("recallium.cli._directory_writable", lambda _path: False)
+        monkeypatch.setattr("recollectium.cli._directory_writable", lambda _path: False)
 
         exit_code, stdout, stderr = _run_cli(
             ["--config", str(config_path), "config", "doctor"], capsys
@@ -1609,10 +1615,10 @@ class TestConfigCommand:
                 "logs": existing_dir,
                 "runtime": existing_dir,
             },
-            resolved_database_path=(tmp_path / "missing-db-parent" / "recallium.db"),
+            resolved_database_path=(tmp_path / "missing-db-parent" / "recollectium.db"),
         )
         monkeypatch.setattr(
-            "recallium.cli._load_effective_config", lambda _path, explicit: fake_cfg
+            "recollectium.cli._load_effective_config", lambda _path, explicit: fake_cfg
         )
 
         exit_code, stdout, stderr = _run_cli(["config", "doctor"], capsys)
@@ -1622,7 +1628,7 @@ class TestConfigCommand:
         assert "FAIL data directory missing:" in stderr
         assert "FAIL cache path is not a directory:" in stderr
         assert "FAIL database parent directory missing:" in stderr
-        log_file = state_home / "recallium" / "logs" / "recallium.log"
+        log_file = state_home / "recollectium" / "logs" / "recollectium.log"
         payloads = [
             json.loads(line)
             for line in log_file.read_text(encoding="utf-8").splitlines()
@@ -1654,10 +1660,10 @@ class TestConfigCommand:
                 "logs": shared_dir,
                 "runtime": shared_dir,
             },
-            resolved_database_path=db_parent_file / "recallium.db",
+            resolved_database_path=db_parent_file / "recollectium.db",
         )
         monkeypatch.setattr(
-            "recallium.cli._load_effective_config", lambda _path, explicit: fake_cfg
+            "recollectium.cli._load_effective_config", lambda _path, explicit: fake_cfg
         )
 
         exit_code, stdout, stderr = _run_cli(["config", "doctor"], capsys)
@@ -1670,7 +1676,7 @@ class TestConfigCommand:
     def test_config_edit_creates_file_and_opens_editor(
         self, tmp_path, capsys, monkeypatch
     ) -> None:
-        config_path = tmp_path / "recallium" / "config.json"
+        config_path = tmp_path / "recollectium" / "config.json"
         editor_calls: list[list[str]] = []
 
         def _fake_call(args, **kwargs) -> int:
@@ -1782,7 +1788,7 @@ class TestConfigCommand:
     # -- reset --------------------------------------------------------------
 
     def test_config_reset_creates_file_when_missing(self, tmp_path, capsys) -> None:
-        config_path = tmp_path / "recallium" / "config.json"
+        config_path = tmp_path / "recollectium" / "config.json"
 
         exit_code, stdout, stderr = _run_cli(
             ["--config", str(config_path), "config", "reset"], capsys
@@ -1843,12 +1849,12 @@ class TestConfigCommand:
 
 
 def test_cli_version_prints_package_version(capsys, monkeypatch) -> None:
-    monkeypatch.setattr("recallium.cli.package_version", lambda _name: "1.2.3")
+    monkeypatch.setattr("recollectium.cli.package_version", lambda _name: "1.2.3")
 
     exit_code, stdout, stderr = _run_cli(["--version"], capsys)
 
     assert exit_code == 0
-    assert stdout == "recallium 1.2.3\n"
+    assert stdout == "recollectium 1.2.3\n"
     assert stderr == ""
 
 
@@ -1856,13 +1862,13 @@ def test_cli_version_uses_source_fallback(capsys, monkeypatch) -> None:
     def _missing_package(_name: str) -> str:
         raise PackageNotFoundError
 
-    monkeypatch.setattr("recallium.cli.package_version", _missing_package)
-    monkeypatch.setattr("recallium.cli.__version__", "0.1.0-dev")
+    monkeypatch.setattr("recollectium.cli.package_version", _missing_package)
+    monkeypatch.setattr("recollectium.cli.__version__", "0.1.0-dev")
 
     exit_code, stdout, stderr = _run_cli(["--version"], capsys)
 
     assert exit_code == 0
-    assert stdout == "recallium 0.1.0-dev\n"
+    assert stdout == "recollectium 0.1.0-dev\n"
     assert stderr == ""
 
 
@@ -1870,7 +1876,7 @@ def test_cli_version_without_command_does_not_require_subcommand(capsys) -> None
     exit_code, stdout, stderr = _run_cli(["--version"], capsys)
 
     assert exit_code == 0
-    assert stdout.startswith("recallium ")
+    assert stdout.startswith("recollectium ")
     assert stderr == ""
 
 
@@ -1888,15 +1894,15 @@ def test_cli_init_creates_runtime_files_and_downloads_model(
         ready_calls.append(self)
 
     monkeypatch.setattr(
-        "recallium.cli.BuiltinFastEmbedProvider.ensure_ready",
+        "recollectium.cli.BuiltinFastEmbedProvider.ensure_ready",
         _fake_ensure_ready,
     )
 
     exit_code, stdout, stderr = _run_cli(["init"], capsys)
 
     payload = json.loads(stdout)
-    config_path = tmp_path / "config" / "recallium" / "config.json"
-    db_path = tmp_path / "data" / "recallium" / "recallium.db"
+    config_path = tmp_path / "config" / "recollectium" / "config.json"
+    db_path = tmp_path / "data" / "recollectium" / "recollectium.db"
     assert exit_code == 0
     assert stderr == ""
     assert payload["status"] == "initialized"
@@ -1905,8 +1911,8 @@ def test_cli_init_creates_runtime_files_and_downloads_model(
     assert payload["embedding_model"] == "jinaai/jina-embeddings-v2-small-en"
     assert config_path.exists()
     assert db_path.exists()
-    assert (tmp_path / "cache" / "recallium").is_dir()
-    assert (tmp_path / "state" / "recallium" / "logs").is_dir()
+    assert (tmp_path / "cache" / "recollectium").is_dir()
+    assert (tmp_path / "state" / "recollectium" / "logs").is_dir()
     assert ready_calls
 
 
@@ -1917,7 +1923,7 @@ def test_cli_init_explicit_missing_config_creates_file(
     ready_calls: list[object] = []
 
     monkeypatch.setattr(
-        "recallium.cli.BuiltinFastEmbedProvider.ensure_ready",
+        "recollectium.cli.BuiltinFastEmbedProvider.ensure_ready",
         lambda self: ready_calls.append(self),
     )
 
@@ -1937,7 +1943,7 @@ def test_cli_init_accepts_db_after_subcommand(
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     db_path = tmp_path / "custom.db"
     monkeypatch.setattr(
-        "recallium.cli.BuiltinFastEmbedProvider.ensure_ready",
+        "recollectium.cli.BuiltinFastEmbedProvider.ensure_ready",
         lambda self: None,
     )
 
@@ -1969,7 +1975,7 @@ def test_cli_init_reports_file_not_found_from_handler(
     def _raise_file_not_found(*args, **kwargs) -> int:
         raise FileNotFoundError("config disappeared")
 
-    monkeypatch.setattr("recallium.cli._handle_init_command", _raise_file_not_found)
+    monkeypatch.setattr("recollectium.cli._handle_init_command", _raise_file_not_found)
 
     exit_code, stdout, stderr = _run_cli(["init"], capsys)
 
@@ -1987,7 +1993,7 @@ def test_cli_init_reports_model_readiness_error(
         raise EmbeddingProviderUnavailableError("model unavailable")
 
     monkeypatch.setattr(
-        "recallium.cli.BuiltinFastEmbedProvider.ensure_ready",
+        "recollectium.cli.BuiltinFastEmbedProvider.ensure_ready",
         _raise_readiness_error,
     )
 
@@ -2007,7 +2013,7 @@ def test_cli_init_reports_readiness_timeout_error(
         raise EmbeddingReadinessTimeoutError("startup timed out")
 
     monkeypatch.setattr(
-        "recallium.cli.BuiltinFastEmbedProvider.ensure_ready",
+        "recollectium.cli.BuiltinFastEmbedProvider.ensure_ready",
         _raise_timeout,
     )
 
@@ -2016,7 +2022,7 @@ def test_cli_init_reports_readiness_timeout_error(
     assert exit_code == 1
     assert stdout == ""
     assert "EmbeddingReadinessTimeoutError: startup timed out" in stderr
-    assert "recallium init" in stderr
+    assert "recollectium init" in stderr
 
 
 def test_cli_init_reports_model_unavailable_error(
@@ -2028,7 +2034,7 @@ def test_cli_init_reports_model_unavailable_error(
         raise EmbeddingModelUnavailableError("model not found")
 
     monkeypatch.setattr(
-        "recallium.cli.BuiltinFastEmbedProvider.ensure_ready",
+        "recollectium.cli.BuiltinFastEmbedProvider.ensure_ready",
         _raise_model_error,
     )
 
@@ -2037,16 +2043,33 @@ def test_cli_init_reports_model_unavailable_error(
     assert exit_code == 1
     assert stdout == ""
     assert "EmbeddingModelUnavailableError: model not found" in stderr
-    assert "recallium init" in stderr
+    assert "recollectium init" in stderr
+
+
+def test_cli_init_reports_generic_recollectium_error(
+    capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _raise_recollectium_error(*args: object, **kwargs: object) -> int:
+        raise RecollectiumError("init failed")
+
+    monkeypatch.setattr(
+        "recollectium.cli._handle_init_command", _raise_recollectium_error
+    )
+
+    exit_code, stdout, stderr = _run_cli(["init"], capsys)
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert "RecollectiumError: init failed" in stderr
 
 
 def test_cli_update_without_memory_id_prints_package_update_instructions(
     capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def _unexpected_core(*args, **kwargs):
-        raise AssertionError("package update should not initialise RecalliumCore")
+        raise AssertionError("package update should not initialise RecollectiumCore")
 
-    monkeypatch.setattr("recallium.cli.RecalliumCore", _unexpected_core)
+    monkeypatch.setattr("recollectium.cli.RecollectiumCore", _unexpected_core)
 
     exit_code, stdout, stderr = _run_cli(["update"], capsys)
 
@@ -2055,7 +2078,7 @@ def test_cli_update_without_memory_id_prints_package_update_instructions(
     assert stderr == ""
     assert payload["status"] == "manual_update_required"
     assert "install.sh" in payload["commands"]["bootstrap"]
-    assert payload["commands"]["pip"] == "pip install --upgrade recallium"
+    assert payload["commands"]["pip"] == "pip install --upgrade recollectium"
 
 
 def _set_xdg_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -2079,7 +2102,7 @@ def test_cli_service_discover_not_running_does_not_create_config(
     assert payload["status"] == "not_running"
     assert payload["service"] is None
     assert "service start api" in payload["next_step"]
-    assert not (tmp_path / "config" / "recallium" / "config.json").exists()
+    assert not (tmp_path / "config" / "recollectium" / "config.json").exists()
 
 
 def test_cli_service_discover_running_returns_success(
@@ -2094,7 +2117,7 @@ def test_cli_service_discover_running_returns_success(
             "paths": {},
         }
 
-    monkeypatch.setattr("recallium.cli.discover_service", _fake_discover)
+    monkeypatch.setattr("recollectium.cli.discover_service", _fake_discover)
 
     exit_code, stdout, stderr = _run_cli(["service", "discover"], capsys)
 
@@ -2140,7 +2163,7 @@ def test_cli_service_discover_service_error_exits_two(
     def _raise_service_error(config: object) -> dict[str, object]:
         raise ServiceError("corrupted PID file")
 
-    monkeypatch.setattr("recallium.cli.discover_service", _raise_service_error)
+    monkeypatch.setattr("recollectium.cli.discover_service", _raise_service_error)
 
     exit_code, stdout, stderr = _run_cli(["service", "discover"], capsys)
 
@@ -2153,9 +2176,9 @@ def test_cli_uninstall_preserves_data_and_uses_install_metadata(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _set_xdg_home(monkeypatch, tmp_path)
-    config_path = tmp_path / "config" / "recallium" / "config.json"
-    db_path = tmp_path / "data" / "recallium" / "recallium.db"
-    metadata_path = tmp_path / "state" / "recallium" / "install.json"
+    config_path = tmp_path / "config" / "recollectium" / "config.json"
+    db_path = tmp_path / "data" / "recollectium" / "recollectium.db"
+    metadata_path = tmp_path / "state" / "recollectium" / "install.json"
     config_path.parent.mkdir(parents=True)
     db_path.parent.mkdir(parents=True)
     metadata_path.parent.mkdir(parents=True)
@@ -2172,8 +2195,10 @@ def test_cli_uninstall_preserves_data_and_uses_install_metadata(
         encoding="utf-8",
     )
 
-    monkeypatch.setattr("recallium.cli.RecalliumCore", lambda *args, **kwargs: None)
-    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+    monkeypatch.setattr(
+        "recollectium.cli.RecollectiumCore", lambda *args, **kwargs: None
+    )
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
 
     exit_code, stdout, stderr = _run_cli(["uninstall"], capsys)
 
@@ -2185,7 +2210,7 @@ def test_cli_uninstall_preserves_data_and_uses_install_metadata(
     assert payload["data"]["paths"]["database"] == str(db_path)
     assert payload["package"]["install_method"] == "bootstrap"
     assert payload["package"]["source_ref"] == "main"
-    assert payload["package"]["recommended"] == "uv tool uninstall recallium"
+    assert payload["package"]["recommended"] == "uv tool uninstall recollectium"
     assert payload["package"]["managed_path_edits"] == ["profile path edit"]
     assert config_path.exists()
     assert db_path.read_text(encoding="utf-8") == "preserved"
@@ -2196,13 +2221,13 @@ def test_cli_uninstall_removes_managed_completion_block(
 ) -> None:
     _set_xdg_home(monkeypatch, tmp_path)
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
-    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
     bashrc = tmp_path / ".bashrc"
     bashrc.write_text(
         "before\n"
-        "# >>> recallium completion >>>\n"
-        'eval "$(recallium completion --source bash)"\n'
-        "# <<< recallium completion <<<\n"
+        "# >>> recollectium completion >>>\n"
+        'eval "$(recollectium completion --source bash)"\n'
+        "# <<< recollectium completion <<<\n"
         "after\n",
         encoding="utf-8",
     )
@@ -2225,9 +2250,9 @@ def test_cli_uninstall_dry_run_preserves_managed_completion_block(
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     bashrc = tmp_path / ".bashrc"
     content = (
-        "# >>> recallium completion >>>\n"
-        'eval "$(recallium completion --source bash)"\n'
-        "# <<< recallium completion <<<\n"
+        "# >>> recollectium completion >>>\n"
+        'eval "$(recollectium completion --source bash)"\n'
+        "# <<< recollectium completion <<<\n"
     )
     bashrc.write_text(content, encoding="utf-8")
 
@@ -2249,22 +2274,22 @@ def test_cli_uninstall_removes_completion_block_from_install_metadata_path(
 ) -> None:
     _set_xdg_home(monkeypatch, tmp_path)
     monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
-    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
-    metadata_path = tmp_path / "state" / "recallium" / "install.json"
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
+    metadata_path = tmp_path / "state" / "recollectium" / "install.json"
     metadata_path.parent.mkdir(parents=True)
-    custom_rc = tmp_path / "custom" / "recallium-shell-setup"
+    custom_rc = tmp_path / "custom" / "recollectium-shell-setup"
     custom_rc.parent.mkdir()
     custom_rc.write_text(
-        "# >>> recallium completion >>>\n"
-        'eval "$(recallium completion --source bash)"\n'
-        "# <<< recallium completion <<<\n",
+        "# >>> recollectium completion >>>\n"
+        'eval "$(recollectium completion --source bash)"\n'
+        "# <<< recollectium completion <<<\n",
         encoding="utf-8",
     )
     metadata_path.write_text(
         json.dumps(
             {
                 "managed_path_edits": [
-                    f'{custom_rc}: eval "$(recallium completion --source bash)"'
+                    f'{custom_rc}: eval "$(recollectium completion --source bash)"'
                 ]
             }
         ),
@@ -2285,7 +2310,7 @@ def test_cli_uninstall_removes_completion_block_from_install_metadata_path(
 def test_cli_uninstall_completion_cleanup_skips_duplicate_metadata_path(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from recallium.cli import _remove_completion_blocks
+    from recollectium.cli import _remove_completion_blocks
 
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     bashrc = tmp_path / ".bashrc"
@@ -2295,7 +2320,7 @@ def test_cli_uninstall_completion_cleanup_skips_duplicate_metadata_path(
         {
             "managed_path_edits": [
                 123,
-                f'{bashrc}: eval "$(recallium completion --source bash)"',
+                f'{bashrc}: eval "$(recollectium completion --source bash)"',
             ]
         },
         dry_run=True,
@@ -2308,7 +2333,7 @@ def test_cli_uninstall_completion_cleanup_skips_duplicate_metadata_path(
 def test_cli_uninstall_completion_cleanup_reports_read_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from recallium.cli import _remove_completion_blocks
+    from recollectium.cli import _remove_completion_blocks
 
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     bashrc = tmp_path / ".bashrc"
@@ -2333,14 +2358,14 @@ def test_cli_uninstall_completion_cleanup_reports_read_error(
 def test_cli_uninstall_completion_cleanup_reports_write_error(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from recallium.cli import _remove_completion_blocks
+    from recollectium.cli import _remove_completion_blocks
 
     monkeypatch.setattr(Path, "home", lambda: tmp_path)
     bashrc = tmp_path / ".bashrc"
     bashrc.write_text(
-        "# >>> recallium completion >>>\n"
-        'eval "$(recallium completion --source bash)"\n'
-        "# <<< recallium completion <<<\n",
+        "# >>> recollectium completion >>>\n"
+        'eval "$(recollectium completion --source bash)"\n'
+        "# <<< recollectium completion <<<\n",
         encoding="utf-8",
     )
     original_write_text = Path.write_text
@@ -2370,7 +2395,7 @@ def test_cli_uninstall_stops_running_service(
         stopped_configs.append(config)
         return 123
 
-    monkeypatch.setattr("recallium.cli.stop_service", _fake_stop)
+    monkeypatch.setattr("recollectium.cli.stop_service", _fake_stop)
 
     exit_code, stdout, stderr = _run_cli(["uninstall"], capsys)
 
@@ -2384,10 +2409,10 @@ def test_cli_uninstall_stops_running_service(
 def test_cli_uninstall_rejects_destructive_yes_without_purge(
     capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
 
     exit_code, stdout, stderr = _run_cli(
-        ["uninstall", "--yes-delete-all-recallium-data"], capsys
+        ["uninstall", "--yes-delete-all-recollectium-data"], capsys
     )
 
     assert exit_code == 2
@@ -2398,7 +2423,7 @@ def test_cli_uninstall_rejects_destructive_yes_without_purge(
 def test_cli_uninstall_reports_explicit_missing_config(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
 
     exit_code, stdout, stderr = _run_cli(
         ["--config", str(tmp_path / "missing.json"), "uninstall"], capsys
@@ -2414,7 +2439,7 @@ def test_cli_uninstall_reports_invalid_config(
 ) -> None:
     config_path = tmp_path / "config.json"
     config_path.write_text(json.dumps({"logging": {"level": "bad"}}), encoding="utf-8")
-    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
 
     exit_code, stdout, stderr = _run_cli(
         ["--config", str(config_path), "uninstall"], capsys
@@ -2431,7 +2456,7 @@ def test_cli_uninstall_reports_service_stop_error(
     def _raise_service_error(_config: object) -> None:
         raise ServiceError("service stop failed")
 
-    monkeypatch.setattr("recallium.cli.stop_service", _raise_service_error)
+    monkeypatch.setattr("recollectium.cli.stop_service", _raise_service_error)
 
     exit_code, stdout, stderr = _run_cli(["uninstall"], capsys)
 
@@ -2444,10 +2469,10 @@ def test_cli_uninstall_ignores_unreadable_install_metadata(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _set_xdg_home(monkeypatch, tmp_path)
-    metadata_path = tmp_path / "state" / "recallium" / "install.json"
+    metadata_path = tmp_path / "state" / "recollectium" / "install.json"
     metadata_path.parent.mkdir(parents=True)
     metadata_path.write_text("not json", encoding="utf-8")
-    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
 
     exit_code, stdout, stderr = _run_cli(["uninstall"], capsys)
 
@@ -2461,10 +2486,10 @@ def test_cli_uninstall_ignores_non_object_install_metadata(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _set_xdg_home(monkeypatch, tmp_path)
-    metadata_path = tmp_path / "state" / "recallium" / "install.json"
+    metadata_path = tmp_path / "state" / "recollectium" / "install.json"
     metadata_path.parent.mkdir(parents=True)
     metadata_path.write_text(json.dumps(["bootstrap"]), encoding="utf-8")
-    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
 
     exit_code, stdout, stderr = _run_cli(["uninstall"], capsys)
 
@@ -2478,15 +2503,15 @@ def test_cli_uninstall_purge_dry_run_lists_targets_without_deleting(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _set_xdg_home(monkeypatch, tmp_path)
-    config_path = tmp_path / "config" / "recallium" / "config.json"
-    data_dir = tmp_path / "data" / "recallium"
-    cache_dir = tmp_path / "cache" / "recallium"
-    logs_dir = tmp_path / "state" / "recallium" / "logs"
-    runtime_dir = tmp_path / "runtime" / "recallium"
+    config_path = tmp_path / "config" / "recollectium" / "config.json"
+    data_dir = tmp_path / "data" / "recollectium"
+    cache_dir = tmp_path / "cache" / "recollectium"
+    logs_dir = tmp_path / "state" / "recollectium" / "logs"
+    runtime_dir = tmp_path / "runtime" / "recollectium"
     for directory in (config_path.parent, data_dir, cache_dir, logs_dir, runtime_dir):
         directory.mkdir(parents=True)
     config_path.write_text(json.dumps(DEFAULTS), encoding="utf-8")
-    (data_dir / "recallium.db").write_text("memory", encoding="utf-8")
+    (data_dir / "recollectium.db").write_text("memory", encoding="utf-8")
 
     exit_code, stdout, stderr = _run_cli(["uninstall", "--purge", "--dry-run"], capsys)
 
@@ -2501,14 +2526,14 @@ def test_cli_uninstall_purge_dry_run_lists_targets_without_deleting(
     assert payload["data"]["purge"]["dry_run"] is True
     assert payload["data"]["purge"]["deleted"] == []
     assert config_path.exists()
-    assert (data_dir / "recallium.db").exists()
+    assert (data_dir / "recollectium.db").exists()
 
 
 def test_cli_uninstall_purge_cancelled_by_confirmation(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _set_xdg_home(monkeypatch, tmp_path)
-    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
     monkeypatch.setattr("sys.stdin.readline", lambda: "no\n")
 
     exit_code, stdout, stderr = _run_cli(["uninstall", "--purge"], capsys)
@@ -2522,11 +2547,11 @@ def test_cli_uninstall_purge_accepts_interactive_confirmation(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _set_xdg_home(monkeypatch, tmp_path)
-    config_path = tmp_path / "config" / "recallium" / "config.json"
+    config_path = tmp_path / "config" / "recollectium" / "config.json"
     config_path.parent.mkdir(parents=True)
     config_path.write_text(json.dumps(DEFAULTS), encoding="utf-8")
-    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
-    monkeypatch.setattr("sys.stdin.readline", lambda: "delete all recallium data\n")
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
+    monkeypatch.setattr("sys.stdin.readline", lambda: "delete all recollectium data\n")
 
     exit_code, stdout, stderr = _run_cli(["uninstall", "--purge"], capsys)
 
@@ -2537,25 +2562,25 @@ def test_cli_uninstall_purge_accepts_interactive_confirmation(
     assert payload["data"]["purge"]["deleted"]
 
 
-def test_cli_uninstall_purge_deletes_recallium_owned_paths(
+def test_cli_uninstall_purge_deletes_recollectium_owned_paths(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _set_xdg_home(monkeypatch, tmp_path)
-    config_path = tmp_path / "config" / "recallium" / "config.json"
-    data_dir = tmp_path / "data" / "recallium"
-    cache_dir = tmp_path / "cache" / "recallium"
-    logs_dir = tmp_path / "state" / "recallium" / "logs"
-    runtime_dir = tmp_path / "runtime" / "recallium"
-    metadata_path = tmp_path / "state" / "recallium" / "install.json"
+    config_path = tmp_path / "config" / "recollectium" / "config.json"
+    data_dir = tmp_path / "data" / "recollectium"
+    cache_dir = tmp_path / "cache" / "recollectium"
+    logs_dir = tmp_path / "state" / "recollectium" / "logs"
+    runtime_dir = tmp_path / "runtime" / "recollectium"
+    metadata_path = tmp_path / "state" / "recollectium" / "install.json"
     for directory in (config_path.parent, data_dir, cache_dir, logs_dir, runtime_dir):
         directory.mkdir(parents=True)
     config_path.write_text(json.dumps(DEFAULTS), encoding="utf-8")
-    (data_dir / "recallium.db").write_text("memory", encoding="utf-8")
+    (data_dir / "recollectium.db").write_text("memory", encoding="utf-8")
     metadata_path.write_text("{}", encoding="utf-8")
-    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
 
     exit_code, stdout, stderr = _run_cli(
-        ["uninstall", "--purge", "--yes-delete-all-recallium-data"], capsys
+        ["uninstall", "--purge", "--yes-delete-all-recollectium-data"], capsys
     )
 
     payload = json.loads(stdout)
@@ -2575,18 +2600,18 @@ def test_cli_uninstall_purge_reports_delete_errors(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _set_xdg_home(monkeypatch, tmp_path)
-    config_path = tmp_path / "config" / "recallium" / "config.json"
+    config_path = tmp_path / "config" / "recollectium" / "config.json"
     config_path.parent.mkdir(parents=True)
     config_path.write_text(json.dumps(DEFAULTS), encoding="utf-8")
-    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
 
     def _raise_remove(_path: Path) -> None:
         raise OSError("delete failed")
 
-    monkeypatch.setattr("recallium.cli.shutil.rmtree", _raise_remove)
+    monkeypatch.setattr("recollectium.cli.shutil.rmtree", _raise_remove)
 
     exit_code, stdout, stderr = _run_cli(
-        ["uninstall", "--purge", "--yes-delete-all-recallium-data"], capsys
+        ["uninstall", "--purge", "--yes-delete-all-recollectium-data"], capsys
     )
 
     assert exit_code == 1
@@ -2600,15 +2625,15 @@ def test_cli_uninstall_purge_skips_shared_cache_override(
     _set_xdg_home(monkeypatch, tmp_path)
     shared_cache = tmp_path / "shared-cache"
     shared_cache.mkdir()
-    config_path = tmp_path / "config" / "recallium" / "config.json"
+    config_path = tmp_path / "config" / "recollectium" / "config.json"
     config_path.parent.mkdir(parents=True)
     config_data = deepcopy(DEFAULTS)
     config_data["directories"] = {"cache": str(shared_cache)}
     config_path.write_text(json.dumps(config_data), encoding="utf-8")
-    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
 
     exit_code, stdout, stderr = _run_cli(
-        ["uninstall", "--purge", "--yes-delete-all-recallium-data"], capsys
+        ["uninstall", "--purge", "--yes-delete-all-recollectium-data"], capsys
     )
 
     payload = json.loads(stdout)
@@ -2617,17 +2642,17 @@ def test_cli_uninstall_purge_skips_shared_cache_override(
     assert "permanently deleted" in stderr
     assert shared_cache.exists()
     assert any(
-        item["path"] == str(shared_cache) and item["reason"] == "not_recallium_owned"
+        item["path"] == str(shared_cache) and item["reason"] == "not_recollectium_owned"
         for item in skipped
     )
 
 
-def test_cli_uninstall_purge_skips_explicit_config_outside_recallium_dir(
+def test_cli_uninstall_purge_skips_explicit_config_outside_recollectium_dir(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     config_path = tmp_path / "config.json"
     config_path.write_text(json.dumps(DEFAULTS), encoding="utf-8")
-    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
 
     exit_code, stdout, stderr = _run_cli(
         [
@@ -2635,7 +2660,7 @@ def test_cli_uninstall_purge_skips_explicit_config_outside_recallium_dir(
             str(config_path),
             "uninstall",
             "--purge",
-            "--yes-delete-all-recallium-data",
+            "--yes-delete-all-recollectium-data",
         ],
         capsys,
     )
@@ -2645,7 +2670,7 @@ def test_cli_uninstall_purge_skips_explicit_config_outside_recallium_dir(
     assert "permanently deleted" in stderr
     assert config_path.exists()
     assert any(
-        item["path"] == str(config_path) and item["reason"] == "not_recallium_owned"
+        item["path"] == str(config_path) and item["reason"] == "not_recollectium_owned"
         for item in payload["data"]["purge"]["skipped"]
     )
 
@@ -2654,8 +2679,8 @@ def test_cli_uninstall_purge_skips_duplicate_targets(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _set_xdg_home(monkeypatch, tmp_path)
-    duplicate_dir = tmp_path / "data" / "recallium"
-    config_path = tmp_path / "config" / "recallium" / "config.json"
+    duplicate_dir = tmp_path / "data" / "recollectium"
+    config_path = tmp_path / "config" / "recollectium" / "config.json"
     duplicate_dir.mkdir(parents=True)
     config_path.parent.mkdir(parents=True)
     config_data = deepcopy(DEFAULTS)
@@ -2664,7 +2689,7 @@ def test_cli_uninstall_purge_skips_duplicate_targets(
         "cache": str(duplicate_dir),
     }
     config_path.write_text(json.dumps(config_data), encoding="utf-8")
-    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
 
     exit_code, stdout, stderr = _run_cli(["uninstall", "--purge", "--dry-run"], capsys)
 
@@ -2678,7 +2703,7 @@ def test_cli_uninstall_purge_skips_duplicate_targets(
 def test_cli_uninstall_purge_marks_suspicious_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from recallium.cli import _delete_purge_target
+    from recollectium.cli import _delete_purge_target
 
     monkeypatch.setattr(Path, "home", lambda: Path.cwd())
 
@@ -2695,15 +2720,15 @@ def test_cli_reinstall_after_safe_uninstall_reuses_existing_config_and_database(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _set_xdg_home(monkeypatch, tmp_path)
-    monkeypatch.setattr("recallium.cli.stop_service", lambda _config: None)
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
     monkeypatch.setattr(
-        "recallium.cli.BuiltinFastEmbedProvider.ensure_ready",
+        "recollectium.cli.BuiltinFastEmbedProvider.ensure_ready",
         lambda self: None,
     )
 
     assert _run_cli(["init"], capsys)[0] == 0
-    config_path = tmp_path / "config" / "recallium" / "config.json"
-    db_path = tmp_path / "data" / "recallium" / "recallium.db"
+    config_path = tmp_path / "config" / "recollectium" / "config.json"
+    db_path = tmp_path / "data" / "recollectium" / "recollectium.db"
     config_data = json.loads(config_path.read_text(encoding="utf-8"))
     config_data["service"]["port"] = 9090
     config_path.write_text(json.dumps(config_data), encoding="utf-8")
@@ -2721,7 +2746,7 @@ def test_cli_uninstall_dry_run_without_purge_prints_instructions(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _set_xdg_home(monkeypatch, tmp_path)
-    config_path = tmp_path / "config" / "recallium" / "config.json"
+    config_path = tmp_path / "config" / "recollectium" / "config.json"
     config_path.parent.mkdir(parents=True)
     config_path.write_text(json.dumps(DEFAULTS), encoding="utf-8")
 
@@ -2745,7 +2770,7 @@ def test_cli_uninstall_dry_run_does_not_stop_service(
         stop_calls.append(config)
         return 123
 
-    monkeypatch.setattr("recallium.cli.stop_service", _record_stop)
+    monkeypatch.setattr("recollectium.cli.stop_service", _record_stop)
 
     _run_cli(["uninstall", "--dry-run"], capsys)
     assert stop_calls == []
@@ -2754,12 +2779,12 @@ def test_cli_uninstall_dry_run_does_not_stop_service(
     assert stop_calls == []
 
 
-def test_cli_uninstall_config_is_recallium_config(
+def test_cli_uninstall_config_is_recollectium_config(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from recallium.cli import _UninstallConfig
-    from recallium.config import RecalliumConfig
+    from recollectium.cli import _UninstallConfig
+    from recollectium.config import RecollectiumConfig
 
     conf = _UninstallConfig(
         effective_config={},
@@ -2767,7 +2792,7 @@ def test_cli_uninstall_config_is_recallium_config(
         config_path=tmp_path / "cfg.json",
         database_path=tmp_path / "db.db",
     )
-    assert isinstance(conf, RecalliumConfig)
+    assert isinstance(conf, RecollectiumConfig)
 
 
 class TestMcpStdioErrorPaths:
@@ -2784,7 +2809,7 @@ class TestMcpStdioErrorPaths:
         }
         config_path.write_text(json.dumps(config_data))
 
-        with patch("recallium.cli.RecalliumCore") as mock_core:
+        with patch("recollectium.cli.RecollectiumCore") as mock_core:
             mock_core.side_effect = FileNotFoundError("no database found")
             exit_code, stdout, stderr = _run_cli(
                 ["--config", str(config_path), "mcp-stdio"],
@@ -2808,7 +2833,7 @@ class TestMcpStdioErrorPaths:
         }
         config_path.write_text(json.dumps(config_data))
 
-        with patch("recallium.cli.RecalliumCore") as mock_core:
+        with patch("recollectium.cli.RecollectiumCore") as mock_core:
             mock_core.side_effect = ValidationError("bad config value")
             exit_code, stdout, stderr = _run_cli(
                 ["--config", str(config_path), "mcp-stdio"],
@@ -2818,6 +2843,53 @@ class TestMcpStdioErrorPaths:
         assert exit_code == 2
         assert stdout == ""
         assert "ValidationError: bad config value" in stderr
+
+    @pytest.mark.parametrize(
+        ("error", "expected"),
+        [
+            (
+                EmbeddingReadinessTimeoutError("startup timed out"),
+                "EmbeddingReadinessTimeoutError: startup timed out",
+            ),
+            (
+                EmbeddingModelUnavailableError("model not found"),
+                "EmbeddingModelUnavailableError: model not found",
+            ),
+            (
+                EmbeddingProviderUnavailableError("provider unavailable"),
+                "EmbeddingProviderUnavailableError: provider unavailable",
+            ),
+        ],
+    )
+    def test_mcp_stdio_readiness_errors_return_guidance(
+        self, tmp_path, capsys, error: Exception, expected: str
+    ) -> None:
+        config_dir = tmp_path / "config"
+        config_dir.mkdir()
+        config_path = config_dir / "config.json"
+        config_data = dict(DEFAULTS)
+        config_data["directories"] = {
+            "data": str(tmp_path / "data"),
+            "cache": str(tmp_path / "cache"),
+            "logs": str(tmp_path / "logs"),
+            "runtime": str(tmp_path / "run"),
+        }
+        config_path.write_text(json.dumps(config_data))
+
+        class FakeCore:
+            def _ensure_model_ready(self) -> None:
+                raise error
+
+        with patch("recollectium.cli.RecollectiumCore", return_value=FakeCore()):
+            exit_code, stdout, stderr = _run_cli(
+                ["--config", str(config_path), "mcp-stdio"],
+                capsys,
+            )
+
+        assert exit_code == 1
+        assert stdout == ""
+        assert expected in stderr
+        assert "recollectium init" in stderr
 
     def test_mcp_stdio_happy_path_returns_zero(self, tmp_path, capsys) -> None:
         config_dir = tmp_path / "config"
@@ -2837,8 +2909,8 @@ class TestMcpStdioErrorPaths:
                 pass
 
         with (
-            patch("recallium.cli.RecalliumCore"),
-            patch("recallium.cli.create_mcp_server", return_value=FakeMCP()),
+            patch("recollectium.cli.RecollectiumCore"),
+            patch("recollectium.cli.create_mcp_server", return_value=FakeMCP()),
         ):
             exit_code, stdout, stderr = _run_cli(
                 ["--config", str(config_path), "mcp-stdio"],
@@ -2865,8 +2937,8 @@ class TestMcpStdioErrorPaths:
                 raise RuntimeError("stdio transport broken")
 
         with (
-            patch("recallium.cli.RecalliumCore"),
-            patch("recallium.cli.create_mcp_server", return_value=FakeMCP()),
+            patch("recollectium.cli.RecollectiumCore"),
+            patch("recollectium.cli.create_mcp_server", return_value=FakeMCP()),
         ):
             exit_code, stdout, stderr = _run_cli(
                 ["--config", str(config_path), "mcp-stdio"],
@@ -2918,8 +2990,8 @@ def test_cli_completion_help_prints_human_readable_instructions(
     assert exit_code == 0
     assert stderr == ""
     assert "Add this line to your shell rc file" in stdout
-    assert 'eval "$(recallium completion --source bash)"' in stdout
-    assert "recallium completion --install bash" in stdout
+    assert 'eval "$(recollectium completion --source bash)"' in stdout
+    assert "recollectium completion --install bash" in stdout
 
 
 def test_cli_completion_default_prints_human_readable_instructions(
@@ -2931,8 +3003,8 @@ def test_cli_completion_default_prints_human_readable_instructions(
     assert exit_code == 0
     assert stderr == ""
     assert "Add this line to your shell rc file" in stdout
-    assert 'eval "$(recallium completion --source zsh)"' in stdout
-    assert "recallium completion --install zsh" in stdout
+    assert 'eval "$(recollectium completion --source zsh)"' in stdout
+    assert "recollectium completion --install zsh" in stdout
 
 
 def test_cli_completion_default_prints_human_readable_instructions_fish(
@@ -2944,8 +3016,8 @@ def test_cli_completion_default_prints_human_readable_instructions_fish(
     assert exit_code == 0
     assert stderr == ""
     assert "Add this line to your shell rc file" in stdout
-    assert 'eval "$(recallium completion --source fish)"' in stdout
-    assert "recallium completion --install fish" in stdout
+    assert 'eval "$(recollectium completion --source fish)"' in stdout
+    assert "recollectium completion --install fish" in stdout
 
 
 def test_cli_completion_source_bash_prints_shellcode(
@@ -2957,7 +3029,7 @@ def test_cli_completion_source_bash_prints_shellcode(
     assert exit_code == 0
     assert stderr == ""
     assert "register-python-argcomplete" in stdout or "complete " in stdout
-    assert "recallium" in stdout
+    assert "recollectium" in stdout
 
 
 def test_cli_completion_source_zsh_prints_shellcode(
@@ -2992,7 +3064,7 @@ def test_cli_completion_auto_detect_shell(
 
     assert exit_code == 0
     assert stderr == ""
-    assert "recallium" in stdout
+    assert "recollectium" in stdout
 
 
 def test_cli_completion_unknown_shell(
@@ -3039,7 +3111,7 @@ def test_cli_completion_install_yes_writes_rc_file(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     rc_path = tmp_path / ".bashrc"
-    monkeypatch.setattr("recallium.cli.Path.home", lambda: tmp_path)
+    monkeypatch.setattr("recollectium.cli.Path.home", lambda: tmp_path)
 
     exit_code, stdout, stderr = _run_cli(
         ["completion", "--install", "bash", "--yes"], capsys
@@ -3051,9 +3123,9 @@ def test_cli_completion_install_yes_writes_rc_file(
     assert payload["status"] == "installed"
     assert payload["rc_file"] == str(rc_path)
     content = rc_path.read_text(encoding="utf-8")
-    assert "# >>> recallium completion >>>" in content
-    assert 'eval "$(recallium completion --source bash)"' in content
-    assert "# <<< recallium completion <<<" in content
+    assert "# >>> recollectium completion >>>" in content
+    assert 'eval "$(recollectium completion --source bash)"' in content
+    assert "# <<< recollectium completion <<<" in content
 
 
 def test_cli_completion_install_dedup_when_already_present(
@@ -3063,9 +3135,9 @@ def test_cli_completion_install_dedup_when_already_present(
 ) -> None:
     rc_path = tmp_path / ".bashrc"
     rc_path.write_text(
-        'eval "$(recallium completion --source bash)"\n', encoding="utf-8"
+        'eval "$(recollectium completion --source bash)"\n', encoding="utf-8"
     )
-    monkeypatch.setattr("recallium.cli.Path.home", lambda: tmp_path)
+    monkeypatch.setattr("recollectium.cli.Path.home", lambda: tmp_path)
 
     exit_code, stdout, stderr = _run_cli(
         ["completion", "--install", "bash", "--yes"], capsys
@@ -3076,7 +3148,7 @@ def test_cli_completion_install_dedup_when_already_present(
     payload = json.loads(stdout)
     assert payload["status"] == "already_installed"
     occurrences = rc_path.read_text(encoding="utf-8").count(
-        "recallium completion --source"
+        "recollectium completion --source"
     )
     assert occurrences == 1
 
@@ -3085,7 +3157,7 @@ def test_cli_completion_install_unknown_shell(
     capsys: CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("recallium.cli._COMPLETION_RC_FILES", {"bash": ".bashrc"})
+    monkeypatch.setattr("recollectium.cli._COMPLETION_RC_FILES", {"bash": ".bashrc"})
     monkeypatch.setenv("SHELL", "/bin/zsh")
 
     exit_code, stdout, stderr = _run_cli(
@@ -3101,7 +3173,7 @@ def test_cli_completion_install_refuses_without_confirm_in_non_tty(
     capsys: CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("recallium.cli.Path.home", lambda: tmp_path)
+    monkeypatch.setattr("recollectium.cli.Path.home", lambda: tmp_path)
     monkeypatch.setattr("sys.stdin.readline", lambda: "no\n")
 
     exit_code, stdout, stderr = _run_cli(["completion", "--install", "bash"], capsys)
@@ -3116,7 +3188,7 @@ def test_cli_completion_install_accepts_confirm(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     rc_path = tmp_path / ".bashrc"
-    monkeypatch.setattr("recallium.cli.Path.home", lambda: tmp_path)
+    monkeypatch.setattr("recollectium.cli.Path.home", lambda: tmp_path)
     monkeypatch.setattr("sys.stdin.readline", lambda: "yes\n")
 
     exit_code, stdout, stderr = _run_cli(["completion", "--install", "bash"], capsys)
@@ -3134,7 +3206,7 @@ def test_cli_completion_unreadable_rc_file(
 ) -> None:
     rc_path = tmp_path / ".bashrc"
     rc_path.mkdir()
-    monkeypatch.setattr("recallium.cli.Path.home", lambda: tmp_path)
+    monkeypatch.setattr("recollectium.cli.Path.home", lambda: tmp_path)
 
     exit_code, stdout, stderr = _run_cli(
         ["completion", "--install", "bash", "--yes"], capsys
@@ -3151,7 +3223,7 @@ def test_cli_completion_unwritable_rc_file(
 ) -> None:
     rc_path = tmp_path / ".bashrc"
     rc_path.write_text("", encoding="utf-8")
-    monkeypatch.setattr("recallium.cli.Path.home", lambda: tmp_path)
+    monkeypatch.setattr("recollectium.cli.Path.home", lambda: tmp_path)
 
     original_open = Path.open
 
@@ -3195,7 +3267,7 @@ def test_cli_completion_does_not_interfere_with_normal_commands(
     _set_xdg_home(monkeypatch, tmp_path)
     exit_code, stdout, stderr = _run_cli(["--version"], capsys)
     assert exit_code == 0
-    assert "recallium" in stdout
+    assert "recollectium" in stdout
     assert stderr == ""
 
 
@@ -3234,7 +3306,7 @@ def test_workspace_list_returns_sorted_uids(
 ) -> None:
     """workspace list returns distinct workspace UIDs sorted."""
 
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "test.db",
         embedding_provider=FakeEmbeddingProvider(),
     )
@@ -3258,7 +3330,7 @@ def test_workspace_rename_moves_memories(
 ) -> None:
     """workspace rename migrates memories and prints result."""
 
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "test.db",
         embedding_provider=FakeEmbeddingProvider(),
     )
@@ -3310,7 +3382,7 @@ def test_workspace_rename_noop_same_uid(
 ) -> None:
     """workspace rename to same UID after normalization is a no-op."""
 
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "test.db",
         embedding_provider=FakeEmbeddingProvider(),
     )

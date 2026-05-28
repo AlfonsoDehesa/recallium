@@ -1,4 +1,4 @@
-"""Tests for recallium.model_state — model readiness state file read/write."""
+"""Tests for recollectium.model_state — model readiness state file read/write."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import tempfile
 
 import pytest
 
-from recallium.model_state import read_model_state, write_model_state
+from recollectium.model_state import read_model_state, write_model_state
 
 
 def test_read_model_state_returns_none_when_file_missing():
@@ -36,7 +36,7 @@ def test_write_and_read_model_state_round_trips():
 
 def test_write_model_state_creates_directory_if_missing():
     with tempfile.TemporaryDirectory() as tmp:
-        state_dir = Path(tmp) / "recallium" / "nested"
+        state_dir = Path(tmp) / "recollectium" / "nested"
         assert not state_dir.exists()
         write_model_state(
             state_dir,

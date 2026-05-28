@@ -1,12 +1,12 @@
 ---
 name: Feature request
-about: Something you want Recallium to do
+about: Something you want Recollectium to do
 labels: enhancement
 ---
 
 ## The problem
 
-<!-- What are you trying to do that Recallium does not support yet? -->
+<!-- What are you trying to do that Recollectium does not support yet? -->
 
 ## Suggested solution
 

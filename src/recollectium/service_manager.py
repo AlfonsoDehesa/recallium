@@ -1,4 +1,4 @@
-"""Service lifecycle management for Recallium daemon subprocesses.
+"""Service lifecycle management for Recollectium daemon subprocesses.
 
 Provides PID file read/write/cleanup, process liveness checks, stale PID
 detection, and daemon-style service start/stop orchestration using
@@ -17,10 +17,10 @@ import time
 from pathlib import Path
 from typing import Any
 
-from recallium import __version__
-from recallium.config import RecalliumConfig
-from recallium.errors import ServiceConflictError, ServiceError
-from recallium.service_contract import SERVICE_API_PREFIX, SERVICE_API_VERSION
+from recollectium import __version__
+from recollectium.config import RecollectiumConfig
+from recollectium.errors import ServiceConflictError, ServiceError
+from recollectium.service_contract import SERVICE_API_PREFIX, SERVICE_API_VERSION
 
 _log = logging.getLogger(__name__)
 
@@ -29,12 +29,12 @@ _log = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def get_pid_file_path(config: RecalliumConfig) -> Path:
+def get_pid_file_path(config: RecollectiumConfig) -> Path:
     """Return the PID file path: ``runtime_dir / "service.pid"``."""
     return config.xdg_dirs["runtime"] / "service.pid"
 
 
-def get_discovery_file_path(config: RecalliumConfig) -> Path:
+def get_discovery_file_path(config: RecollectiumConfig) -> Path:
     """Return the service discovery file path."""
     return config.xdg_dirs["runtime"] / "service-discovery.json"
 
@@ -93,7 +93,7 @@ def get_process_cmdline(pid: int) -> list[str] | None:
     return [part.decode("utf-8", errors="replace") for part in raw.split(b"\0") if part]
 
 
-def is_recallium_service_process(
+def is_recollectium_service_process(
     pid: int,
     service_type: str,
     process_start_time: int | None,
@@ -108,7 +108,7 @@ def is_recallium_service_process(
     if cmdline is None:
         return False
     return (
-        "recallium.service_manager" in cmdline
+        "recollectium.service_manager" in cmdline
         and "_run_server" in cmdline
         and service_type in cmdline
     )
@@ -151,13 +151,13 @@ def remove_discovery_file(path: Path) -> None:
         pass
 
 
-def _service_endpoint(config: RecalliumConfig) -> str:
+def _service_endpoint(config: RecollectiumConfig) -> str:
     host = str(config.effective_config["service"]["host"])
     port = int(config.effective_config["service"]["port"])
     return f"http://{host}:{port}"
 
 
-def _discovery_paths(config: RecalliumConfig) -> dict[str, str]:
+def _discovery_paths(config: RecollectiumConfig) -> dict[str, str]:
     pid_file = get_pid_file_path(config)
     discovery_file = get_discovery_file_path(config)
     return {
@@ -169,7 +169,7 @@ def _discovery_paths(config: RecalliumConfig) -> dict[str, str]:
 
 
 def service_discovery_payload(
-    config: RecalliumConfig,
+    config: RecollectiumConfig,
     running: dict[str, Any] | None,
     *,
     stale: dict[str, bool] | None = None,
@@ -179,7 +179,7 @@ def service_discovery_payload(
     paths = _discovery_paths(config)
     versions = {
         "service_api_version": SERVICE_API_VERSION,
-        "recallium_version": __version__,
+        "recollectium_version": __version__,
     }
     if running is None:
         payload: dict[str, Any] = {
@@ -187,7 +187,7 @@ def service_discovery_payload(
             "service": None,
             "versions": versions,
             "paths": paths,
-            "next_step": "Run `recallium service start api` to start the local API service.",
+            "next_step": "Run `recollectium service start api` to start the local API service.",
         }
         if stale is not None:
             payload["stale"] = stale
@@ -211,7 +211,7 @@ def service_discovery_payload(
     }
 
 
-def write_discovery_file(config: RecalliumConfig, running: dict[str, Any]) -> None:
+def write_discovery_file(config: RecollectiumConfig, running: dict[str, Any]) -> None:
     """Write the service discovery file atomically."""
     path = get_discovery_file_path(config)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -221,7 +221,7 @@ def write_discovery_file(config: RecalliumConfig, running: dict[str, Any]) -> No
     temp_path.replace(path)
 
 
-def discover_service(config: RecalliumConfig) -> dict[str, Any]:
+def discover_service(config: RecollectiumConfig) -> dict[str, Any]:
     """Return current service discovery details and clean stale files."""
     pid_path = get_pid_file_path(config)
     discovery_path = get_discovery_file_path(config)
@@ -283,7 +283,7 @@ def is_pid_alive(pid: int) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def check_running_service(config: RecalliumConfig) -> dict[str, Any] | None:
+def check_running_service(config: RecollectiumConfig) -> dict[str, Any] | None:
     """Return PID file data if a service is alive, or ``None``.
 
     If the PID file exists but the process is dead the stale file is cleaned
@@ -302,7 +302,7 @@ def check_running_service(config: RecalliumConfig) -> dict[str, Any] | None:
         remove_discovery_file(get_discovery_file_path(config))
         return None
 
-    if not is_recallium_service_process(
+    if not is_recollectium_service_process(
         data["pid"], data["type"], data.get("process_start_time")
     ):
         _log_service_crashed(data, "process_mismatch")
@@ -319,12 +319,12 @@ def check_running_service(config: RecalliumConfig) -> dict[str, Any] | None:
 
 
 def start_service(
-    config: RecalliumConfig,
+    config: RecollectiumConfig,
     service_type: str,
     db_path: str | None = None,
     log_level: str | None = None,
 ) -> int:
-    """Start a Recallium daemon subprocess of *service_type* (``"api"`` or ``"mcp"``).
+    """Start a Recollectium daemon subprocess of *service_type* (``"api"`` or ``"mcp"``).
 
     Returns the child PID.
 
@@ -349,7 +349,7 @@ def start_service(
     cmd: list[str] = [
         sys.executable,
         "-m",
-        "recallium.service_manager",
+        "recollectium.service_manager",
         "_run_server",
         service_type,
     ]
@@ -451,8 +451,8 @@ def start_service(
     return pid
 
 
-def stop_service(config: RecalliumConfig) -> int | None:
-    """Stop the running Recallium service.
+def stop_service(config: RecollectiumConfig) -> int | None:
+    """Stop the running Recollectium service.
 
     Sends ``SIGTERM``, waits up to 10 seconds (polling every 0.1 seconds),
     then sends ``SIGKILL`` if the process is still alive.  Removes the PID
@@ -532,11 +532,11 @@ def _run_server(
 ) -> None:
     """Internal entry point called by the subprocess.
 
-    Builds a ``RecalliumCore`` and starts the appropriate server based on
+    Builds a ``RecollectiumCore`` and starts the appropriate server based on
     *service_type*.  Signal handling (SIGTERM/SIGINT) is delegated to the
     server framework (uvicorn).
     """
-    from recallium.service import run_service
+    from recollectium.service import run_service
 
     service_kwargs: dict[str, Any] = {
         "db_path": db_path,
@@ -568,10 +568,10 @@ def _run_server(
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    # When spawned as: python -m recallium.service_manager _run_server <type> [...]
+    # When spawned as: python -m recollectium.service_manager _run_server <type> [...]
     if len(sys.argv) < 2 or sys.argv[1] != "_run_server":
         _log.error(
-            "usage: python -m recallium.service_manager _run_server <api|mcp> [--db-path PATH] [--config-path PATH] [--host HOST] [--port PORT]"
+            "usage: python -m recollectium.service_manager _run_server <api|mcp> [--db-path PATH] [--config-path PATH] [--host HOST] [--port PORT]"
         )
         sys.exit(2)
 

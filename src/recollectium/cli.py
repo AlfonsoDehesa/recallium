@@ -1,4 +1,4 @@
-"""CLI entrypoint for Recallium Core."""
+"""CLI entrypoint for Recollectium Core."""
 
 from __future__ import annotations
 
@@ -21,21 +21,21 @@ from typing import Any, Sequence
 
 from platformdirs import user_state_dir
 
-from recallium import (
+from recollectium import (
     __version__,
     NotFoundError,
-    RecalliumCore,
-    RecalliumError,
+    RecollectiumCore,
+    RecollectiumError,
     ValidationError,
 )
-from recallium.errors import (
+from recollectium.errors import (
     EmbeddingModelUnavailableError,
     EmbeddingProviderUnavailableError,
     EmbeddingReadinessTimeoutError,
 )
-from recallium.config import (
+from recollectium.config import (
     DEFAULTS,
-    RecalliumConfig,
+    RecollectiumConfig,
     _deep_merge,
     _resolve_xdg_dirs,
     _validate_config_value,
@@ -45,10 +45,10 @@ from recallium.config import (
     unset_config_value,
     validate_config_file,
 )
-from recallium.embeddings import BuiltinFastEmbedProvider
-from recallium.logging import setup_logging
-from recallium.model_state import write_model_state
-from recallium.models import (
+from recollectium.embeddings import BuiltinFastEmbedProvider
+from recollectium.logging import setup_logging
+from recollectium.model_state import write_model_state
+from recollectium.models import (
     ALL_MEMORY_TYPES,
     SPACE_USER,
     SPACE_WORKSPACE,
@@ -56,11 +56,11 @@ from recallium.models import (
     USER_MEMORY_TYPES,
     WORKSPACE_MEMORY_TYPES,
 )
-from recallium.mcp_server import create_mcp_server
-from recallium.service import run_service
-from recallium.service_contract import SERVICE_DEFAULT_HOST, SERVICE_DEFAULT_PORT
-from recallium.errors import ServiceConflictError, ServiceError
-from recallium.service_manager import (
+from recollectium.mcp_server import create_mcp_server
+from recollectium.service import run_service
+from recollectium.service_contract import SERVICE_DEFAULT_HOST, SERVICE_DEFAULT_PORT
+from recollectium.errors import ServiceConflictError, ServiceError
+from recollectium.service_manager import (
     check_running_service,
     discover_service,
     get_pid_file_path,
@@ -68,11 +68,11 @@ from recallium.service_manager import (
     start_service,
     stop_service,
 )
-from recallium.storage import SQLiteMemoryStore
+from recollectium.storage import SQLiteMemoryStore
 
 _log = logging.getLogger(__name__)
 _INSTALL_METADATA_FILE = "install.json"
-_PURGE_CONFIRMATION = "delete all recallium data"
+_PURGE_CONFIRMATION = "delete all recollectium data"
 
 _COMPLETABLE_CONFIG_KEYS = [
     "version",
@@ -112,7 +112,7 @@ class _CliLoggingConfig:
         self.xdg_dirs = {"logs": log_dir}
 
 
-class _UninstallConfig(RecalliumConfig):
+class _UninstallConfig(RecollectiumConfig):
     def __init__(
         self,
         *,
@@ -185,7 +185,7 @@ def _resolve_config_path(explicit_path: str | None) -> Path:
 
     if explicit_path is not None:
         return Path(explicit_path)
-    return Path(user_config_dir("recallium")) / "config.json"
+    return Path(user_config_dir("recollectium")) / "config.json"
 
 
 def _core_config_path(explicit_path: str | None) -> Path | None:
@@ -195,11 +195,11 @@ def _core_config_path(explicit_path: str | None) -> Path | None:
     return Path(explicit_path)
 
 
-def _load_effective_config(config_path: Path, *, explicit: bool) -> RecalliumConfig:
+def _load_effective_config(config_path: Path, *, explicit: bool) -> RecollectiumConfig:
     """Load effective config with first-run default creation semantics."""
     if explicit:
-        return RecalliumConfig(config_path)
-    return RecalliumConfig()
+        return RecollectiumConfig(config_path)
+    return RecollectiumConfig()
 
 
 def _setup_cli_logging(
@@ -207,7 +207,7 @@ def _setup_cli_logging(
     *,
     log_level: str | None,
 ) -> None:
-    """Start file logging before commands that do not build RecalliumCore."""
+    """Start file logging before commands that do not build RecollectiumCore."""
 
     def _fallback_config() -> _CliLoggingConfig:
         effective_config = deepcopy(DEFAULTS)
@@ -215,12 +215,12 @@ def _setup_cli_logging(
             effective_config["logging"]["level"] = log_level
         return _CliLoggingConfig(
             effective_config=effective_config,
-            log_dir=Path(user_state_dir("recallium")) / "logs",
+            log_dir=Path(user_state_dir("recollectium")) / "logs",
         )
 
     try:
         if config_path.exists():
-            config = RecalliumConfig(config_path, log_level=log_level)
+            config = RecollectiumConfig(config_path, log_level=log_level)
         else:
             config = _fallback_config()
         setup_logging(config)
@@ -245,7 +245,7 @@ def _handle_config_command(
     *,
     explicit: bool,
 ) -> int:
-    """Handle the `recallium config` command and its subcommands."""
+    """Handle the `recollectium config` command and its subcommands."""
     if args.config_action == "get":
         try:
             cfg = _load_effective_config(config_path, explicit=explicit)
@@ -424,13 +424,13 @@ def _handle_init_command(
     db_path: str | None,
     log_level: str | None,
 ) -> int:
-    """Initialize Recallium config, directories, database, and model cache."""
+    """Initialize Recollectium config, directories, database, and model cache."""
     if explicit and not config_path.exists():
         config_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         config_path.write_text(json.dumps(DEFAULTS, indent=2) + "\n", encoding="utf-8")
         config_path.chmod(0o600)
 
-    cfg = RecalliumConfig(config_path if explicit else None, log_level=log_level)
+    cfg = RecollectiumConfig(config_path if explicit else None, log_level=log_level)
     selected_db_path = (
         Path(db_path) if db_path is not None else cfg.resolved_database_path
     )
@@ -445,7 +445,7 @@ def _handle_init_command(
     model_name = cfg.effective_config["embedding"]["model"]
     provider = BuiltinFastEmbedProvider()
     write_model_state(
-        Path(user_state_dir("recallium")),
+        Path(user_state_dir("recollectium")),
         model=model_name,
         dimensions=provider.dimensions,
         profile=provider.profile_name,
@@ -470,10 +470,10 @@ def _handle_package_update_command() -> int:
     instructions = {
         "status": "manual_update_required",
         "commands": {
-            "bootstrap": "curl -LsSf https://raw.githubusercontent.com/AlfonsoDehesa/recallium/main/install.sh | sh",
-            "pip": "pip install --upgrade recallium",
-            "pipx": "pipx upgrade recallium",
-            "uv_tool": "uv tool upgrade recallium",
+            "bootstrap": "curl -LsSf https://raw.githubusercontent.com/AlfonsoDehesa/recollectium/main/install.sh | sh",
+            "pip": "pip install --upgrade recollectium",
+            "pipx": "pipx upgrade recollectium",
+            "uv_tool": "uv tool upgrade recollectium",
         },
     }
     print(json.dumps(instructions, sort_keys=True))
@@ -485,8 +485,8 @@ _COMPLETION_RC_FILES: dict[str, str] = {
     "zsh": ".zshrc",
     "fish": ".config/fish/config.fish",
 }
-_COMPLETION_BLOCK_START = "# >>> recallium completion >>>"
-_COMPLETION_BLOCK_END = "# <<< recallium completion <<<"
+_COMPLETION_BLOCK_START = "# >>> recollectium completion >>>"
+_COMPLETION_BLOCK_END = "# <<< recollectium completion <<<"
 _COMPLETION_BLOCK_PATTERN = re.compile(
     rf"\n?{re.escape(_COMPLETION_BLOCK_START)}\n.*?\n"
     rf"{re.escape(_COMPLETION_BLOCK_END)}\n?",
@@ -511,17 +511,17 @@ def _handle_completion_command(args: argparse.Namespace) -> int:
     if shell is None:
         _log.error(
             "Could not detect shell from $SHELL. "
-            "Pass the shell name explicitly: recallium completion bash",
+            "Pass the shell name explicitly: recollectium completion bash",
             extra={"event": "completion.unknown_shell"},
         )
         return 2
 
     if args.source:
-        output = argcomplete.shellcode(["recallium"], shell=shell)  # pyright: ignore[reportPrivateImportUsage]
+        output = argcomplete.shellcode(["recollectium"], shell=shell)  # pyright: ignore[reportPrivateImportUsage]
         sys.stdout.write(output)
         return 0
 
-    eval_line = f'eval "$(recallium completion --source {shell})"'
+    eval_line = f'eval "$(recollectium completion --source {shell})"'
 
     if args.install:
         rc_filename = _COMPLETION_RC_FILES.get(shell)
@@ -591,7 +591,7 @@ def _handle_completion_command(args: argparse.Namespace) -> int:
         "",
         "Or run this to install it automatically:",
         "",
-        f"  recallium completion --install {shell}",
+        f"  recollectium completion --install {shell}",
         "",
         "After adding the line, restart your shell or run:",
         f"  source ~/{_COMPLETION_RC_FILES[shell]}",
@@ -617,7 +617,9 @@ def _load_uninstall_plan(config_path: Path, *, explicit: bool) -> _UninstallPlan
     if not database_path.is_absolute():
         database_path = xdg_dirs["data"] / database_path
 
-    install_metadata_path = Path(user_state_dir("recallium")) / _INSTALL_METADATA_FILE
+    install_metadata_path = (
+        Path(user_state_dir("recollectium")) / _INSTALL_METADATA_FILE
+    )
     return _UninstallPlan(
         config=_UninstallConfig(
             effective_config=effective_config,
@@ -647,10 +649,10 @@ def _uninstall_package_instructions(
     metadata: dict[str, Any] | None,
 ) -> dict[str, Any]:
     commands = {
-        "bootstrap": "uv tool uninstall recallium",
-        "uv_tool": "uv tool uninstall recallium",
-        "pip": "python -m pip uninstall recallium",
-        "pipx": "pipx uninstall recallium",
+        "bootstrap": "uv tool uninstall recollectium",
+        "uv_tool": "uv tool uninstall recollectium",
+        "pip": "python -m pip uninstall recollectium",
+        "pipx": "pipx uninstall recollectium",
         "dev_source": "deactivate this checkout or remove it from your shell path manually",
     }
     install_method = None
@@ -687,7 +689,7 @@ def _completion_rc_paths(metadata: dict[str, Any] | None) -> list[Path]:
             for item in raw_path_edits:
                 if not isinstance(item, str):
                     continue
-                if "recallium completion --source" not in item:
+                if "recollectium completion --source" not in item:
                     continue
                 raw_paths.append(Path(item.split(": ", 1)[0]))
 
@@ -762,13 +764,13 @@ def _is_suspicious_purge_path(path: Path) -> bool:
     return resolved in {Path(resolved.anchor), home, cwd}
 
 
-def _is_recallium_owned_path(path: Path) -> bool:
+def _is_recollectium_owned_path(path: Path) -> bool:
     resolved = path.expanduser().resolve(strict=False)
     parts = {part.lower() for part in resolved.parts}
-    if "recallium" in parts:
+    if "recollectium" in parts:
         return True
     if resolved.name in {"config.json", _INSTALL_METADATA_FILE}:
-        return "recallium" in {part.lower() for part in resolved.parent.parts}
+        return "recollectium" in {part.lower() for part in resolved.parent.parts}
     return False
 
 
@@ -784,8 +786,8 @@ def _path_payload(
 def _delete_purge_target(path: Path, *, dry_run: bool) -> dict[str, Any]:
     if _is_suspicious_purge_path(path):
         return _path_payload(path, deleted=False, reason="suspicious_path")
-    if not _is_recallium_owned_path(path):
-        return _path_payload(path, deleted=False, reason="not_recallium_owned")
+    if not _is_recollectium_owned_path(path):
+        return _path_payload(path, deleted=False, reason="not_recollectium_owned")
     if not path.exists():
         return _path_payload(path, deleted=False, reason="missing")
     if dry_run:
@@ -831,10 +833,10 @@ def _handle_uninstall_command(
     *,
     explicit: bool,
 ) -> int:
-    """Print uninstall instructions and optionally purge Recallium-owned data."""
-    if args.yes_delete_all_recallium_data and not args.purge:
+    """Print uninstall instructions and optionally purge Recollectium-owned data."""
+    if args.yes_delete_all_recollectium_data and not args.purge:
         _log.error(
-            "--yes-delete-all-recallium-data requires --purge",
+            "--yes-delete-all-recollectium-data requires --purge",
             extra={"event": "uninstall.invalid_flags"},
         )
         return 2
@@ -870,7 +872,7 @@ def _handle_uninstall_command(
         else:
             preview = _purge_targets(plan, dry_run=True)
             sys.stderr.write(
-                "The following Recallium-owned paths will be permanently deleted:\n"
+                "The following Recollectium-owned paths will be permanently deleted:\n"
             )
             for target in preview["targets"]:
                 if target.get("reason") == "missing":
@@ -878,9 +880,9 @@ def _handle_uninstall_command(
                 sys.stderr.write(f"  {target['path']}\n")
             sys.stderr.write("\n")
 
-            if not args.yes_delete_all_recallium_data:
+            if not args.yes_delete_all_recollectium_data:
                 sys.stderr.write(
-                    "Type 'delete all recallium data' to permanently delete Recallium data: "
+                    "Type 'delete all recollectium data' to permanently delete Recollectium data: "
                 )
                 sys.stderr.flush()
                 response = sys.stdin.readline().rstrip("\n")
@@ -911,9 +913,9 @@ def _handle_uninstall_command(
 def _handle_workspace_command(
     args: argparse.Namespace,
     *,
-    core: RecalliumCore,
+    core: RecollectiumCore,
 ) -> int:
-    """Handle the `recallium workspace` subcommands."""
+    """Handle the `recollectium workspace` subcommands."""
     if args.workspace_action == "list":
         uids = core.list_workspaces(
             include_archived=getattr(args, "include_archived", False),
@@ -946,9 +948,9 @@ def _handle_workspace_command(
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="recallium",
+        prog="recollectium",
         description=(
-            "Recallium Core local memory CLI. Commands print JSON on success and "
+            "Recollectium Core local memory CLI. Commands print JSON on success and "
             "write validation or not-found errors to stderr."
         ),
     )
@@ -956,7 +958,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--config",
         dest="config_path",
         help=(
-            "Path to Recallium JSON config file. Defaults to the XDG config "
+            "Path to Recollectium JSON config file. Defaults to the XDG config "
             "location and auto-creates there on first use. Explicit missing "
             "paths fail except config creation commands."
         ),
@@ -966,7 +968,7 @@ def _build_parser() -> argparse.ArgumentParser:
         dest="db_path",
         help=(
             "SQLite database path. Overrides the database.path config value. "
-            "Defaults to ~/.local/share/recallium/recallium.db."
+            "Defaults to ~/.local/share/recollectium/recollectium.db."
         ),
     )
     parser.add_argument(
@@ -981,7 +983,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--version",
         action="store_true",
-        help="Print installed Recallium version and exit.",
+        help="Print installed Recollectium version and exit.",
     )
 
     subparsers = parser.add_subparsers(
@@ -992,10 +994,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     subparsers.add_parser(
         "init",
-        help="initialize Recallium config, database, and model cache",
+        help="initialize Recollectium config, database, and model cache",
         description=(
             "Create the config file and XDG directories, run database migrations, "
-            "and download the built-in FastEmbed model so Recallium is ready to use. "
+            "and download the built-in FastEmbed model so Recollectium is ready to use. "
             "The first run downloads ~100 MB and may take 30-120 seconds."
         ),
     )
@@ -1012,9 +1014,9 @@ def _build_parser() -> argparse.ArgumentParser:
     # -- config ----------------------------------------------------------
     config_parser = subparsers.add_parser(
         "config",
-        help="inspect, validate, and edit Recallium configuration",
+        help="inspect, validate, and edit Recollectium configuration",
         description=(
-            "Inspect, validate, and edit the Recallium JSON config file. "
+            "Inspect, validate, and edit the Recollectium JSON config file. "
             "Without arguments, prints the effective configuration (defaults "
             "merged with explicit overrides) as formatted JSON."
         ),
@@ -1118,7 +1120,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "add",
         help="add a user or workspace memory",
         description=(
-            "Add a memory to the local Recallium database. User memories must not "
+            "Add a memory to the local Recollectium database. User memories must not "
             "include --workspace-uid. Workspace memories require --workspace-uid."
         ),
     )
@@ -1264,9 +1266,9 @@ def _build_parser() -> argparse.ArgumentParser:
     # -- update ------------------------------------------------------------
     update_parser = subparsers.add_parser(
         "update",
-        help="update Recallium itself or editable memory fields",
+        help="update Recollectium itself or editable memory fields",
         description=(
-            "Without a memory ID, print Recallium package upgrade instructions. "
+            "Without a memory ID, print Recollectium package upgrade instructions. "
             "With a memory ID, update one or more editable fields on that memory. "
             "Updating --content also regenerates that memory's embedding."
         ),
@@ -1303,10 +1305,10 @@ def _build_parser() -> argparse.ArgumentParser:
     # -- uninstall ---------------------------------------------------------
     uninstall_parser = subparsers.add_parser(
         "uninstall",
-        help="print safe uninstall instructions or purge Recallium data",
+        help="print safe uninstall instructions or purge Recollectium data",
         description=(
             "Print package manager uninstall instructions while preserving memories by "
-            "default. Use --purge to delete Recallium-owned config, data, cache, logs, "
+            "default. Use --purge to delete Recollectium-owned config, data, cache, logs, "
             "and runtime paths after explicit confirmation."
         ),
     )
@@ -1314,12 +1316,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "--purge",
         action="store_true",
         help=(
-            "Permanently delete your memories and all Recallium-owned config, data, "
+            "Permanently delete your memories and all Recollectium-owned config, data, "
             "cache, logs, and runtime paths. Without this flag, local data is preserved."
         ),
     )
     uninstall_parser.add_argument(
-        "--yes-delete-all-recallium-data",
+        "--yes-delete-all-recollectium-data",
         action="store_true",
         help=(
             "Confirm destructive data deletion for non-interactive purge. Requires --purge."
@@ -1348,9 +1350,9 @@ def _build_parser() -> argparse.ArgumentParser:
     # -- serve -------------------------------------------------------------
     serve_parser = subparsers.add_parser(
         "serve",
-        help="run the local Recallium HTTP service",
+        help="run the local Recollectium HTTP service",
         description=(
-            "Start a blocking local-only HTTP JSON service for Recallium Core. "
+            "Start a blocking local-only HTTP JSON service for Recollectium Core. "
             "By default it binds to localhost (127.0.0.1), exposes the /v1 "
             "service API, and keeps running until interrupted. Host and port "
             "can be set via config file or CLI flags. CLI flags override config."
@@ -1377,8 +1379,8 @@ def _build_parser() -> argparse.ArgumentParser:
     # -- service ------------------------------------------------------------
     service_parser = subparsers.add_parser(
         "service",
-        help="manage Recallium service lifecycle",
-        description="Start, stop, check status, and restart Recallium services.",
+        help="manage Recollectium service lifecycle",
+        description="Start, stop, check status, and restart Recollectium services.",
     )
     service_sub = service_parser.add_subparsers(
         dest="service_action",
@@ -1388,7 +1390,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     # service start
-    start_parser = service_sub.add_parser("start", help="start a Recallium service")
+    start_parser = service_sub.add_parser("start", help="start a Recollectium service")
     start_parser.add_argument(
         "type",
         choices=["api", "mcp"],
@@ -1396,7 +1398,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     # service stop
-    service_sub.add_parser("stop", help="stop the running Recallium service")
+    service_sub.add_parser("stop", help="stop the running Recollectium service")
 
     # service status
     service_sub.add_parser("status", help="show running service details")
@@ -1484,7 +1486,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="show active local FastEmbed profile and startup job",
         description=(
             "Show the active built-in local FastEmbed embedding profile plus startup "
-            "re-embedding job metadata. Recallium uses the local model cache for "
+            "re-embedding job metadata. Recollectium uses the local model cache for "
             "jinaai/jina-embeddings-v2-small-en."
         ),
     )
@@ -1572,7 +1574,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run the Recallium CLI."""
+    """Run the Recollectium CLI."""
     parser = _build_parser()
     argcomplete.autocomplete(parser)
     if argv == [] or (argv is None and len(sys.argv) == 1):
@@ -1582,10 +1584,10 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if getattr(args, "version", False):
         try:
-            installed_version = package_version("recallium")
+            installed_version = package_version("recollectium")
         except PackageNotFoundError:
             installed_version = __version__
-        print(f"recallium {installed_version}")
+        print(f"recollectium {installed_version}")
         return 0
 
     if args.command is None:
@@ -1630,7 +1632,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             _log.error(
                 f"EmbeddingReadinessTimeoutError: {exc}\n"
                 "Model preparation timed out. Check your internet connection "
-                "and try 'recallium init' again.",
+                "and try 'recollectium init' again.",
                 extra={"event": "embedding.readiness_timeout"},
             )
             return 1
@@ -1638,7 +1640,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             _log.error(
                 f"EmbeddingModelUnavailableError: {exc}\n"
                 "The embedding model could not be downloaded. "
-                "Check your internet connection and try 'recallium init' again.",
+                "Check your internet connection and try 'recollectium init' again.",
                 extra={"event": "embedding.model_unavailable"},
             )
             return 1
@@ -1646,11 +1648,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             _log.error(
                 f"EmbeddingProviderUnavailableError: {exc}\n"
                 "The embedding provider is unavailable. "
-                "Check your internet connection and try 'recallium init' again.",
+                "Check your internet connection and try 'recollectium init' again.",
                 extra={"event": "embedding.provider_unavailable"},
             )
             return 1
-        except RecalliumError as exc:
+        except RecollectiumError as exc:
             _log.error(f"{exc.__class__.__name__}: {exc}")
             return 1
 
@@ -1661,7 +1663,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         port = args.port
         if host is None or port is None:
             try:
-                cfg = RecalliumConfig(core_config_path, log_level=args.log_level)
+                cfg = RecollectiumConfig(core_config_path, log_level=args.log_level)
             except FileNotFoundError as exc:
                 _log.error(str(exc), extra={"event": "config.missing"})
                 return 1
@@ -1702,7 +1704,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             db_path = Path(args.db_path)
         else:
             try:
-                cfg = RecalliumConfig(core_config_path, log_level=args.log_level)
+                cfg = RecollectiumConfig(core_config_path, log_level=args.log_level)
                 db_path = cfg.resolved_database_path
             except FileNotFoundError as exc:
                 _log.error(str(exc), extra={"event": "config.missing"})
@@ -1717,7 +1719,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     # -- mcp-stdio command ------------------------------------------------
     if args.command == "mcp-stdio":
         try:
-            core = RecalliumCore(
+            core = RecollectiumCore(
                 db_path=args.db_path,
                 config_path=core_config_path,
                 log_level=args.log_level,
@@ -1733,7 +1735,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             _log.error(
                 f"EmbeddingReadinessTimeoutError: {exc}\n"
                 "Model preparation timed out. Check your internet connection "
-                "and try 'recallium init' again.",
+                "and try 'recollectium init' again.",
                 extra={"event": "embedding.readiness_timeout"},
             )
             return 1
@@ -1741,7 +1743,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             _log.error(
                 f"EmbeddingModelUnavailableError: {exc}\n"
                 "The embedding model could not be downloaded. "
-                "Check your internet connection and try 'recallium init' again.",
+                "Check your internet connection and try 'recollectium init' again.",
                 extra={"event": "embedding.model_unavailable"},
             )
             return 1
@@ -1749,7 +1751,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             _log.error(
                 f"EmbeddingProviderUnavailableError: {exc}\n"
                 "The embedding provider is unavailable. "
-                "Check your internet connection and try 'recallium init' again.",
+                "Check your internet connection and try 'recollectium init' again.",
                 extra={"event": "embedding.provider_unavailable"},
             )
             return 1
@@ -1788,7 +1790,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         if args.service_action == "start":
             try:
-                cfg = RecalliumConfig(core_config_path, log_level=args.log_level)
+                cfg = RecollectiumConfig(core_config_path, log_level=args.log_level)
             except FileNotFoundError as exc:
                 _log.error(str(exc), extra={"event": "config.missing"})
                 return 1
@@ -1826,7 +1828,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         if args.service_action == "stop":
             try:
-                cfg = RecalliumConfig(core_config_path, log_level=args.log_level)
+                cfg = RecollectiumConfig(core_config_path, log_level=args.log_level)
             except FileNotFoundError as exc:
                 _log.error(str(exc), extra={"event": "config.missing"})
                 return 1
@@ -1842,7 +1844,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         if args.service_action == "status":
             try:
-                cfg = RecalliumConfig(core_config_path, log_level=args.log_level)
+                cfg = RecollectiumConfig(core_config_path, log_level=args.log_level)
             except FileNotFoundError as exc:
                 _log.error(str(exc), extra={"event": "config.missing"})
                 return 1
@@ -1882,7 +1884,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         if args.service_action == "restart":
             try:
-                cfg = RecalliumConfig(core_config_path, log_level=args.log_level)
+                cfg = RecollectiumConfig(core_config_path, log_level=args.log_level)
             except FileNotFoundError as exc:
                 _log.error(str(exc), extra={"event": "config.missing"})
                 return 1
@@ -1972,9 +1974,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             _log.error(str(exc), extra={"event": "uninstall.purge_failed"})
             return 1
 
-    # -- all other commands use RecalliumCore ------------------------------
+    # -- all other commands use RecollectiumCore ------------------------------
     try:
-        core = RecalliumCore(
+        core = RecollectiumCore(
             db_path=args.db_path, config_path=core_config_path, log_level=args.log_level
         )
 
@@ -2062,7 +2064,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         _log.error(
             f"EmbeddingReadinessTimeoutError: {exc}\n"
             "Model preparation timed out. The model may be downloading slowly. "
-            "Check your internet connection and try 'recallium init' again.",
+            "Check your internet connection and try 'recollectium init' again.",
             extra={"event": "embedding.readiness_timeout"},
         )
         return 1
@@ -2070,7 +2072,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         _log.error(
             f"EmbeddingModelUnavailableError: {exc}\n"
             "The embedding model could not be downloaded. "
-            "Check your internet connection and try 'recallium init' again.",
+            "Check your internet connection and try 'recollectium init' again.",
             extra={"event": "embedding.model_unavailable"},
         )
         return 1
@@ -2078,11 +2080,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         _log.error(
             f"EmbeddingProviderUnavailableError: {exc}\n"
             "The embedding provider is unavailable. "
-            "Check your internet connection and try 'recallium init' again.",
+            "Check your internet connection and try 'recollectium init' again.",
             extra={"event": "embedding.provider_unavailable"},
         )
         return 1
-    except RecalliumError as exc:
+    except RecollectiumError as exc:
         _log.error(f"{exc.__class__.__name__}: {exc}")
         return 1
 

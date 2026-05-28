@@ -1,4 +1,4 @@
-"""Tests for Recallium config system."""
+"""Tests for Recollectium config system."""
 
 from __future__ import annotations
 
@@ -9,10 +9,10 @@ from typing import Any
 
 import pytest
 
-from recallium.config import (
+from recollectium.config import (
     CONFIG_VERSION,
     DEFAULTS,
-    RecalliumConfig,
+    RecollectiumConfig,
     _check_type,
     _deep_merge,
     _ensure_config_directories,
@@ -25,7 +25,7 @@ from recallium.config import (
     unset_config_value,
     validate_config_file,
 )
-from recallium.errors import ValidationError
+from recollectium.errors import ValidationError
 
 
 # ---------------------------------------------------------------------------
@@ -260,11 +260,11 @@ class TestWriteAndLoadConfigFile:
         self, tmp_path: Path
     ) -> None:
         paths = {
-            "config": tmp_path / "config" / "recallium",
-            "data": tmp_path / "data" / "recallium",
-            "cache": tmp_path / "cache" / "recallium",
-            "logs": tmp_path / "state" / "recallium" / "logs",
-            "runtime": tmp_path / "runtime" / "recallium",
+            "config": tmp_path / "config" / "recollectium",
+            "data": tmp_path / "data" / "recollectium",
+            "cache": tmp_path / "cache" / "recollectium",
+            "logs": tmp_path / "state" / "recollectium" / "logs",
+            "runtime": tmp_path / "runtime" / "recollectium",
         }
 
         _ensure_config_directories(paths)
@@ -385,28 +385,28 @@ class TestConfigValueAccessors:
 
 
 # ---------------------------------------------------------------------------
-# RecalliumConfig
+# RecollectiumConfig
 # ---------------------------------------------------------------------------
 
 
-class TestRecalliumConfig:
+class TestRecollectiumConfig:
     def test_default_constructor_with_existing_config(self, tmp_path: Path) -> None:
         config_path = tmp_path / "config.json"
         _write_starter_config(config_path)
-        cfg = RecalliumConfig(config_path)
+        cfg = RecollectiumConfig(config_path)
         assert cfg.config_file_path == config_path
         assert cfg.effective_config == DEFAULTS
 
     def test_explicit_path_missing_raises(self, tmp_path: Path) -> None:
         config_path = tmp_path / "nonexistent" / "config.json"
         with pytest.raises(FileNotFoundError, match="config file not found"):
-            RecalliumConfig(config_path)
+            RecollectiumConfig(config_path)
 
     def test_malformed_config_raises(self, tmp_path: Path) -> None:
         config_path = tmp_path / "bad.json"
         config_path.write_text("{bad", encoding="utf-8")
         with pytest.raises(ValidationError, match="invalid JSON"):
-            RecalliumConfig(config_path)
+            RecollectiumConfig(config_path)
 
     def test_effective_config_merges_overrides(self, tmp_path: Path) -> None:
         config_path = tmp_path / "config.json"
@@ -415,7 +415,7 @@ class TestRecalliumConfig:
             json.dumps({"service": {"port": 9999}}),
             encoding="utf-8",
         )
-        cfg = RecalliumConfig(config_path)
+        cfg = RecollectiumConfig(config_path)
         assert cfg.effective_config["service"]["port"] == 9999
         assert cfg.effective_config["service"]["host"] == "127.0.0.1"
 
@@ -426,7 +426,7 @@ class TestRecalliumConfig:
             json.dumps({"version": 1, "database": {"path": "mydb.db"}}),
             encoding="utf-8",
         )
-        cfg = RecalliumConfig(config_path)
+        cfg = RecollectiumConfig(config_path)
         # Relative path resolved against data dir
         assert cfg.resolved_database_path.name == "mydb.db"
         assert cfg.resolved_database_path.is_absolute()
@@ -439,13 +439,13 @@ class TestRecalliumConfig:
             json.dumps({"version": 1, "database": {"path": str(abs_db)}}),
             encoding="utf-8",
         )
-        cfg = RecalliumConfig(config_path)
+        cfg = RecollectiumConfig(config_path)
         assert cfg.resolved_database_path == abs_db
 
     def test_config_file_path_property(self, tmp_path: Path) -> None:
         config_path = tmp_path / "config.json"
         _write_starter_config(config_path)
-        cfg = RecalliumConfig(config_path)
+        cfg = RecollectiumConfig(config_path)
         assert cfg.config_file_path == config_path
 
     def test_xdg_dirs_respects_overrides(self, tmp_path: Path) -> None:
@@ -461,7 +461,7 @@ class TestRecalliumConfig:
             ),
             encoding="utf-8",
         )
-        cfg = RecalliumConfig(config_path)
+        cfg = RecollectiumConfig(config_path)
         assert cfg.xdg_dirs["data"] == custom_data
 
     def test_invalid_values_in_config_raise(self, tmp_path: Path) -> None:
@@ -472,18 +472,18 @@ class TestRecalliumConfig:
             encoding="utf-8",
         )
         with pytest.raises(ValidationError, match="service.port must be int"):
-            RecalliumConfig(config_path)
+            RecollectiumConfig(config_path)
 
     def test_no_config_flag_auto_creates(self, monkeypatch, tmp_path: Path) -> None:
         # Simulate the no-explicit-path case by monkeypatching user_config_dir
-        import recallium.config as config_mod
+        import recollectium.config as config_mod
 
         fake_config_dir = tmp_path / "xdg-config"
         monkeypatch.setattr(
             config_mod, "user_config_dir", lambda appname: str(fake_config_dir)
         )
 
-        cfg = RecalliumConfig()
+        cfg = RecollectiumConfig()
         assert cfg.config_file_path == fake_config_dir / "config.json"
         assert cfg.config_file_path.exists()
         assert cfg.effective_config == DEFAULTS
@@ -491,13 +491,13 @@ class TestRecalliumConfig:
     def test_default_config_load_creates_all_xdg_directories(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        import recallium.config as config_mod
+        import recollectium.config as config_mod
 
-        xdg_config = tmp_path / "config" / "recallium"
-        xdg_data = tmp_path / "data" / "recallium"
-        xdg_cache = tmp_path / "cache" / "recallium"
-        xdg_state = tmp_path / "state" / "recallium"
-        xdg_runtime = tmp_path / "runtime" / "recallium"
+        xdg_config = tmp_path / "config" / "recollectium"
+        xdg_data = tmp_path / "data" / "recollectium"
+        xdg_cache = tmp_path / "cache" / "recollectium"
+        xdg_state = tmp_path / "state" / "recollectium"
+        xdg_runtime = tmp_path / "runtime" / "recollectium"
 
         monkeypatch.setattr(
             config_mod, "user_config_dir", lambda appname: str(xdg_config)
@@ -513,7 +513,7 @@ class TestRecalliumConfig:
             config_mod, "user_runtime_dir", lambda appname: str(xdg_runtime)
         )
 
-        cfg = RecalliumConfig()
+        cfg = RecollectiumConfig()
 
         expected_dirs = {
             "config": xdg_config,
@@ -530,7 +530,7 @@ class TestRecalliumConfig:
     def test_runtime_dir_fallback_when_user_runtime_none(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ) -> None:
-        import recallium.config as config_mod
+        import recollectium.config as config_mod
 
         config_path = tmp_path / "config.json"
         _write_starter_config(config_path)
@@ -541,11 +541,11 @@ class TestRecalliumConfig:
             lambda appname: None,
         )
 
-        cfg = RecalliumConfig(config_path)
+        cfg = RecollectiumConfig(config_path)
         assert cfg.xdg_dirs["runtime"] is not None
 
     def test_unset_intermediate_key_missing(self) -> None:
-        from recallium.config import unset_config_value
+        from recollectium.config import unset_config_value
 
         config = {"a": {}}
         with pytest.raises(KeyError, match="not found"):
@@ -556,13 +556,13 @@ class TestRecalliumConfig:
 
 
 def test_workspace_uid_normalization_default_in_defaults() -> None:
-    from recallium.config import DEFAULTS
+    from recollectium.config import DEFAULTS
 
     assert DEFAULTS["workspace"]["uid_normalization"] == "normalize"
 
 
 def test_workspace_uid_normalization_rejects_invalid_value() -> None:
-    from recallium.config import _validate_config_value, _deep_merge, DEFAULTS
+    from recollectium.config import _validate_config_value, _deep_merge, DEFAULTS
     from copy import deepcopy
 
     merged = _deep_merge(
@@ -573,7 +573,7 @@ def test_workspace_uid_normalization_rejects_invalid_value() -> None:
 
 
 def test_workspace_uid_normalization_accepts_exact() -> None:
-    from recallium.config import _validate_config_value, _deep_merge, DEFAULTS
+    from recollectium.config import _validate_config_value, _deep_merge, DEFAULTS
     from copy import deepcopy
 
     merged = _deep_merge(
@@ -583,7 +583,7 @@ def test_workspace_uid_normalization_accepts_exact() -> None:
 
 
 def test_workspace_uid_normalization_accepts_normalize() -> None:
-    from recallium.config import _validate_config_value, _deep_merge, DEFAULTS
+    from recollectium.config import _validate_config_value, _deep_merge, DEFAULTS
     from copy import deepcopy
 
     merged = _deep_merge(
@@ -593,6 +593,6 @@ def test_workspace_uid_normalization_accepts_normalize() -> None:
 
 
 def test_completable_config_keys_includes_workspace_uid_normalization() -> None:
-    from recallium.cli import _COMPLETABLE_CONFIG_KEYS
+    from recollectium.cli import _COMPLETABLE_CONFIG_KEYS
 
     assert "workspace.uid_normalization" in _COMPLETABLE_CONFIG_KEYS

@@ -1,1 +1,1 @@
-"""Tests for Recallium Core."""
+"""Tests for Recollectium Core."""

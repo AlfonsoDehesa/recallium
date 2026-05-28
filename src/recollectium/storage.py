@@ -1,4 +1,4 @@
-"""SQLite persistence layer for Recallium memories."""
+"""SQLite persistence layer for Recollectium memories."""
 
 from __future__ import annotations
 
@@ -9,11 +9,11 @@ from pathlib import Path
 import sqlite3
 from typing import Any, Iterator
 
-from recallium.embeddings import ContentChunk
-from recallium.errors import NotFoundError
-from recallium.migrations import MigrationRunner
-from recallium.models import Memory, STATUS_ARCHIVED
-from recallium.search import ChunkCandidate
+from recollectium.embeddings import ContentChunk
+from recollectium.errors import NotFoundError
+from recollectium.migrations import MigrationRunner
+from recollectium.models import Memory, STATUS_ARCHIVED
+from recollectium.search import ChunkCandidate
 
 
 def utc_now_iso() -> str:

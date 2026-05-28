@@ -306,8 +306,8 @@
     }
   },
   "info": {
-    "description": "Local-only HTTP JSON service contract for Recallium Core. This slice is localhost-first and intentionally has no authentication. Do not expose this service publicly.",
-    "title": "Recallium Core Local Service API",
+    "description": "Local-only HTTP JSON service contract for Recollectium Core. This slice is localhost-first and intentionally has no authentication. Do not expose this service publicly.",
+    "title": "Recollectium Core Local Service API",
     "version": "1"
   },
   "openapi": "3.1.0",

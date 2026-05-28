@@ -3,14 +3,14 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "recallium"
+name = "recollectium"
 version = "0.1.0"
-description = "Recallium Core local memory engine"
+description = "Recollectium Core local memory engine"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "AGPL-3.0-only"
 authors = [
-    { name = "Recallium contributors" },
+    { name = "Recollectium contributors" },
 ]
 keywords = ["ai", "agents", "embeddings", "local-first", "memory", "sqlite"]
 classifiers = [
@@ -36,9 +36,9 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/AlfonsoDehesa/recallium"
-Repository = "https://github.com/AlfonsoDehesa/recallium"
-Issues = "https://github.com/AlfonsoDehesa/recallium/issues"
+Homepage = "https://github.com/AlfonsoDehesa/recollectium"
+Repository = "https://github.com/AlfonsoDehesa/recollectium"
+Issues = "https://github.com/AlfonsoDehesa/recollectium/issues"
 
 [dependency-groups]
 dev = [
@@ -51,7 +51,7 @@ dev = [
 ]
 
 [project.scripts]
-recallium = "recallium.cli:main"
+recollectium = "recollectium.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

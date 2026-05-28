@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from recallium.core import RecalliumCore
-from recallium.mcp_server import create_mcp_server
+from recollectium.core import RecollectiumCore
+from recollectium.mcp_server import create_mcp_server
 
 
 def test_create_mcp_server_registers_tools(tmp_path: Path) -> None:
     db_path = str(tmp_path / "test.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     mcp = create_mcp_server(core)
 
     tools = mcp._tool_manager._tools
@@ -31,7 +31,7 @@ def test_create_mcp_server_registers_tools(tmp_path: Path) -> None:
 
 def test_mcp_tool_add_memory_round_trip(tmp_path: Path) -> None:
     db_path = str(tmp_path / "test.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     mcp = create_mcp_server(core)
 
     add_fn = mcp._tool_manager._tools["add_memory"].fn
@@ -51,9 +51,9 @@ def test_mcp_tool_add_memory_round_trip(tmp_path: Path) -> None:
 
 def test_mcp_tool_search_user_memory(tmp_path: Path) -> None:
     db_path = str(tmp_path / "test.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     added = core.add_memory(
-        space="user", type="fact", content="Recallium stores memories locally"
+        space="user", type="fact", content="Recollectium stores memories locally"
     )
     mcp = create_mcp_server(core)
 
@@ -62,12 +62,12 @@ def test_mcp_tool_search_user_memory(tmp_path: Path) -> None:
     results = json.loads(result_json)
     assert len(results) >= 1
     assert results[0]["memory"]["id"] == added.id
-    assert results[0]["memory"]["content"] == "Recallium stores memories locally"
+    assert results[0]["memory"]["content"] == "Recollectium stores memories locally"
 
 
 def test_mcp_tool_get_memory(tmp_path: Path) -> None:
     db_path = str(tmp_path / "test.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     added = core.add_memory(space="user", type="fact", content="Get this memory")
     mcp = create_mcp_server(core)
 
@@ -81,7 +81,7 @@ def test_mcp_tool_get_memory(tmp_path: Path) -> None:
 
 def test_mcp_tool_archive_memory(tmp_path: Path) -> None:
     db_path = str(tmp_path / "test.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     added = core.add_memory(space="user", type="note", content="Old idea to archive")
     mcp = create_mcp_server(core)
 
@@ -99,7 +99,7 @@ def test_mcp_tool_archive_memory(tmp_path: Path) -> None:
 
 def test_mcp_tool_update_memory(tmp_path: Path) -> None:
     db_path = str(tmp_path / "test.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     added = core.add_memory(space="user", type="fact", content="Original content")
     mcp = create_mcp_server(core)
 
@@ -113,7 +113,7 @@ def test_mcp_tool_update_memory(tmp_path: Path) -> None:
 
 def test_mcp_tool_errors(tmp_path: Path) -> None:
     db_path = str(tmp_path / "test.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     mcp = create_mcp_server(core)
 
     add_fn = mcp._tool_manager._tools["add_memory"].fn
@@ -126,7 +126,7 @@ def test_mcp_tool_errors(tmp_path: Path) -> None:
 def test_search_user_memory_validation_error(tmp_path: Path) -> None:
     """search_user_memory with an empty query returns an error JSON."""
     db_path = str(tmp_path / "test.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     mcp = create_mcp_server(core)
 
     search_fn = mcp._tool_manager._tools["search_user_memory"].fn
@@ -138,7 +138,7 @@ def test_search_user_memory_validation_error(tmp_path: Path) -> None:
 def test_search_workspace_memory_missing_workspace_uid(tmp_path: Path) -> None:
     """search_workspace_memory with an empty workspace UID returns an error JSON."""
     db_path = str(tmp_path / "test.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     mcp = create_mcp_server(core)
 
     search_fn = mcp._tool_manager._tools["search_workspace_memory"].fn
@@ -150,7 +150,7 @@ def test_search_workspace_memory_missing_workspace_uid(tmp_path: Path) -> None:
 def test_update_memory_not_found_error(tmp_path: Path) -> None:
     """update_memory with a non-existent ID returns an error JSON."""
     db_path = str(tmp_path / "test.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     mcp = create_mcp_server(core)
 
     update_fn = mcp._tool_manager._tools["update_memory"].fn
@@ -162,7 +162,7 @@ def test_update_memory_not_found_error(tmp_path: Path) -> None:
 def test_archive_memory_not_found_error(tmp_path: Path) -> None:
     """archive_memory with a non-existent ID returns an error JSON."""
     db_path = str(tmp_path / "test.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     mcp = create_mcp_server(core)
 
     archive_fn = mcp._tool_manager._tools["archive_memory"].fn
@@ -174,7 +174,7 @@ def test_archive_memory_not_found_error(tmp_path: Path) -> None:
 def test_get_memory_not_found_error(tmp_path: Path) -> None:
     """get_memory with a non-existent ID returns an error JSON."""
     db_path = str(tmp_path / "test.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     mcp = create_mcp_server(core)
 
     get_fn = mcp._tool_manager._tools["get_memory"].fn
@@ -186,7 +186,7 @@ def test_get_memory_not_found_error(tmp_path: Path) -> None:
 def test_add_memory_workspace_space_mismatch(tmp_path: Path) -> None:
     """add_memory with workspace space but no workspace_uid returns an error JSON."""
     db_path = str(tmp_path / "test.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     mcp = create_mcp_server(core)
 
     add_fn = mcp._tool_manager._tools["add_memory"].fn
@@ -199,7 +199,7 @@ def test_add_memory_workspace_space_mismatch(tmp_path: Path) -> None:
 def test_list_memories_invalid_limit(tmp_path: Path) -> None:
     """list_memories with an invalid limit returns an error JSON."""
     db_path = str(tmp_path / "test.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     mcp = create_mcp_server(core)
 
     list_fn = mcp._tool_manager._tools["list_memories"].fn
@@ -212,7 +212,7 @@ def test_list_memories_invalid_limit(tmp_path: Path) -> None:
 def test_search_workspace_memory_round_trip(tmp_path: Path) -> None:
     """search_workspace_memory returns an added workspace memory."""
     db_path = str(tmp_path / "test.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     added = core.add_memory(
         space="workspace",
         type="fact",
@@ -230,7 +230,7 @@ def test_search_workspace_memory_round_trip(tmp_path: Path) -> None:
 
 def test_mcp_list_workspaces_returns_array(tmp_path: Path) -> None:
     db_path = str(tmp_path / "test.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     core.add_memory(space="workspace", type="fact", content="a", workspace_uid="ws-a")
     core.add_memory(space="workspace", type="fact", content="b", workspace_uid="ws-b")
 
@@ -242,7 +242,7 @@ def test_mcp_list_workspaces_returns_array(tmp_path: Path) -> None:
 
 def test_mcp_rename_workspace_returns_result(tmp_path: Path) -> None:
     db_path = str(tmp_path / "test.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     core.add_memory(space="workspace", type="fact", content="a", workspace_uid="old")
 
     mcp = create_mcp_server(core)
@@ -256,7 +256,7 @@ def test_mcp_rename_workspace_returns_result(tmp_path: Path) -> None:
 
 def test_mcp_rename_workspace_error_returns_json(tmp_path: Path) -> None:
     db_path = str(tmp_path / "test.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
 
     mcp = create_mcp_server(core)
     fn = mcp._tool_manager._tools["rename_workspace"].fn
@@ -266,9 +266,9 @@ def test_mcp_rename_workspace_error_returns_json(tmp_path: Path) -> None:
 
 
 def test_mcp_list_workspaces_error_returns_json(tmp_path: Path) -> None:
-    """list_workspaces returns error JSON on RecalliumError."""
+    """list_workspaces returns error JSON on RecollectiumError."""
     db_path = str(tmp_path / "test.db")
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
 
     # Force list_workspaces to raise by corrupting the db
     mcp = create_mcp_server(core)
@@ -278,9 +278,9 @@ def test_mcp_list_workspaces_error_returns_json(tmp_path: Path) -> None:
     original = core.list_workspaces
 
     def raise_error(*args, **kwargs):
-        from recallium.errors import RecalliumError
+        from recollectium.errors import RecollectiumError
 
-        raise RecalliumError("forced error for test")
+        raise RecollectiumError("forced error for test")
 
     core.list_workspaces = raise_error
 

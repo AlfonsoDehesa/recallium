@@ -1,4 +1,4 @@
-"""Recallium configuration system.
+"""Recollectium configuration system.
 
 Reads a JSON config file from an XDG-compliant path, merges user overrides
 onto sensible defaults, validates the result, and resolves platform-appropriate
@@ -20,7 +20,7 @@ from platformdirs import (
     user_state_dir,
 )
 
-from recallium.errors import ValidationError
+from recollectium.errors import ValidationError
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -38,7 +38,7 @@ SUPPORTED_LOGGING_FORMATS = {"json"}
 
 DEFAULTS: dict[str, Any] = {
     "version": CONFIG_VERSION,
-    "database": {"path": "recallium.db"},
+    "database": {"path": "recollectium.db"},
     "embedding": {
         "provider": SUPPORTED_EMBEDDING_PROVIDER,
         "model": SUPPORTED_EMBEDDING_MODEL,
@@ -89,17 +89,19 @@ def _resolve_xdg_dirs(
     """
     runtime_dir = directories_override.get("runtime")
     if runtime_dir is None:
-        runtime_dir = user_runtime_dir("recallium")
+        runtime_dir = user_runtime_dir("recollectium")
     if runtime_dir is None:
-        runtime_dir = str(Path(user_data_dir("recallium")) / "run")
+        runtime_dir = str(Path(user_data_dir("recollectium")) / "run")
 
     return {
-        "config": Path(user_config_dir("recallium")),
-        "data": Path(directories_override.get("data") or user_data_dir("recallium")),
-        "cache": Path(directories_override.get("cache") or user_cache_dir("recallium")),
+        "config": Path(user_config_dir("recollectium")),
+        "data": Path(directories_override.get("data") or user_data_dir("recollectium")),
+        "cache": Path(
+            directories_override.get("cache") or user_cache_dir("recollectium")
+        ),
         "logs": Path(
             directories_override.get("logs")
-            or str(Path(user_state_dir("recallium")) / "logs")
+            or str(Path(user_state_dir("recollectium")) / "logs")
         ),
         "runtime": Path(runtime_dir),
     }
@@ -315,8 +317,8 @@ def validate_config_file(path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-class RecalliumConfig:
-    """Recallium configuration loaded from disk and merged with defaults."""
+class RecollectiumConfig:
+    """Recollectium configuration loaded from disk and merged with defaults."""
 
     def __init__(
         self,
@@ -329,7 +331,9 @@ class RecalliumConfig:
             self._config_file_path = Path(config_path)
             explicit = True
         else:
-            self._config_file_path = Path(user_config_dir("recallium")) / "config.json"
+            self._config_file_path = (
+                Path(user_config_dir("recollectium")) / "config.json"
+            )
             explicit = False
 
         # 2. Explicit path but file missing -> error

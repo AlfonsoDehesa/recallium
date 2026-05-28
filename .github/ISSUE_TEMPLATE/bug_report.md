@@ -18,4 +18,4 @@ labels: bug
 
 - OS:
 - Python version (`python --version`):
-- Recallium version (`recallium --version`):
+- Recollectium version (`recollectium --version`):

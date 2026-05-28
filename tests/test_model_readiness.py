@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from recallium.core import RecalliumCore
-from recallium.model_state import read_model_state, write_model_state
+from recollectium.core import RecollectiumCore
+from recollectium.model_state import read_model_state, write_model_state
 
 # The only model name config validation currently accepts.
 _SUPPORTED_MODEL = "jinaai/jina-embeddings-v2-small-en"
@@ -43,18 +43,18 @@ class TrackedEmbeddingProvider:
     def ensure_ready(self, *, timeout_seconds: float = 60.0) -> None:
         self.ensure_ready_calls.append((timeout_seconds,))
         if self.should_fail:
-            from recallium.errors import EmbeddingModelUnavailableError
+            from recollectium.errors import EmbeddingModelUnavailableError
 
             raise EmbeddingModelUnavailableError(self.should_fail)
 
 
 def _make_config(tmp_path: Path) -> Path:
-    """Write a minimal valid Recallium config pointing to a temp database."""
+    """Write a minimal valid Recollectium config pointing to a temp database."""
     config_path = tmp_path / "config.json"
     config_path.write_text(
         json.dumps(
             {
-                "database": {"path": str(tmp_path / "recallium.db")},
+                "database": {"path": str(tmp_path / "recollectium.db")},
                 "embedding": {
                     "provider": "builtin-fastembed",
                     "model": _SUPPORTED_MODEL,
@@ -77,7 +77,7 @@ def test_ensure_model_ready_noop_when_model_matches(tmp_path: Path):
     )
     provider = TrackedEmbeddingProvider()
     config = _make_config(tmp_path)
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "test.db",
         config_path=config,
         embedding_provider=provider,
@@ -91,7 +91,7 @@ def test_ensure_model_ready_prepares_when_state_missing(tmp_path: Path):
     state_dir = tmp_path / "state"
     provider = TrackedEmbeddingProvider()
     config = _make_config(tmp_path)
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "test.db",
         config_path=config,
         embedding_provider=provider,
@@ -112,7 +112,7 @@ def test_ensure_model_ready_prepares_when_model_mismatch(tmp_path: Path):
     )
     provider = TrackedEmbeddingProvider()
     config = _make_config(tmp_path)
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "test.db",
         config_path=config,
         embedding_provider=provider,
@@ -129,12 +129,12 @@ def test_ensure_model_ready_raises_on_provider_failure(tmp_path: Path):
     provider = TrackedEmbeddingProvider()
     provider.should_fail = "model download failed"
     config = _make_config(tmp_path)
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "test.db",
         config_path=config,
         embedding_provider=provider,
     )
-    from recallium.errors import EmbeddingModelUnavailableError
+    from recollectium.errors import EmbeddingModelUnavailableError
 
     with pytest.raises(EmbeddingModelUnavailableError, match="model download failed"):
         core._ensure_model_ready(state_dir=state_dir)
@@ -146,7 +146,7 @@ def test_ensure_model_ready_writes_state_with_provider_dimensions(tmp_path: Path
     provider = TrackedEmbeddingProvider()
     provider.embedding_profile["dimensions"] = 768
     config = _make_config(tmp_path)
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "test.db",
         config_path=config,
         embedding_provider=provider,
@@ -183,7 +183,7 @@ def test_ensure_model_ready_falls_back_to_embed_healthcheck(tmp_path: Path):
 
     provider = NoEnsureReadyProvider()
     config = _make_config(tmp_path)
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "test.db",
         config_path=config,
         embedding_provider=provider,

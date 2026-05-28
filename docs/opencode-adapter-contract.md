@@ -1,21 +1,21 @@
-# OpenCode adapter contract for Recallium
+# OpenCode adapter contract for Recollectium
 
-This document describes the contract between Recallium Core and a future
+This document describes the contract between Recollectium Core and a future
 OpenCode adapter or plugin.
 
-Recallium Core already exposes the local service, workspace memory operations,
+Recollectium Core already exposes the local service, workspace memory operations,
 and workspace UID normalization contract that an adapter needs. The adapter's
 job is to bridge OpenCode's workspace context and agent tool surface to
-Recallium's local service, not to reimplement memory logic inside OpenCode.
+Recollectium's local service, not to reimplement memory logic inside OpenCode.
 
 ## What the adapter must do
 
-A Recallium adapter should:
+A Recollectium adapter should:
 
-- Discover the running local Recallium service automatically for same-machine
+- Discover the running local Recollectium service automatically for same-machine
   deployments where practical.
 - Allow explicit remote Core endpoint or base-URL configuration in plugin config
-  for deployments where the adapter and Recallium are not on the same machine.
+  for deployments where the adapter and Recollectium are not on the same machine.
 - Validate that the target service is healthy and compatible before use, whether
   it was found by local discovery or supplied through explicit configuration.
 - Instruct the model at prompt level to choose the workspace UID candidate for
@@ -28,10 +28,10 @@ A Recallium adapter should:
   candidate. Nested subfolders inherit that same project UID candidate.
 - If there is no git-managed tree, use the selected project's base folder name
   or the base folder name of the containing project workspace.
-- Pass the UID candidate to Recallium Core and let Core apply its configured
+- Pass the UID candidate to Recollectium Core and let Core apply its configured
   workspace UID normalization at the storage boundary.
 - Expose user-memory and workspace-memory operations as separate tools.
-- Treat Recallium Core as the source of truth for memory storage and search.
+- Treat Recollectium Core as the source of truth for memory storage and search.
 
 ## Service discovery contract
 
@@ -39,7 +39,7 @@ For same-machine workflows, use the machine-readable discovery command rather
 than hardcoding host, port, or service paths:
 
 ```bash
-recallium service discover
+recollectium service discover
 ```
 
 Local discovery is the first step for same-machine adapter workflows. For
@@ -47,7 +47,7 @@ same-machine installs, discovery should be automatic and the adapter should not
 require the user to enter host, port, PID file, runtime path, or service type
 manually.
 
-For deployments where the adapter talks to Recallium Core on another machine,
+For deployments where the adapter talks to Recollectium Core on another machine,
 the user should configure an explicit endpoint, such as a host, IP, port, or
 base URL. In that mode, the adapter does not need local discovery metadata. It
 should derive the API URLs from the configured base URL, then run the same
@@ -62,7 +62,7 @@ Discovery returns JSON that includes:
 - health URL
 - version URL
 - capabilities URL
-- Recallium version
+- Recollectium version
 - service API version
 - config path
 - runtime directory
@@ -74,7 +74,7 @@ Adapter behavior:
 - If discovery reports a running service, use the returned URLs directly.
 - If discovery reports `not_running` and the plugin is configured for local
   autodiscovery, attempt to start the local API service with
-  `recallium service start api`, then run discovery again.
+  `recollectium service start api`, then run discovery again.
 - If the start attempt fails, or if local autodiscovery is disabled, guide the
   user to start the API service or configure the remote Core endpoint.
 - If discovery reports invalid or stale metadata, treat that as a local recovery
@@ -82,11 +82,11 @@ Adapter behavior:
 
 ## Validation contract
 
-Before enabling Recallium-backed tools, the adapter should validate the target
+Before enabling Recollectium-backed tools, the adapter should validate the target
 service in this order:
 
 1. Resolve the endpoint:
-   - For same-machine use, run `recallium service discover` and use the returned
+   - For same-machine use, run `recollectium service discover` and use the returned
      `health_url`, `version_url`, and `capabilities_url`.
    - For remote or hosted Core use, read the explicit plugin configuration and
      derive `/v1/health`, `/v1/version`, and `/v1/capabilities` from the
@@ -144,13 +144,13 @@ Recommended adapter behavior:
   example values selected through plugin commands. If a hint is clearly close
   enough to the active project, the model should prefer that hint. Otherwise it
   should fall back to the folder/git rules above.
-- Pass the selected UID candidate into Recallium workspace memory operations.
-  Recallium Core normalizes workspace UIDs at the storage boundary according to
+- Pass the selected UID candidate into Recollectium workspace memory operations.
+  Recollectium Core normalizes workspace UIDs at the storage boundary according to
   `workspace.uid_normalization`; the plugin does not need to pre-normalize the
   value to match Core behavior.
 
 If the adapter maintains workspace metadata in a repo-local file, that file is
-an adapter concern, not a Core requirement. Recallium Core does not require any
+an adapter concern, not a Core requirement. Recollectium Core does not require any
 specific file format, registry, or git-based identity. The only contract is
 that the adapter prompts for and passes the model-selected UID candidate before
 calling Core.
@@ -200,11 +200,11 @@ identity.
 
 ## Recommended workflow
 
-1. Install Recallium Core.
+1. Install Recollectium Core.
 2. Start the local service or configure the plugin with the remote Core base URL.
-3. For same-machine use, run `recallium service discover`. If the plugin is set
+3. For same-machine use, run `recollectium service discover`. If the plugin is set
    to local autodiscovery and discovery reports `not_running`, attempt
-   `recallium service start api` and then rerun discovery. For remote Core use,
+   `recollectium service start api` and then rerun discovery. For remote Core use,
    read the explicit plugin endpoint.
 4. Validate health, version, and capabilities against the resolved endpoint.
 5. Prompt the model to select the active workspace UID candidate from the

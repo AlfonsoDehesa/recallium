@@ -1,9 +1,9 @@
-"""Versioned schema migrations for Recallium SQLite storage."""
+"""Versioned schema migrations for Recollectium SQLite storage."""
 
 from __future__ import annotations
 
-from recallium.migrations.runner import Migration
-from recallium.migrations.versions import (
+from recollectium.migrations.runner import Migration
+from recollectium.migrations.versions import (
     v001_initial_memory_schema,
     v002_embedding_chunks_and_jobs,
 )

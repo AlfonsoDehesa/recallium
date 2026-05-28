@@ -5,17 +5,17 @@ from typing import Iterator
 
 import pytest
 
-from recallium.embeddings import ContentChunk
-from recallium.errors import MigrationError, NotFoundError
-from recallium.migrations import Migration, MigrationRunner
-from recallium.models import (
+from recollectium.embeddings import ContentChunk
+from recollectium.errors import MigrationError, NotFoundError
+from recollectium.migrations import Migration, MigrationRunner
+from recollectium.models import (
     SPACE_USER,
     SPACE_WORKSPACE,
     STATUS_ACTIVE,
     STATUS_ARCHIVED,
     Memory,
 )
-from recallium.storage import SQLiteMemoryStore
+from recollectium.storage import SQLiteMemoryStore
 
 
 EMBEDDING_PROFILE = {
@@ -54,7 +54,7 @@ def build_memory(memory_id: str, **overrides: object) -> Memory:
 def test_store_creates_parent_directories_and_persists_across_instances(
     tmp_path: Path,
 ) -> None:
-    db_path = tmp_path / "nested" / "db" / "recallium.db"
+    db_path = tmp_path / "nested" / "db" / "recollectium.db"
     store = SQLiteMemoryStore(db_path)
     memory = build_memory("mem-1")
 

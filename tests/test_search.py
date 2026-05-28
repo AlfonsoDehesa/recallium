@@ -5,12 +5,12 @@ from typing import Any, cast
 
 import pytest
 
-from recallium.embeddings import (
+from recollectium.embeddings import (
     BuiltinFastEmbedProvider,
     _fastembed_readiness_worker,
     chunk_text_for_profile,
 )
-from recallium.errors import (
+from recollectium.errors import (
     EmbeddingDimensionMismatchError,
     EmbeddingGenerationError,
     EmbeddingModelUnavailableError,
@@ -18,9 +18,9 @@ from recallium.errors import (
     EmbeddingReadinessTimeoutError,
     ValidationError,
 )
-from recallium.models import SPACE_USER, STATUS_ACTIVE, Memory, SearchResult
-from recallium.search import ChunkCandidate, rank_memory_candidates
-from recallium.storage import SQLiteMemoryStore
+from recollectium.models import SPACE_USER, STATUS_ACTIVE, Memory, SearchResult
+from recollectium.search import ChunkCandidate, rank_memory_candidates
+from recollectium.storage import SQLiteMemoryStore
 
 
 def build_memory(memory_id: str, content: str, **overrides: object) -> Memory:
@@ -57,7 +57,7 @@ def test_provider_profile_matches_fastembed_spec() -> None:
 def test_real_embedding_shape_is_512() -> None:
     pytest.importorskip("fastembed")
     provider = BuiltinFastEmbedProvider()
-    vector = provider.embed("Recallium should return stable embedding dimensions")
+    vector = provider.embed("Recollectium should return stable embedding dimensions")
 
     assert len(vector) == 512
     assert any(value != 0.0 for value in vector)
@@ -320,7 +320,9 @@ def test_fastembed_readiness_worker_reports_success_and_failure(
         def _ensure_ready_unbounded(self) -> None:
             pass
 
-    monkeypatch.setattr("recallium.embeddings.BuiltinFastEmbedProvider", ReadyProvider)
+    monkeypatch.setattr(
+        "recollectium.embeddings.BuiltinFastEmbedProvider", ReadyProvider
+    )
     success_connection = FakeConnection()
     _fastembed_readiness_worker(cast(Any, success_connection))
     assert success_connection.messages == [{"ok": True}]
@@ -331,7 +333,7 @@ def test_fastembed_readiness_worker_reports_success_and_failure(
             raise EmbeddingModelUnavailableError("missing model")
 
     monkeypatch.setattr(
-        "recallium.embeddings.BuiltinFastEmbedProvider", FailingProvider
+        "recollectium.embeddings.BuiltinFastEmbedProvider", FailingProvider
     )
     failure_connection = FakeConnection()
     _fastembed_readiness_worker(cast(Any, failure_connection))
@@ -424,7 +426,7 @@ def test_builtin_fastembed_ensure_ready_timeout_and_result_mapping(
 
     timeout_context = FakeSpawnContext(None, alive_results=[True, True, False])
     monkeypatch.setattr(
-        "recallium.embeddings.multiprocessing.get_context",
+        "recollectium.embeddings.multiprocessing.get_context",
         lambda method: timeout_context,
     )
     with pytest.raises(EmbeddingReadinessTimeoutError, match="timed out"):
@@ -434,7 +436,7 @@ def test_builtin_fastembed_ensure_ready_timeout_and_result_mapping(
 
     no_result_context = FakeSpawnContext(None)
     monkeypatch.setattr(
-        "recallium.embeddings.multiprocessing.get_context",
+        "recollectium.embeddings.multiprocessing.get_context",
         lambda method: no_result_context,
     )
     with pytest.raises(EmbeddingGenerationError, match="without reporting status"):
@@ -442,7 +444,7 @@ def test_builtin_fastembed_ensure_ready_timeout_and_result_mapping(
 
     ok_context = FakeSpawnContext({"ok": True})
     monkeypatch.setattr(
-        "recallium.embeddings.multiprocessing.get_context",
+        "recollectium.embeddings.multiprocessing.get_context",
         lambda method: ok_context,
     )
     provider.ensure_ready(timeout_seconds=1)
@@ -459,7 +461,7 @@ def test_builtin_fastembed_ensure_ready_timeout_and_result_mapping(
             {"ok": False, "error_type": error_type, "message": "mapped error"}
         )
         monkeypatch.setattr(
-            "recallium.embeddings.multiprocessing.get_context",
+            "recollectium.embeddings.multiprocessing.get_context",
             lambda method, context=error_context: context,
         )
         with pytest.raises(expected_error, match="mapped error"):

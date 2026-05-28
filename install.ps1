@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$Repo = "AlfonsoDehesa/recallium"
+$Repo = "AlfonsoDehesa/recollectium"
 $InstallDir = Join-Path $env:LOCALAPPDATA "uv"
 $UvBin = Join-Path $InstallDir "uv.exe"
 $ToolBin = Join-Path $HOME ".local\bin"
@@ -40,9 +40,9 @@ function Install-Uv {
     return $UvBin
 }
 
-function Get-RecalliumInstallRef {
-    if ($env:RECALLIUM_INSTALL_REF) {
-        return $env:RECALLIUM_INSTALL_REF
+function Get-RecollectiumInstallRef {
+    if ($env:RECOLLECTIUM_INSTALL_REF) {
+        return $env:RECOLLECTIUM_INSTALL_REF
     }
 
     try {
@@ -56,9 +56,9 @@ function Get-RecalliumInstallRef {
 }
 
 $uv = Install-Uv
-$ref = Get-RecalliumInstallRef
+$ref = Get-RecollectiumInstallRef
 $package = "git+https://github.com/$Repo.git@$ref"
-Write-Host "Installing Recallium from $ref..."
+Write-Host "Installing Recollectium from $ref..."
 & $uv tool install --python 3.12 --force $package
 if ($env:Path -notlike "*$ToolBin*") {
     $env:Path = "$ToolBin;$env:Path"
@@ -72,7 +72,7 @@ if ($userPath -notlike "*$ToolBin*") {
     [Environment]::SetEnvironmentVariable("Path", "$ToolBin;$userPath", "User")
     $ManagedPathEdits += "User Path: $ToolBin"
 }
-$stateDir = Join-Path $env:LOCALAPPDATA "recallium"
+$stateDir = Join-Path $env:LOCALAPPDATA "recollectium"
 New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
 $metadataPath = Join-Path $stateDir "install.json"
 $metadata = [ordered]@{
@@ -82,4 +82,4 @@ $metadata = [ordered]@{
     managed_path_edits = $ManagedPathEdits
 }
 $metadata | ConvertTo-Json | Set-Content -Path $metadataPath -Encoding utf8
-Write-Host "Recallium installed. Restart your terminal if recallium is not found, then try: recallium --version"
+Write-Host "Recollectium installed. Restart your terminal if recollectium is not found, then try: recollectium --version"

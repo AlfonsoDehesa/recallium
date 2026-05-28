@@ -1,4 +1,4 @@
-# Contributing to Recallium
+# Contributing to Recollectium
 
 There are two ways to contribute: open an issue or submit a pull request.
 
@@ -17,7 +17,7 @@ to reproduce it.
 
 - Paste the exact command you ran.
 - Paste the full error output. Do not summarize or trim.
-- Include the output of `recallium --version`.
+- Include the output of `recollectium --version`.
 
 **What you expected:**
 
@@ -48,7 +48,7 @@ Do not submit a PR if any of these fail:
 - `uv run ruff check .`
 - `uv run pyright`
 - `uv run pytest`
-- `uv run pytest --cov=src/recallium --cov-report=term-missing`
+- `uv run pytest --cov=src/recollectium --cov-report=term-missing`
 
 If coverage is not 100 percent, explain the uncovered lines in the PR
 description. Do not suppress warnings or loosen the ruleset to make checks
@@ -65,7 +65,7 @@ process apply regardless of how the code was written.
 Do not commit your AI tooling configuration to the repo. The `.gitignore`
 already excludes common editor and agent directories (`.opencode/`,
 `.cursor/`, `.claude/`, `.aider*`, etc.). If your tool writes project
-config, keep it local. The repo is for Recallium, not for your development
+config, keep it local. The repo is for Recollectium, not for your development
 environment.
 
 ### Development setup
@@ -73,12 +73,12 @@ environment.
 You need Python 3.12 or later and `uv`. Everything else is managed by uv.
 
 ```bash
-git clone https://github.com/AlfonsoDehesa/recallium.git
-cd recallium
+git clone https://github.com/AlfonsoDehesa/recollectium.git
+cd recollectium
 uv sync --group dev
 ```
 
-That creates the project venv, installs Recallium in editable mode, and
+That creates the project venv, installs Recollectium in editable mode, and
 pulls in dev tooling (pytest, ruff, pyright, coverage).
 
 Verify it works:
@@ -89,7 +89,7 @@ uv run pyright
 uv run pytest
 ```
 
-You can run `uv run recallium --help` to try the CLI directly.
+You can run `uv run recollectium --help` to try the CLI directly.
 
 ### Branch workflow
 
@@ -120,7 +120,7 @@ Every PR must pass the quality gates before merge:
 - `uv run ruff check .`: linting
 - `uv run pyright`: type checking
 - `uv run pytest`: full test suite
-- `uv run pytest --cov=src/recallium --cov-report=term-missing`: coverage
+- `uv run pytest --cov=src/recollectium --cov-report=term-missing`: coverage
 
 Aim for 100 percent coverage on changed code. If that is not feasible,
 explain the uncovered lines in the PR description.
@@ -143,7 +143,7 @@ If the PR changes the SQLite schema, include the migration plan in the PR.
 Schema changes include new tables, columns, indexes, constraints, or data-shape
 changes to existing rows. The migration plan must state:
 
-- The migration module under `src/recallium/migrations/versions/`.
+- The migration module under `src/recollectium/migrations/versions/`.
 - How existing rows are populated, defaulted, or intentionally left null.
 - Whether the change is safe to apply lazily on database open.
 - Whether a background backfill or re-embedding job is required after the schema
@@ -216,7 +216,7 @@ confirmed before the version-bump PR is opened.
 - [ ] Every functionality reachable through the CLI is also reachable
       through the API and the MCP server. No surface is missing an operation
       the others expose.
-- [ ] `recallium config` get/set/unset covers every configurable key in
+- [ ] `recollectium config` get/set/unset covers every configurable key in
       `config.json`.
 
 #### Documentation
@@ -227,7 +227,7 @@ confirmed before the version-bump PR is opened.
 - [ ] MCP tools are documented and the doc matches every tool the server
       actually exposes.
 - [ ] Every CLI command, subcommand, flag, and positional argument has help
-      text. No undocumented paths. Run `recallium --help` for every
+      text. No undocumented paths. Run `recollectium --help` for every
       subcommand and confirm nothing is missing.
 - [ ] README is current: install instructions, config reference, CLI
       examples, service management, uninstall, Python API examples.
@@ -251,29 +251,29 @@ confirmed before the version-bump PR is opened.
 #### Shell completion
 
 - [ ] Every CLI command and flag is reachable through argcomplete. Run
-      `recallium <TAB>` through every subcommand and confirm completions
+      `recollectium <TAB>` through every subcommand and confirm completions
       work.
-- [ ] `recallium config get/set/unset <TAB>` completes config keys.
+- [ ] `recollectium config get/set/unset <TAB>` completes config keys.
 - [ ] PowerShell dynamic completion works through `Register-ArgumentCompleter`.
-      Run `recallium <TAB>` in PowerShell through every subcommand and confirm
+      Run `recollectium <TAB>` in PowerShell through every subcommand and confirm
       completions work.
-- [ ] `recallium config get/set/unset <TAB>` completes config keys in
+- [ ] `recollectium config get/set/unset <TAB>` completes config keys in
       PowerShell too.
 
 #### Install and update
 
 - [ ] Bootstrap install works on Linux and macOS: `curl -LsSf
-      <install.sh URL> | sh` succeeds, `recallium --version` prints the
-      correct version, and `recallium init` completes.
+      <install.sh URL> | sh` succeeds, `recollectium --version` prints the
+      correct version, and `recollectium init` completes.
 - [ ] Bootstrap install works on Windows: `irm <install.ps1 URL> | iex`
       succeeds end-to-end.
-- [ ] `pip install recallium` works from test PyPI or a local wheel.
-- [ ] `pipx install recallium` works from test PyPI or a local wheel.
-- [ ] `recallium update` prints correct upgrade commands for each install
+- [ ] `pip install recollectium` works from test PyPI or a local wheel.
+- [ ] `pipx install recollectium` works from test PyPI or a local wheel.
+- [ ] `recollectium update` prints correct upgrade commands for each install
       method.
-- [ ] `recallium uninstall` prints correct package-manager commands for
+- [ ] `recollectium uninstall` prints correct package-manager commands for
       each install method and preserves data by default.
-- [ ] `recallium uninstall --purge` works correctly and safely.
+- [ ] `recollectium uninstall --purge` works correctly and safely.
 
 #### Cross-environment
 
@@ -288,7 +288,7 @@ confirmed before the version-bump PR is opened.
 - [ ] `uv run ruff check .` -- clean.
 - [ ] `uv run pyright` -- zero errors, zero warnings.
 - [ ] `uv run pytest` -- all passing.
-- [ ] `uv run pytest --cov=src/recallium --cov-report=term-missing` --
+- [ ] `uv run pytest --cov=src/recollectium --cov-report=term-missing` --
       100 percent coverage. Any uncovered lines are documented and accepted.
 
 #### Release metadata
@@ -328,7 +328,7 @@ CI runs on every push and PR. The matrix covers:
 - Full pytest suite with coverage
 - Cross-platform bootstrap install smoke test on Linux, macOS, and Windows
 
-CI is defined in `.github/workflows/`. If you change how Recallium builds
+CI is defined in `.github/workflows/`. If you change how Recollectium builds
 or installs, update CI in the same PR.
 
 ## Questions

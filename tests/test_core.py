@@ -7,8 +7,8 @@ from typing import Iterator
 
 import pytest
 
-from recallium.core import RecalliumCore
-from recallium.errors import (
+from recollectium.core import RecollectiumCore
+from recollectium.errors import (
     EmbeddingDimensionMismatchError,
     EmbeddingGenerationError,
     NotFoundError,
@@ -16,7 +16,7 @@ from recallium.errors import (
     ReembeddingInProgressError,
     ValidationError,
 )
-from recallium.models import SPACE_USER, SPACE_WORKSPACE, STATUS_ARCHIVED
+from recollectium.models import SPACE_USER, SPACE_WORKSPACE, STATUS_ARCHIVED
 
 
 @contextmanager
@@ -101,7 +101,7 @@ def make_memories_stale(
 def test_core_user_memory_flow_add_get_search_list_update_archive(
     tmp_path: Path,
 ) -> None:
-    core = RecalliumCore(db_path=tmp_path / "core.db")
+    core = RecollectiumCore(db_path=tmp_path / "core.db")
 
     created = core.add_memory(
         space="user",
@@ -148,7 +148,7 @@ def test_core_user_memory_flow_add_get_search_list_update_archive(
 def test_core_workspace_search_isolation_by_workspace_uid(
     tmp_path: Path,
 ) -> None:
-    core = RecalliumCore(db_path=tmp_path / "workspace.db")
+    core = RecollectiumCore(db_path=tmp_path / "workspace.db")
 
     workspace_a = core.add_memory(
         space=SPACE_WORKSPACE,
@@ -188,12 +188,12 @@ def test_core_workspace_search_isolation_by_workspace_uid(
 
 def test_core_persistence_across_instances_and_not_found(tmp_path: Path) -> None:
     db_path = tmp_path / "persist.db"
-    first_core = RecalliumCore(db_path=db_path)
+    first_core = RecollectiumCore(db_path=db_path)
     created = first_core.add_memory(
         space="user", type="fact", content="Kaylee likes tea"
     )
 
-    second_core = RecalliumCore(db_path=db_path)
+    second_core = RecollectiumCore(db_path=db_path)
     loaded = second_core.get_memory(created.id)
     assert loaded.content == "Kaylee likes tea"
 
@@ -204,7 +204,7 @@ def test_core_persistence_across_instances_and_not_found(tmp_path: Path) -> None
 def test_workspace_identity_validation(
     tmp_path: Path,
 ) -> None:
-    core = RecalliumCore(db_path=tmp_path / "workspace-uid.db")
+    core = RecollectiumCore(db_path=tmp_path / "workspace-uid.db")
 
     with pytest.raises(ValidationError, match="workspace_uid is required"):
         core.add_memory(
@@ -226,7 +226,7 @@ def test_workspace_identity_validation(
 
 
 def test_core_rejects_invalid_list_limit(tmp_path: Path) -> None:
-    core = RecalliumCore(db_path=tmp_path / "limit.db")
+    core = RecollectiumCore(db_path=tmp_path / "limit.db")
 
     with pytest.raises(ValidationError, match="positive integer"):
         core.list_memories(limit=0)
@@ -238,13 +238,13 @@ def test_default_db_path_uses_xdg_style_data_home(monkeypatch, tmp_path: Path) -
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path / "runtime"))
-    core = RecalliumCore(embedding_provider=FakeEmbeddingProvider())
+    core = RecollectiumCore(embedding_provider=FakeEmbeddingProvider())
 
-    assert core.store.db_path == tmp_path / "data" / "recallium" / "recallium.db"
+    assert core.store.db_path == tmp_path / "data" / "recollectium" / "recollectium.db"
 
 
 def test_workspace_search_requires_non_empty_workspace_uid(tmp_path: Path) -> None:
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "workspace-search.db",
         embedding_provider=FakeEmbeddingProvider(),
     )
@@ -256,7 +256,7 @@ def test_workspace_search_requires_non_empty_workspace_uid(tmp_path: Path) -> No
 def test_update_memory_source_and_sensitivity_without_model_updates(
     tmp_path: Path,
 ) -> None:
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "source-sensitivity.db",
         embedding_provider=FakeEmbeddingProvider(),
     )
@@ -282,7 +282,7 @@ def test_update_memory_source_and_sensitivity_without_model_updates(
 
 
 def test_update_memory_rejects_blank_source_and_sensitivity(tmp_path: Path) -> None:
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "blank-source.db",
         embedding_provider=FakeEmbeddingProvider(),
     )
@@ -298,27 +298,27 @@ def test_update_memory_rejects_blank_source_and_sensitivity(tmp_path: Path) -> N
 def test_ensure_embedding_ready_fallback_validates_profile_dimensions(
     tmp_path: Path,
 ) -> None:
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "ready.db",
         embedding_provider=ConfigurableEmbeddingProvider([1.0, 2.0, 3.0]),
     )
     core.ensure_embedding_ready()
 
-    bool_dimensions = RecalliumCore(
+    bool_dimensions = RecollectiumCore(
         db_path=tmp_path / "bool-dimensions.db",
         embedding_provider=ConfigurableEmbeddingProvider([1.0], True),
     )
     with pytest.raises(EmbeddingGenerationError, match="integer dimensions"):
         bool_dimensions.ensure_embedding_ready()
 
-    missing_dimensions = RecalliumCore(
+    missing_dimensions = RecollectiumCore(
         db_path=tmp_path / "missing-dimensions.db",
         embedding_provider=ConfigurableEmbeddingProvider([1.0], "3"),
     )
     with pytest.raises(EmbeddingGenerationError, match="integer dimensions"):
         missing_dimensions.ensure_embedding_ready()
 
-    mismatch = RecalliumCore(
+    mismatch = RecollectiumCore(
         db_path=tmp_path / "dimension-mismatch.db",
         embedding_provider=ConfigurableEmbeddingProvider([1.0, 2.0], 3),
     )
@@ -330,7 +330,7 @@ def test_add_memory_persists_chunk_embeddings_and_searches_from_chunks(
     tmp_path: Path,
 ) -> None:
     db_path = tmp_path / "chunks.db"
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
 
     created = core.add_memory(
         space=SPACE_USER,
@@ -353,7 +353,7 @@ def test_add_memory_persists_chunk_embeddings_and_searches_from_chunks(
 
 def test_update_memory_content_refreshes_chunks(tmp_path: Path) -> None:
     db_path = tmp_path / "update-chunks.db"
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
 
     created = core.add_memory(
         space=SPACE_USER,
@@ -375,7 +375,7 @@ def test_update_memory_content_refreshes_chunks(tmp_path: Path) -> None:
 
 def test_startup_reembeds_stale_memories_for_active_profile(tmp_path: Path) -> None:
     db_path = tmp_path / "startup-stale.db"
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     memory = core.add_memory(space=SPACE_USER, type="fact", content="kiwi notebook")
 
     stale_profile = {
@@ -384,7 +384,7 @@ def test_startup_reembeds_stale_memories_for_active_profile(tmp_path: Path) -> N
     }
     core.store.update_memory(memory.id, embedding_profile=stale_profile)
 
-    restarted = RecalliumCore(db_path=db_path)
+    restarted = RecollectiumCore(db_path=db_path)
     stale_count = restarted.store.count_memories_needing_profile_reembedding(
         embedding_profile=restarted.embedding_provider.embedding_profile,
         space=SPACE_USER,
@@ -408,7 +408,7 @@ def test_startup_reembeds_stale_memories_for_active_profile(tmp_path: Path) -> N
 
 def test_search_reembeds_missing_profile_chunks_below_threshold(tmp_path: Path) -> None:
     db_path = tmp_path / "search-reembed.db"
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     created = core.add_memory(
         space=SPACE_WORKSPACE,
         type="task_context",
@@ -436,7 +436,7 @@ def test_search_raises_retryable_error_when_stale_count_exceeds_threshold(
     tmp_path: Path,
 ) -> None:
     db_path = tmp_path / "threshold.db"
-    core = RecalliumCore(db_path=db_path, immediate_reembedding_threshold=1)
+    core = RecollectiumCore(db_path=db_path, immediate_reembedding_threshold=1)
     one = core.add_memory(space=SPACE_USER, type="note", content="alpha")
     two = core.add_memory(space=SPACE_USER, type="note", content="beta")
 
@@ -464,7 +464,7 @@ def test_startup_reembedding_defers_when_stale_count_exceeds_threshold(
 ) -> None:
     db_path = tmp_path / "startup-deferred.db"
     provider = BlockingFakeEmbeddingProvider()
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=db_path,
         embedding_provider=provider,
         immediate_reembedding_threshold=10,
@@ -478,7 +478,7 @@ def test_startup_reembedding_defers_when_stale_count_exceeds_threshold(
     )
     provider.block_texts.add(memories[0].content)
 
-    restarted = RecalliumCore(
+    restarted = RecollectiumCore(
         db_path=db_path,
         embedding_provider=provider,
         immediate_reembedding_threshold=1,
@@ -496,7 +496,7 @@ def test_startup_reembedding_defers_when_stale_count_exceeds_threshold(
 def test_deferred_reembedding_replaces_missing_and_completed_active_jobs(
     tmp_path: Path,
 ) -> None:
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "deferred-job-cleanup.db",
         embedding_provider=FakeEmbeddingProvider(),
     )
@@ -551,7 +551,7 @@ def test_deferred_reembedding_replaces_missing_and_completed_active_jobs(
 def test_reembed_stale_memories_returns_none_when_nothing_is_stale(
     tmp_path: Path,
 ) -> None:
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "no-stale.db",
         embedding_provider=FakeEmbeddingProvider(),
     )
@@ -564,7 +564,7 @@ def test_deferred_reembedding_worker_completes_and_preserves_memory_fields(
 ) -> None:
     db_path = tmp_path / "deferred-worker.db"
     provider = BlockingFakeEmbeddingProvider()
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=db_path,
         embedding_provider=provider,
         immediate_reembedding_threshold=0,
@@ -644,7 +644,7 @@ def test_deferred_reembedding_worker_completes_and_preserves_memory_fields(
 def test_deferred_reembedding_worker_reports_failures(tmp_path: Path) -> None:
     db_path = tmp_path / "deferred-failure.db"
     provider = BlockingFakeEmbeddingProvider()
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=db_path,
         embedding_provider=provider,
         immediate_reembedding_threshold=1,
@@ -683,7 +683,7 @@ def test_deferred_reembedding_scope_safety_and_archived_exclusion(
 ) -> None:
     db_path = tmp_path / "deferred-scope.db"
     provider = BlockingFakeEmbeddingProvider()
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=db_path,
         embedding_provider=provider,
         immediate_reembedding_threshold=0,
@@ -753,7 +753,7 @@ def test_reembedding_preserves_updated_at_for_startup_and_runtime(
     tmp_path: Path,
 ) -> None:
     startup_db = tmp_path / "startup-preserve-updated-at.db"
-    core = RecalliumCore(db_path=startup_db)
+    core = RecollectiumCore(db_path=startup_db)
     startup_memory = core.add_memory(space=SPACE_USER, type="fact", content="alpha")
 
     stale_profile = {
@@ -766,12 +766,12 @@ def test_reembedding_preserves_updated_at_for_startup_and_runtime(
             (json.dumps(stale_profile, sort_keys=True), startup_memory.id),
         )
 
-    restarted = RecalliumCore(db_path=startup_db)
+    restarted = RecollectiumCore(db_path=startup_db)
     startup_after = restarted.get_memory(startup_memory.id)
     assert startup_after.updated_at == startup_memory.updated_at
 
     runtime_db = tmp_path / "runtime-preserve-updated-at.db"
-    runtime_core = RecalliumCore(db_path=runtime_db)
+    runtime_core = RecollectiumCore(db_path=runtime_db)
     runtime_memory = runtime_core.add_memory(
         space=SPACE_USER, type="fact", content="beta"
     )
@@ -791,7 +791,7 @@ def test_runtime_reembedding_failure_blocks_partial_results(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     db_path = tmp_path / "runtime-reembed-failure.db"
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
     first = core.add_memory(space=SPACE_USER, type="note", content="memory one")
     second = core.add_memory(space=SPACE_USER, type="note", content="memory two")
 
@@ -827,7 +827,7 @@ def test_runtime_reembedding_failure_blocks_partial_results(
 
 def test_database_status_surfaces_store_migration_status(tmp_path: Path) -> None:
     db_path = tmp_path / "db-status-core.db"
-    core = RecalliumCore(db_path=db_path)
+    core = RecollectiumCore(db_path=db_path)
 
     status = core.database_status()
 
@@ -838,14 +838,14 @@ def test_database_status_surfaces_store_migration_status(tmp_path: Path) -> None
     assert status["up_to_date"] is True
 
 
-def test_recallium_core_uses_config_db_path(tmp_path: Path) -> None:
-    """RecalliumCore with config_path and no db_path uses resolved_database_path."""
-    from recallium.config import _write_starter_config
+def test_recollectium_core_uses_config_db_path(tmp_path: Path) -> None:
+    """RecollectiumCore with config_path and no db_path uses resolved_database_path."""
+    from recollectium.config import _write_starter_config
 
     config_path = tmp_path / "config.json"
     _write_starter_config(config_path)
 
-    core = RecalliumCore(config_path=config_path)
+    core = RecollectiumCore(config_path=config_path)
 
     assert core.config is not None
     assert core.store.db_path == core.config.resolved_database_path
@@ -855,7 +855,7 @@ def test_recallium_core_uses_config_db_path(tmp_path: Path) -> None:
 
 
 def test_core_list_workspaces_returns_sorted(tmp_path: Path) -> None:
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "core.db",
         embedding_provider=FakeEmbeddingProvider(),
     )
@@ -877,7 +877,7 @@ def test_core_list_workspaces_returns_sorted(tmp_path: Path) -> None:
 
 
 def test_core_list_workspaces_empty(tmp_path: Path) -> None:
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "core.db",
         embedding_provider=FakeEmbeddingProvider(),
     )
@@ -885,7 +885,7 @@ def test_core_list_workspaces_empty(tmp_path: Path) -> None:
 
 
 def test_core_rename_workspace_normalizes_uids(tmp_path: Path) -> None:
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "core.db",
         embedding_provider=FakeEmbeddingProvider(),
     )
@@ -906,7 +906,7 @@ def test_core_rename_workspace_normalizes_uids(tmp_path: Path) -> None:
 
 
 def test_core_rename_workspace_raises_on_empty_normalization(tmp_path: Path) -> None:
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "core.db",
         embedding_provider=FakeEmbeddingProvider(),
     )
@@ -915,7 +915,7 @@ def test_core_rename_workspace_raises_on_empty_normalization(tmp_path: Path) -> 
 
 
 def test_core_rename_workspace_raises_not_found(tmp_path: Path) -> None:
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "core.db",
         embedding_provider=FakeEmbeddingProvider(),
     )
@@ -924,7 +924,7 @@ def test_core_rename_workspace_raises_not_found(tmp_path: Path) -> None:
 
 
 def test_core_add_memory_normalizes_workspace_uid(tmp_path: Path) -> None:
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "core.db",
         embedding_provider=FakeEmbeddingProvider(),
     )
@@ -932,13 +932,13 @@ def test_core_add_memory_normalizes_workspace_uid(tmp_path: Path) -> None:
         space=SPACE_WORKSPACE,
         type="fact",
         content="item",
-        workspace_uid="  Recallium Core!!!  ",
+        workspace_uid="  Recollectium Core!!!  ",
     )
-    assert memory.workspace_uid == "recallium-core"
+    assert memory.workspace_uid == "recollectium-core"
 
 
 def test_core_search_workspace_normalizes_uid(tmp_path: Path) -> None:
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "core.db",
         embedding_provider=FakeEmbeddingProvider(),
     )
@@ -957,7 +957,7 @@ def test_core_search_workspace_normalizes_uid(tmp_path: Path) -> None:
 
 
 def test_core_list_memories_normalizes_workspace_uid(tmp_path: Path) -> None:
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "core.db",
         embedding_provider=FakeEmbeddingProvider(),
     )
@@ -977,7 +977,7 @@ def test_core_list_memories_normalizes_workspace_uid(tmp_path: Path) -> None:
 
 def test_core_rename_workspace_exact_mode_passthrough(tmp_path: Path) -> None:
     """Exact normalization preserves UIDs as-is."""
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "core.db",
         embedding_provider=FakeEmbeddingProvider(),
     )
@@ -998,7 +998,7 @@ def test_core_rename_workspace_exact_mode_passthrough(tmp_path: Path) -> None:
 
 def test_core_normalize_uid_rejects_whitespace_only(tmp_path: Path) -> None:
     """_normalize_uid raises ValidationError for whitespace-only UIDs."""
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "core.db",
         embedding_provider=FakeEmbeddingProvider(),
     )
@@ -1008,7 +1008,7 @@ def test_core_normalize_uid_rejects_whitespace_only(tmp_path: Path) -> None:
 
 def test_core_uid_normalization_falls_back_to_normalize(tmp_path: Path) -> None:
     """_uid_normalization returns normalize when config is malformed."""
-    core = RecalliumCore(
+    core = RecollectiumCore(
         db_path=tmp_path / "core.db",
         embedding_provider=FakeEmbeddingProvider(),
     )

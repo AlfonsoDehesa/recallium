@@ -3,15 +3,17 @@ from typing import Any
 
 import pytest
 
-from recallium.errors import ValidationError
-from recallium.models import (
+from recollectium.errors import ValidationError
+from recollectium.models import (
     SPACE_USER,
     SPACE_WORKSPACE,
     STATUS_ACTIVE,
     Memory,
     SearchResult,
+    canonical_memory_types_for_space,
     validate_limit,
     validate_memory_create_input,
+    validate_memory_type_filter,
     validate_memory_type_for_space,
     validate_memory_update_input,
 )
@@ -131,8 +133,27 @@ def test_validate_memory_type_for_space_normalizes_and_rejects_wrong_scope() -> 
     assert validate_memory_type_for_space(SPACE_USER, "  GOAL  ") == "goal"
     assert build_memory(type="  FACT  ").type == "fact"
 
+    with pytest.raises(ValidationError, match="space must be one of"):
+        canonical_memory_types_for_space("team")
+
+    with pytest.raises(ValidationError, match="space must be one of"):
+        validate_memory_type_for_space("team", "fact")
+
     with pytest.raises(ValidationError, match="workspace memories"):
         validate_memory_type_for_space(SPACE_WORKSPACE, "goal")
+
+
+def test_validate_memory_type_filter_accepts_global_or_space_specific_types() -> None:
+    assert validate_memory_type_filter("  GOAL  ") == "goal"
+    assert (
+        validate_memory_type_filter("  DECISION  ", space=SPACE_WORKSPACE) == "decision"
+    )
+
+    with pytest.raises(ValidationError, match="type must be one of"):
+        validate_memory_type_filter("unknown")
+
+    with pytest.raises(ValidationError, match="user memories"):
+        validate_memory_type_filter("decision", space=SPACE_USER)
 
 
 def test_validate_limit_requires_positive_integer() -> None:
@@ -251,48 +272,48 @@ def test_search_result_rejects_invalid_values() -> None:
 
 
 def test_normalize_workspace_uid_lowercase() -> None:
-    from recallium.models import normalize_workspace_uid
+    from recollectium.models import normalize_workspace_uid
 
     assert normalize_workspace_uid("FOO") == "foo"
 
 
 def test_normalize_workspace_uid_special_chars_to_dashes() -> None:
-    from recallium.models import normalize_workspace_uid
+    from recollectium.models import normalize_workspace_uid
 
     assert normalize_workspace_uid("foo bar") == "foo-bar"
 
 
 def test_normalize_workspace_uid_collapse_dashes() -> None:
-    from recallium.models import normalize_workspace_uid
+    from recollectium.models import normalize_workspace_uid
 
     assert normalize_workspace_uid("foo---bar") == "foo-bar"
 
 
 def test_normalize_workspace_uid_strip_edges() -> None:
-    from recallium.models import normalize_workspace_uid
+    from recollectium.models import normalize_workspace_uid
 
     assert normalize_workspace_uid("-foo-") == "foo"
 
 
 def test_normalize_workspace_uid_multiple_special() -> None:
-    from recallium.models import normalize_workspace_uid
+    from recollectium.models import normalize_workspace_uid
 
-    assert normalize_workspace_uid("Recallium Core!!!") == "recallium-core"
+    assert normalize_workspace_uid("Recollectium Core!!!") == "recollectium-core"
 
 
 def test_normalize_workspace_uid_already_clean() -> None:
-    from recallium.models import normalize_workspace_uid
+    from recollectium.models import normalize_workspace_uid
 
-    assert normalize_workspace_uid("recallium") == "recallium"
+    assert normalize_workspace_uid("recollectium") == "recollectium"
 
 
 def test_normalize_workspace_uid_all_special_returns_empty() -> None:
-    from recallium.models import normalize_workspace_uid
+    from recollectium.models import normalize_workspace_uid
 
     assert normalize_workspace_uid("!!!") == ""
 
 
 def test_normalize_workspace_uid_leading_trailing_whitespace() -> None:
-    from recallium.models import normalize_workspace_uid
+    from recollectium.models import normalize_workspace_uid
 
-    assert normalize_workspace_uid("  Recallium  ") == "recallium"
+    assert normalize_workspace_uid("  Recollectium  ") == "recollectium"

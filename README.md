@@ -1,6 +1,6 @@
-# Recallium Core MVP
+# Recollectium Core MVP
 
-Recallium Core is a local-first Python memory engine for agents.
+Recollectium Core is a local-first Python memory engine for agents.
 
 This MVP provides:
 
@@ -21,13 +21,13 @@ This MVP does not include:
 
 ## Local-first behavior
 
-- Recallium Core runs fully local.
+- Recollectium Core runs fully local.
 - First-time model cache download may require network access to fetch `jinaai/jina-embeddings-v2-small-en`.
 - Data is stored in a local SQLite file.
 
 ## Smart embedding behavior
 
-- Recallium uses one production embedding path: built-in local FastEmbed.
+- Recollectium uses one production embedding path: built-in local FastEmbed.
 - Active profile: `provider=builtin-fastembed`, `model=jinaai/jina-embeddings-v2-small-en`.
 - Long memory content is chunked per model profile before embedding.
 - On startup and during search, stale profile embeddings are refreshed and tracked as embedding jobs.
@@ -38,67 +38,67 @@ This MVP does not include:
 ### Recommended: blank machine bootstrap
 
 You do not need Python, pip, pipx, or uv installed first. The bootstrap
-installer downloads uv, installs Recallium in an isolated tool environment,
-runs `recallium init` (config, database, model), and puts the `recallium`
+installer downloads uv, installs Recollectium in an isolated tool environment,
+runs `recollectium init` (config, database, model), and puts the `recollectium`
 command on PATH. The first run downloads the built-in FastEmbed model
 (~100 MB, 30-120 seconds).
 
 Linux and macOS:
 
 ```bash
-curl -LsSf https://raw.githubusercontent.com/AlfonsoDehesa/recallium/main/install.sh | sh
+curl -LsSf https://raw.githubusercontent.com/AlfonsoDehesa/recollectium/main/install.sh | sh
 ```
 
 Windows PowerShell:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/AlfonsoDehesa/recallium/main/install.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/AlfonsoDehesa/recollectium/main/install.ps1 | iex"
 ```
 
 Verify the install:
 
 ```bash
-recallium --version
+recollectium --version
 ```
 
-Bootstrap install runs `recallium init` automatically. If you installed via
+Bootstrap install runs `recollectium init` automatically. If you installed via
 `pip`, `pipx`, or `uv tool`, run init once:
 
 ```bash
-recallium init
+recollectium init
 ```
 
-`recallium init` creates the config file, data/cache/log/runtime directories,
+`recollectium init` creates the config file, data/cache/log/runtime directories,
 SQLite database, runs migrations, and downloads the built-in FastEmbed model
 (~100 MB on first run). It is safe to run more than once.
 
 ### Shell completion
 
 Bootstrap install configures tab completion for bash, zsh, and fish
-automatically. After `curl | sh`, open a new shell session and `recallium
+automatically. After `curl | sh`, open a new shell session and `recollectium
 <TAB>` works.
 
 To set up completion manually:
 
 ```bash
-recallium completion --install
+recollectium completion --install
 ```
 
 To see the setup instructions for a specific shell:
 
 ```bash
-recallium completion bash
-recallium completion zsh
-recallium completion fish
+recollectium completion bash
+recollectium completion zsh
+recollectium completion fish
 ```
 
 The completion eval line uses a managed comment block so uninstall can
 identify and remove it cleanly:
 
 ```bash
-# >>> recallium completion >>>
-eval "$(recallium completion --source bash)"
-# <<< recallium completion <<<
+# >>> recollectium completion >>>
+eval "$(recollectium completion --source bash)"
+# <<< recollectium completion <<<
 ```
 
 ### Python package managers
@@ -106,24 +106,24 @@ eval "$(recallium completion --source bash)"
 If you already have Python 3.12 or newer:
 
 ```bash
-pip install recallium
+pip install recollectium
 ```
 
 If you prefer isolated CLI tools:
 
 ```bash
-pipx install recallium
+pipx install recollectium
 ```
 
 Try without installing permanently:
 
 ```bash
-uvx recallium --version
+uvx recollectium --version
 ```
 
 ## Install for development
 
-Recallium Core requires Python 3.12 or newer. Use `uv` for environment and dependency management.
+Recollectium Core requires Python 3.12 or newer. Use `uv` for environment and dependency management.
 
 ```bash
 uv sync --group dev
@@ -141,92 +141,92 @@ uv run pytest
 Run the CLI through the managed environment:
 
 ```bash
-uv run recallium --help
+uv run recollectium --help
 ```
 
 ## Updating
 
 ```bash
-recallium update
+recollectium update
 ```
 
 This prints upgrade commands for the bootstrap installer, pip, pipx, and uv
-tool installs. Existing memory updates still use `recallium update <memory_id>
+tool installs. Existing memory updates still use `recollectium update <memory_id>
 ...`.
 
 ## Uninstalling
 
 ```bash
-recallium uninstall
+recollectium uninstall
 ```
 
-This prints the package-manager command to remove the installed Recallium CLI.
+This prints the package-manager command to remove the installed Recollectium CLI.
 Safe uninstall preserves local memories and settings by default. Preserved paths
 include the config file, SQLite database, data directory, model cache, logs, and
-runtime directory, so reinstalling Recallium later reuses the existing config and
+runtime directory, so reinstalling Recollectium later reuses the existing config and
 database and runs any required migrations without overwriting your memories.
-If Recallium installed a managed shell completion block, safe uninstall removes
+If Recollectium installed a managed shell completion block, safe uninstall removes
 that shell rc block while preserving your memories.
 
 Package removal commands by install method:
 
 | Install method | Command |
 |---|---|
-| Bootstrap installer or uv tool | `uv tool uninstall recallium` |
-| pipx | `pipx uninstall recallium` |
-| pip | `python -m pip uninstall recallium` |
+| Bootstrap installer or uv tool | `uv tool uninstall recollectium` |
+| pipx | `pipx uninstall recollectium` |
+| pip | `python -m pip uninstall recollectium` |
 | Source checkout | Remove the checkout or shell path entry manually. |
 
 To preview a full data purge without deleting anything:
 
 ```bash
-recallium uninstall --purge --dry-run
+recollectium uninstall --purge --dry-run
 ```
 
-To permanently delete Recallium-owned config, data, cache, logs, and runtime
+To permanently delete Recollectium-owned config, data, cache, logs, and runtime
 paths -- **this deletes your memories, and cannot be undone**:
 
 ```bash
-recallium uninstall --purge
+recollectium uninstall --purge
 ```
 
 For non-interactive purge automation, use the explicit destructive confirmation
 flag:
 
 ```bash
-recallium uninstall --purge --yes-delete-all-recallium-data
+recollectium uninstall --purge --yes-delete-all-recollectium-data
 ```
 
-Purge only removes paths that look Recallium-owned and refuses broad paths such
+Purge only removes paths that look Recollectium-owned and refuses broad paths such
 as your home directory, root directory, or current working directory. If the
-configured cache path appears shared with other tools, Recallium skips it and
-reports why. If a Recallium service is running, uninstall stops it cleanly before
+configured cache path appears shared with other tools, Recollectium skips it and
+reports why. If a Recollectium service is running, uninstall stops it cleanly before
 printing package removal guidance or deleting purge targets; `--dry-run` shows
 what would happen without stopping the service or deleting files.
 
 ## Data path behavior
 
-- Default database path: `~/.local/share/recallium/recallium.db`
+- Default database path: `~/.local/share/recollectium/recollectium.db`
 - Override database path in config: set `database.path` in `config.json`
-- Override database path in CLI: `recallium --db /tmp/recallium.db ...`
-- Override database path in Python: `RecalliumCore(db_path="/tmp/recallium.db")`
+- Override database path in CLI: `recollectium --db /tmp/recollectium.db ...`
+- Override database path in Python: `RecollectiumCore(db_path="/tmp/recollectium.db")`
 
 ## Configuration
 
-Recallium uses a JSON config file located at `~/.config/recallium/config.json`
+Recollectium uses a JSON config file located at `~/.config/recollectium/config.json`
 by default. The file is auto-created with built-in defaults the first time you
 run a command that loads the effective config. CLI flags override config values.
-Inspection-only commands `recallium config --path` and `recallium config --defaults`
+Inspection-only commands `recollectium config --path` and `recollectium config --defaults`
 do not create a config file.
 
 ### Config file location
 
 | Situation | Path |
 |---|---|
-| Default (Linux XDG) | `~/.config/recallium/config.json` |
+| Default (Linux XDG) | `~/.config/recollectium/config.json` |
 | Custom via `--config` | Any path you specify. Explicit missing paths fail clearly unless a config creation command is used. |
 
-The config directory (`~/.config/recallium/`) and file are created
+The config directory (`~/.config/recollectium/`) and file are created
 automatically with restrictive permissions (`0700` for directories, `0600` for
 the file).
 
@@ -236,7 +236,7 @@ the file).
 {
   "version": 1,
   "database": {
-    "path": "recallium.db"
+    "path": "recollectium.db"
   },
   "embedding": {
     "provider": "builtin-fastembed",
@@ -267,12 +267,12 @@ the file).
 | Setting | Default | Description |
 |---|---|---|
 | `version` | `1` | Config schema version for future compatibility. |
-| `database.path` | `"recallium.db"` | SQLite database path. Relative paths resolve against the data directory. Absolute paths are used as-is. |
+| `database.path` | `"recollectium.db"` | SQLite database path. Relative paths resolve against the data directory. Absolute paths are used as-is. |
 | `embedding.provider` | `"builtin-fastembed"` | Embedding provider. Only `"builtin-fastembed"` is supported in this release. Other values fail validation. |
 | `embedding.model` | `"jinaai/jina-embeddings-v2-small-en"` | Embedding model name. Only this model is supported in this release. Other values fail validation. |
 | `service.host` | `"127.0.0.1"` | Host interface for the local HTTP service. |
 | `service.port` | `8765` | TCP port for the local HTTP service. |
-| `logging.level` | `"info"` | Log level for the `recallium.*` logger hierarchy. Allowed values: `debug`, `info`, `warning`, `error`. |
+| `logging.level` | `"info"` | Log level for the `recollectium.*` logger hierarchy. Allowed values: `debug`, `info`, `warning`, `error`. |
 | `logging.format` | `"json"` | Log output format. Only `"json"` is supported in this release. |
 | `logging.max_bytes` | `10485760` | Maximum log file size in bytes before rotation (10 MiB). Must be a positive integer. |
 | `logging.backup_count` | `5` | Number of rotated log file backups to keep. Must be a positive integer. |
@@ -280,15 +280,15 @@ the file).
 | `directories.cache` | `null` (XDG default) | Override the cache directory. |
 | `directories.logs` | `null` (XDG default) | Override the logs directory. |
 | `directories.runtime` | `null` (XDG default) | Override the runtime directory. |
-| `workspace.uid_normalization` | `"normalize"` | Workspace UID normalization mode. `"normalize"` (default) lowercases and slugifies UIDs so `Recallium Core` and `recallium-core` resolve to the same workspace. `"exact"` stores and looks up UIDs exactly as provided. |
+| `workspace.uid_normalization` | `"normalize"` | Workspace UID normalization mode. `"normalize"` (default) lowercases and slugifies UIDs so `Recollectium Core` and `recollectium-core` resolve to the same workspace. `"exact"` stores and looks up UIDs exactly as provided. |
 
-When `directories.*` is `null` or unset, Recallium uses standard XDG paths:
+When `directories.*` is `null` or unset, Recollectium uses standard XDG paths:
 
-- Config: `$XDG_CONFIG_HOME/recallium/` (fallback `~/.config/recallium/`)
-- Data: `$XDG_DATA_HOME/recallium/` (fallback `~/.local/share/recallium/`)
-- Cache: `$XDG_CACHE_HOME/recallium/` (fallback `~/.cache/recallium/`)
-- Logs: `$XDG_STATE_HOME/recallium/logs/` (fallback `~/.local/state/recallium/logs/`)
-- Runtime: `$XDG_RUNTIME_DIR/recallium/` (fallback inside data directory)
+- Config: `$XDG_CONFIG_HOME/recollectium/` (fallback `~/.config/recollectium/`)
+- Data: `$XDG_DATA_HOME/recollectium/` (fallback `~/.local/share/recollectium/`)
+- Cache: `$XDG_CACHE_HOME/recollectium/` (fallback `~/.cache/recollectium/`)
+- Logs: `$XDG_STATE_HOME/recollectium/logs/` (fallback `~/.local/state/recollectium/logs/`)
+- Runtime: `$XDG_RUNTIME_DIR/recollectium/` (fallback inside data directory)
 
 ### Priority order
 
@@ -298,45 +298,45 @@ Values are resolved in this order (highest wins):
 2. Explicit values in `config.json`
 3. Built-in defaults
 
-### Using `recallium config`
+### Using `recollectium config`
 
 ```bash
 # Print effective configuration (defaults merged with your overrides)
-recallium config
+recollectium config
 
 # Print built-in defaults only
 # Does not create a config file
-recallium config --defaults
+recollectium config --defaults
 
 # Show where the config file lives
 # Does not create a config file
-recallium config --path
+recollectium config --path
 
 # Validate the config file (exit 0 on success, 1 on error)
-recallium config --validate
+recollectium config --validate
 
 # Run config and directory health checks
-recallium config doctor
+recollectium config doctor
 
 # Get a single value by dot-notation key
-recallium config get service.port
+recollectium config get service.port
 
 # Set a value (creates the file if needed, preserves existing keys)
-recallium config set service.port 9090
+recollectium config set service.port 9090
 
 # Remove a key so the built-in default takes effect
-recallium config unset service.host
+recollectium config unset service.host
 
 # Create or overwrite the starter config with all defaults
-recallium config init --force
+recollectium config init --force
 
 # Open the config file in your editor ($EDITOR)
 # Creates the file with defaults first if it does not exist
-recallium config edit
+recollectium config edit
 
 # Reset the config file to built-in defaults
 # Creates the file if it does not exist
-recallium config reset
+recollectium config reset
 ```
 
 ### CLI flag overrides
@@ -352,12 +352,12 @@ recallium config reset
 
 ## Service Management
 
-Recallium can run as a long-running service accessible over HTTP. Use the `recallium service` commands to manage the service lifecycle.
+Recollectium can run as a long-running service accessible over HTTP. Use the `recollectium service` commands to manage the service lifecycle.
 
 Two service types are available:
 
-- **API** (`recallium service start api`): REST API server with all memory operations, embedding status, and health checks. Mounted at the configured `service.host` and `service.port`.
-- **MCP** (`recallium service start mcp`): MCP (Model Context Protocol) HTTP server with memory tools for AI assistant integration. Uses SSE transport at the configured address.
+- **API** (`recollectium service start api`): REST API server with all memory operations, embedding status, and health checks. Mounted at the configured `service.host` and `service.port`.
+- **MCP** (`recollectium service start mcp`): MCP (Model Context Protocol) HTTP server with memory tools for AI assistant integration. Uses SSE transport at the configured address.
 
   MCP tools exposed:
 
@@ -375,13 +375,13 @@ Only one service can run at a time. The service manager uses a PID file to track
 
 ```bash
 # Start the REST API server
-recallium service start api
+recollectium service start api
 
 # Start the MCP HTTP server
-recallium service start mcp
+recollectium service start mcp
 
 # Use a custom database path
-recallium --db /tmp/custom.db service start api
+recollectium --db /tmp/custom.db service start api
 ```
 
 Output on success:
@@ -393,7 +393,7 @@ Output on success:
 ### Checking service status
 
 ```bash
-recallium service status
+recollectium service status
 ```
 
 When running:
@@ -415,14 +415,14 @@ If a stale PID file exists from a previous run that exited unexpectedly, the sta
 Local adapters and plugins should use the machine-readable discovery command instead of hardcoding the default endpoint or parsing service logs:
 
 ```bash
-recallium service discover
+recollectium service discover
 ```
 
-When a managed service is running, discovery exits `0` and prints JSON with the service type, PID, endpoint, API prefix, health URL, version URL, capabilities URL, Recallium version, config path, runtime directory, PID file, and discovery file path. `recallium service start api` and `recallium service start mcp` also write the same running metadata to `{runtime_dir}/service-discovery.json`.
+When a managed service is running, discovery exits `0` and prints JSON with the service type, PID, endpoint, API prefix, health URL, version URL, capabilities URL, Recollectium version, config path, runtime directory, PID file, and discovery file path. `recollectium service start api` and `recollectium service start mcp` also write the same running metadata to `{runtime_dir}/service-discovery.json`.
 
-When no managed service is running, discovery exits `1`, prints `status="not_running"`, and includes the next step to start the API service. The command does not create a config file just to inspect discovery state. If PID or discovery metadata is stale, discovery removes the stale Recallium-owned files and reports what was cleaned.
+When no managed service is running, discovery exits `1`, prints `status="not_running"`, and includes the next step to start the API service. The command does not create a config file just to inspect discovery state. If PID or discovery metadata is stale, discovery removes the stale Recollectium-owned files and reports what was cleaned.
 
-Adapters should autodiscover Recallium after the host application loads the
+Adapters should autodiscover Recollectium after the host application loads the
 plugin when the adapter and Core run on the same machine. Users should not need
 to manually configure host, port, PID file, runtime path, or service type for
 that local path. Hosted or remote Core instances are different: the user points
@@ -432,12 +432,12 @@ capabilities, whether those URLs came from local discovery or from the configure
 remote base URL. See `docs/opencode-adapter-contract.md` for the full adapter
 contract.
 
-Binding Recallium to a non-local interface can expose memory contents because the Phase 1 local API is unauthenticated.
+Binding Recollectium to a non-local interface can expose memory contents because the Phase 1 local API is unauthenticated.
 
 ### Stopping a service
 
 ```bash
-recallium service stop
+recollectium service stop
 ```
 
 Output:
@@ -458,13 +458,13 @@ Shutdown sends SIGTERM and waits up to 10 seconds for graceful exit. If the proc
 
 ```bash
 # Restarts the currently running service
-recallium service restart
+recollectium service restart
 
 # Restarts using the type from a stale PID file
-recallium service restart --type api
+recollectium service restart --type api
 
 # Specify a type when no trace of a previous service exists
-recallium service restart --type mcp
+recollectium service restart --type mcp
 ```
 
 Output:
@@ -475,37 +475,37 @@ Output:
 
 ### MCP stdio mode
 
-The `mcp-stdio` command runs an MCP server over stdin/stdout. This mode is designed for AI assistant clients that spawn Recallium as a child process, such as Claude Desktop.
+The `mcp-stdio` command runs an MCP server over stdin/stdout. This mode is designed for AI assistant clients that spawn Recollectium as a child process, such as Claude Desktop.
 
 ```bash
-recallium mcp-stdio
+recollectium mcp-stdio
 ```
 
 No PID file is created for stdio mode. The process runs as long as the client is connected.
 
 #### Claude Desktop configuration
 
-Add this to your Claude Desktop `claude_desktop_config.json` to use Recallium as an MCP server:
+Add this to your Claude Desktop `claude_desktop_config.json` to use Recollectium as an MCP server:
 
 ```json
 {
   "mcpServers": {
-    "recallium": {
+    "recollectium": {
       "command": "uv",
       "args": [
-        "--directory", "/path/to/recallium",
-        "run", "recallium", "mcp-stdio"
+        "--directory", "/path/to/recollectium",
+        "run", "recollectium", "mcp-stdio"
       ]
     }
   }
 }
 ```
 
-Adjust the `--directory` path to point at your Recallium Core checkout.
+Adjust the `--directory` path to point at your Recollectium Core checkout.
 
 ### PID file and runtime directory
 
-The service manager writes a PID file to the runtime directory (default `$XDG_RUNTIME_DIR/recallium/service.pid`). The file contains JSON with the process ID, service type, and Linux process start-time metadata used to avoid acting on a reused PID:
+The service manager writes a PID file to the runtime directory (default `$XDG_RUNTIME_DIR/recollectium/service.pid`). The file contains JSON with the process ID, service type, and Linux process start-time metadata used to avoid acting on a reused PID:
 
 ```json
 {"pid": 12345, "process_start_time": 1234567, "type": "api"}
@@ -517,7 +517,7 @@ Daemon stdout and stderr are redirected to `service-api.log` or `service-mcp.log
 ### Error handling
 
 - Starting any service while another service is running produces a clear error: `ServiceConflictError: a mcp service is already running (PID 12345). Stop it before starting an api service.`
-- Use `recallium service restart` to restart a running service.
+- Use `recollectium service restart` to restart a running service.
 - Stale PID files from crashed processes or PID reuse are cleaned automatically.
 
 ## CLI examples
@@ -525,7 +525,7 @@ Daemon stdout and stderr are redirected to `service-api.log` or `service-mcp.log
 Add a user memory:
 
 ```bash
-recallium --db /tmp/recallium.db add \
+recollectium --db /tmp/recollectium.db add \
   --space user \
   --type preference \
   --content "I prefer concise technical answers."
@@ -534,7 +534,7 @@ recallium --db /tmp/recallium.db add \
 Search user memories:
 
 ```bash
-recallium --db /tmp/recallium.db search-user "concise answers"
+recollectium --db /tmp/recollectium.db search-user "concise answers"
 ```
 
 Searches default to all buckets in the selected scope. Add `--type` when you want to narrow the search to a specific bucket, for example `fact` or `preference`.
@@ -542,7 +542,7 @@ Searches default to all buckets in the selected scope. Add `--type` when you wan
 Add a workspace memory:
 
 ```bash
-recallium --db /tmp/recallium.db add \
+recollectium --db /tmp/recollectium.db add \
   --space workspace \
   --workspace-uid 7f3b0a5e-example-workspace \
   --type decision \
@@ -552,7 +552,7 @@ recallium --db /tmp/recallium.db add \
 Search workspace memories:
 
 ```bash
-recallium --db /tmp/recallium.db search-workspace \
+recollectium --db /tmp/recollectium.db search-workspace \
   "local persistence" \
   --workspace-uid 7f3b0a5e-example-workspace
 ```
@@ -570,27 +570,27 @@ git repo, use the selected project folder name or containing project workspace
 folder name. The plugin passes that UID candidate to Core; Core applies
 `workspace.uid_normalization` at the storage boundary. For local autodiscovery,
 if the service is not running, the plugin should attempt to start the API service
-with `recallium service start api` before guiding the user. See
+with `recollectium service start api` before guiding the user. See
 `docs/opencode-adapter-contract.md` for the adapter-side workspace UID and
 service discovery rules.
 
 List known workspace UIDs:
 
 ```bash
-recallium --db /tmp/recallium.db workspace list
+recollectium --db /tmp/recollectium.db workspace list
 ```
 
 Rename a workspace (migrates all its memories to a new UID):
 
 ```bash
-recallium --db /tmp/recallium.db workspace rename old-project new-project
+recollectium --db /tmp/recollectium.db workspace rename old-project new-project
 ```
 
 All successful CLI commands return JSON.
 
 ## Memory buckets
 
-Recallium uses a small canonical bucket set. Write operations choose a bucket, while reads default to all buckets in the selected scope and only narrow with `--type` when needed.
+Recollectium uses a small canonical bucket set. Write operations choose a bucket, while reads default to all buckets in the selected scope and only narrow with `--type` when needed.
 
 User scope:
 
@@ -620,27 +620,27 @@ Searches default to all buckets in the selected scope. Add `--type` when you wan
 Check embedding profile status:
 
 ```bash
-recallium --db /tmp/recallium.db embedding-status
+recollectium --db /tmp/recollectium.db embedding-status
 ```
 
 List embedding jobs:
 
 ```bash
-recallium --db /tmp/recallium.db embedding-jobs
+recollectium --db /tmp/recollectium.db embedding-jobs
 ```
 
 Get one embedding job:
 
 ```bash
-recallium --db /tmp/recallium.db embedding-jobs --job-id <job-id>
+recollectium --db /tmp/recollectium.db embedding-jobs --job-id <job-id>
 ```
 
 ## Python API examples
 
 ```python
-from recallium import RecalliumCore
+from recollectium import RecollectiumCore
 
-core = RecalliumCore(db_path="/tmp/recallium.db")
+core = RecollectiumCore(db_path="/tmp/recollectium.db")
 
 created = core.add_memory(
     space="user",

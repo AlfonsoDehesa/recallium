@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from recallium.embeddings import EmbeddingProvider
-from recallium.errors import ValidationError
-from recallium.models import Memory, SearchResult, validate_limit
+from recollectium.embeddings import EmbeddingProvider
+from recollectium.errors import ValidationError
+from recollectium.models import Memory, SearchResult, validate_limit
 
 
 @dataclass(slots=True)

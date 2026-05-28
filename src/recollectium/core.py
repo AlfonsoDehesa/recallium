@@ -1,4 +1,4 @@
-"""Public service API for Recallium Core."""
+"""Public service API for Recollectium Core."""
 
 from __future__ import annotations
 
@@ -10,13 +10,13 @@ import threading
 from typing import Any
 from uuid import uuid4
 
-from recallium.embeddings import (
+from recollectium.embeddings import (
     BuiltinFastEmbedProvider,
     ContentChunk,
     EmbeddingProvider,
     chunk_text_for_profile,
 )
-from recallium.errors import (
+from recollectium.errors import (
     EmbeddingDimensionMismatchError,
     EmbeddingGenerationError,
     NotFoundError,
@@ -24,9 +24,9 @@ from recallium.errors import (
     ReembeddingInProgressError,
     ValidationError,
 )
-from recallium.logging import setup_logging
-from recallium.model_state import read_model_state, write_model_state
-from recallium.models import (
+from recollectium.logging import setup_logging
+from recollectium.model_state import read_model_state, write_model_state
+from recollectium.models import (
     SPACE_USER,
     SPACE_WORKSPACE,
     Memory,
@@ -38,9 +38,9 @@ from recallium.models import (
     validate_memory_type_for_space,
     validate_memory_update_input,
 )
-from recallium.config import RecalliumConfig
-from recallium.search import rank_memory_candidates
-from recallium.storage import SQLiteMemoryStore, utc_now_iso
+from recollectium.config import RecollectiumConfig
+from recollectium.search import rank_memory_candidates
+from recollectium.storage import SQLiteMemoryStore, utc_now_iso
 
 _log = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ def _validate_optional_string(field_name: str, value: str | None) -> str | None:
     return value.strip()
 
 
-class RecalliumCore:
+class RecollectiumCore:
     """High-level service object used by clients and adapters."""
 
     def __init__(
@@ -65,7 +65,7 @@ class RecalliumCore:
         config_path: Path | str | None = None,
         log_level: str | None = None,
     ) -> None:
-        self.config = RecalliumConfig(config_path, log_level=log_level)
+        self.config = RecollectiumConfig(config_path, log_level=log_level)
         setup_logging(self.config)
 
         if db_path is not None:
@@ -74,7 +74,7 @@ class RecalliumCore:
             selected_path = self.config.resolved_database_path
 
         _log.info(
-            "RecalliumCore initialised",
+            "RecollectiumCore initialised",
             extra={"event": "core.init", "context": {"db_path": str(selected_path)}},
         )
 
@@ -476,7 +476,7 @@ class RecalliumCore:
         file is written.  When the model *changed*, stale memories are
         re-embedded via ``_start_startup_reembedding()``.
         """
-        resolved_state_dir = state_dir or Path(user_state_dir("recallium"))
+        resolved_state_dir = state_dir or Path(user_state_dir("recollectium"))
         model_name = str(self.config.effective_config["embedding"]["model"])
         profile = self.embedding_provider.embedding_profile
         dimensions = profile.get("dimensions")
@@ -646,7 +646,7 @@ class RecalliumCore:
                     "workspace_uid": workspace_uid,
                     "include_archived": include_archived,
                 },
-                name=f"recallium-reembedding-{job_id}",
+                name=f"recollectium-reembedding-{job_id}",
                 daemon=True,
             )
             self._active_deferred_embedding_jobs[key] = job_id

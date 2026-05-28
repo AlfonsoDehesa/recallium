@@ -1,7 +1,7 @@
-"""Structured JSON logging infrastructure for Recallium.
+"""Structured JSON logging infrastructure for Recollectium.
 
 Provides a ``JsonFormatter``, a ``setup_logging`` bootstrap that configures
-the ``recallium.*`` logger hierarchy with size-based rotation and a stderr
+the ``recollectium.*`` logger hierarchy with size-based rotation and a stderr
 fallback, and a ``get_logger`` convenience.
 """
 
@@ -69,10 +69,10 @@ class JsonFormatter(logging.Formatter):
 
 
 def setup_logging(config: LoggingConfig) -> None:
-    """Bootstrap the ``recallium`` logger hierarchy.
+    """Bootstrap the ``recollectium`` logger hierarchy.
 
     Creates the logs directory (mode 0o700), attaches a
-    ``RotatingFileHandler`` writing to ``logs/recallium.log`` (mode 0o600) and
+    ``RotatingFileHandler`` writing to ``logs/recollectium.log`` (mode 0o600) and
     a ``StreamHandler`` on stderr at WARNING level.  Both use
     ``JsonFormatter``.
 
@@ -83,7 +83,7 @@ def setup_logging(config: LoggingConfig) -> None:
     log_dir.mkdir(mode=0o700, parents=True, exist_ok=True)
     log_dir.chmod(0o700)
 
-    log_file = log_dir / "recallium.log"
+    log_file = log_dir / "recollectium.log"
 
     logging_config = config.effective_config.get("logging", {})
     log_level_name = str(logging_config.get("level", "info")).upper()
@@ -98,23 +98,23 @@ def setup_logging(config: LoggingConfig) -> None:
         maxBytes=max_bytes,
         backupCount=backup_count,
     )
-    setattr(file_handler, "_recallium_managed", True)
+    setattr(file_handler, "_recollectium_managed", True)
     file_handler.setFormatter(json_formatter)
     file_handler.setLevel(log_level)
     if log_file.exists():
         log_file.chmod(0o600)
 
     stream_handler = logging.StreamHandler(sys.stderr)
-    setattr(stream_handler, "_recallium_managed", True)
+    setattr(stream_handler, "_recollectium_managed", True)
     stream_handler.setFormatter(json_formatter)
     stream_handler.setLevel(logging.WARNING)
 
-    root_logger = logging.getLogger("recallium")
+    root_logger = logging.getLogger("recollectium")
     root_logger.setLevel(log_level)
 
     def _replace_managed_handlers(logger: logging.Logger) -> None:
         for handler in list(logger.handlers):
-            if getattr(handler, "_recallium_managed", False):
+            if getattr(handler, "_recollectium_managed", False):
                 logger.removeHandler(handler)
                 handler.close()
 
@@ -130,7 +130,7 @@ def setup_logging(config: LoggingConfig) -> None:
         lib_logger.addHandler(file_handler)
         lib_logger.addHandler(stream_handler)
 
-    _warnings_logger = logging.getLogger("recallium.warnings")
+    _warnings_logger = logging.getLogger("recollectium.warnings")
 
     def _handle_warning(
         message: Warning | str,

@@ -10,7 +10,7 @@ from pathlib import Path
 import sqlite3
 from typing import Callable, Iterator
 
-from recallium.errors import MigrationError
+from recollectium.errors import MigrationError
 
 _log = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ class MigrationStatus:
 
 
 def _default_migrations() -> list[Migration]:
-    from recallium.migrations.versions import list_migrations
+    from recollectium.migrations.versions import list_migrations
 
     return list_migrations()
 
@@ -149,7 +149,7 @@ class MigrationRunner:
             current_version = self._read_user_version(connection)
             if current_version > latest_version:
                 raise MigrationError(
-                    "database schema version is newer than this Recallium build supports"
+                    "database schema version is newer than this Recollectium build supports"
                 )
 
             self._reconcile_existing_metadata(

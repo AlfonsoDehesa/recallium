@@ -2,7 +2,7 @@
 
 ## Phase 1 (v1.0.0): Release-ready core
 
-Recallium Core is installable, runnable, documented, and ready for the first
+Recollectium Core is installable, runnable, documented, and ready for the first
 public release. The local service, CLI, API, bootstrap installers, service
 lifecycle, shell completion for Unix shells, uninstall behavior, and service
 discovery are already in place.
@@ -24,8 +24,8 @@ Completed:
 - [x] Cross-platform bootstrap install flow for Linux, macOS, and Windows.
 - [x] Safe uninstall surface with default data preservation and explicit purge.
 - [x] Bash, zsh, and fish shell completion through argcomplete.
-- [x] Uninstall cleanup for Recallium-managed shell completion blocks.
-- [x] Local service discovery for adapters through `recallium service discover` and `service-discovery.json`.
+- [x] Uninstall cleanup for Recollectium-managed shell completion blocks.
+- [x] Local service discovery for adapters through `recollectium service discover` and `service-discovery.json`.
 - [x] Workspace UID contract: normalization, listing, rename, and CLI/API/MCP parity.
 - [x] Install-time init and model readiness: central `_ensure_model_ready()` wrapper with state file tracking, service startup gate, CLI embedding gate, bootstrap install auto-init, offline error guidance.
 - [x] Canonical memory buckets and optional read filters: small canonical user/workspace bucket sets, scope-aware write validation, exact-match optional read filters, CLI/API/MCP/docs alignment, and completion coverage.
@@ -50,10 +50,10 @@ workspace keys.
 
 ### Update flow
 
-Release goal: `recallium update` can check for, download, and apply updates
+Release goal: `recollectium update` can check for, download, and apply updates
 without requiring manual reinstall steps.
 
-- [ ] `recallium update` checks the installed version against the latest release.
+- [ ] `recollectium update` checks the installed version against the latest release.
 - [ ] Supports pip, pipx, and uv install methods.
 - [ ] Bootstrap-installed instances can update through the bootstrap path.
 - [ ] Dry-run mode shows what would be updated without applying changes.
@@ -77,13 +77,13 @@ whole CLI.
 
 ### CI uninstall-flow coverage
 
-Release goal: every bootstrap install-smoke path also proves Recallium can be
+Release goal: every bootstrap install-smoke path also proves Recollectium can be
 uninstalled cleanly.
 
 - [ ] Update CI install-smoke jobs to run the appropriate uninstall flow after the
   install and CLI smoke checks pass.
-- [ ] Verify default uninstall preserves Recallium data by default.
-- [ ] Verify purge uninstall removes Recallium-managed data only when explicitly
+- [ ] Verify default uninstall preserves Recollectium data by default.
+- [ ] Verify purge uninstall removes Recollectium-managed data only when explicitly
   requested.
 - [ ] Verify managed shell completion cleanup runs during uninstall where that shell
   completion was installed.
@@ -106,18 +106,18 @@ service outside localhost.
 ### Rich dynamic PowerShell shell completion
 
 Release goal: Windows users get rich dynamic Tab completion in PowerShell with
-parity for the important Recallium CLI paths.
+parity for the important Recollectium CLI paths.
 
 - [ ] Add PowerShell as a supported completion target.
 - [ ] Generate a `Register-ArgumentCompleter` script.
-- [ ] Make PowerShell call Recallium dynamically during Tab completion.
+- [ ] Make PowerShell call Recollectium dynamically during Tab completion.
 - [ ] Complete top-level commands.
 - [ ] Complete subcommands.
 - [ ] Complete command flags.
-- [ ] Complete config keys for `recallium config get/set/unset`.
+- [ ] Complete config keys for `recollectium config get/set/unset`.
 - [ ] Add install support so the managed completion block can be added to the
   correct PowerShell profile.
-- [ ] Add uninstall support so Recallium can remove the managed PowerShell
+- [ ] Add uninstall support so Recollectium can remove the managed PowerShell
   completion block.
 - [ ] Ensure bootstrap install records the PowerShell completion profile edit in
   install metadata where appropriate.
@@ -132,7 +132,7 @@ parity for the important Recallium CLI paths.
 
 ### GitHub Wiki
 
-Release goal: Recallium ships with a public GitHub Wiki that covers every
+Release goal: Recollectium ships with a public GitHub Wiki that covers every
 user-facing surface at release quality, alongside the README.
 
 - [ ] Create and populate the GitHub Wiki with pages for install, config, CLI
@@ -189,16 +189,16 @@ path is proven.
 - [ ] Confirm `CHANGELOG.md` and `pyproject.toml` version match.
 - [ ] Build a wheel and source distribution from the release state.
 - [ ] Upload to the intended package index after the release is cut.
-- [ ] Verify `pip install recallium` from the published package.
-- [ ] Verify `pipx install recallium` from the published package.
-- [ ] Verify `uv tool install recallium` from the published package.
-- [ ] Confirm `recallium --version` works after each install method.
-- [ ] Confirm `recallium init` works after each install method.
+- [ ] Verify `pip install recollectium` from the published package.
+- [ ] Verify `pipx install recollectium` from the published package.
+- [ ] Verify `uv tool install recollectium` from the published package.
+- [ ] Confirm `recollectium --version` works after each install method.
+- [ ] Confirm `recollectium init` works after each install method.
 - [ ] Confirm bootstrap installers can install the published package or release tag.
 
 ### OpenCode plugin work
 
-Release goal: OpenCode can use Recallium Core through a thin plugin or adapter
+Release goal: OpenCode can use Recollectium Core through a thin plugin or adapter
 that consumes the Core service contract instead of reimplementing memory logic.
 
 - [ ] Build the OpenCode plugin or adapter.
@@ -208,12 +208,12 @@ that consumes the Core service contract instead of reimplementing memory logic.
 - [ ] If local autodiscovery reports the service is not running, attempt to start
   the local API service before guiding the user.
 - [ ] Consume Core workspace UID behavior from the plugin.
-- [ ] Expose Recallium-backed tools inside OpenCode.
+- [ ] Expose Recollectium-backed tools inside OpenCode.
 - [ ] Add plugin-facing documentation and troubleshooting guides.
 
 ## Phase 2 (v1.x): Product intelligence
 
-Recallium fulfills its product promise as a personal intelligence engine after the first 1.0 release line is stable.
+Recollectium fulfills its product promise as a personal intelligence engine after the first 1.0 release line is stable.
 
 - [ ] Daily memory maintenance (dreamer reviews and improves the memory set).
 - [ ] User reflection summaries for conversation topics.

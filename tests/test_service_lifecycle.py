@@ -21,10 +21,10 @@ from mcp.types import TextContent
 import pytest
 from pytest import CaptureFixture
 
-from recallium.cli import main
-from recallium.config import DEFAULTS
-from recallium.errors import ServiceConflictError, ServiceError
-from recallium.service_manager import is_pid_alive
+from recollectium.cli import main
+from recollectium.config import DEFAULTS
+from recollectium.errors import ServiceConflictError, ServiceError
+from recollectium.service_manager import is_pid_alive
 
 # ---------------------------------------------------------------------------
 # helpers
@@ -94,7 +94,7 @@ def _run_real_service_command(
     timeout: int = 15,
 ) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "-m", "recallium", "--config", str(config_path), *args],
+        [sys.executable, "-m", "recollectium", "--config", str(config_path), *args],
         capture_output=True,
         text=True,
         timeout=timeout,
@@ -193,7 +193,7 @@ def test_service_restart_help(capsys: CaptureFixture[str]) -> None:
 def test_start_service_api(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
     config_path = _make_config(tmp_path)
 
-    with patch("recallium.cli.start_service", return_value=12345):
+    with patch("recollectium.cli.start_service", return_value=12345):
         exit_code, stdout, stderr = _run_cli(
             ["--config", str(config_path), "service", "start", "api"],
             capsys,
@@ -213,7 +213,7 @@ def test_start_service_api(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
 def test_start_service_mcp(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
     config_path = _make_config(tmp_path)
 
-    with patch("recallium.cli.start_service", return_value=9999):
+    with patch("recollectium.cli.start_service", return_value=9999):
         exit_code, stdout, stderr = _run_cli(
             ["--config", str(config_path), "service", "start", "mcp"],
             capsys,
@@ -238,7 +238,7 @@ def test_start_service_conflict(tmp_path: Path, capsys: CaptureFixture[str]) -> 
     def _raise_conflict(*args, **kwargs) -> int:
         raise ServiceConflictError("a mcp service is already running (PID 9999)")
 
-    with patch("recallium.cli.start_service", _raise_conflict):
+    with patch("recollectium.cli.start_service", _raise_conflict):
         exit_code, stdout, stderr = _run_cli(
             ["--config", str(config_path), "service", "start", "api"],
             capsys,
@@ -265,7 +265,7 @@ def test_start_service_value_error(tmp_path: Path, capsys: CaptureFixture[str]) 
     def _raise_value_error(*args, **kwargs) -> int:
         raise ValueError("unknown service type: xyz")
 
-    with patch("recallium.cli.start_service", _raise_value_error):
+    with patch("recollectium.cli.start_service", _raise_value_error):
         exit_code, stdout, stderr = _run_cli(
             ["--config", str(config_path), "service", "start", "api"],
             capsys,
@@ -284,7 +284,7 @@ def test_start_service_service_error(
     def _raise_service_error(*args, **kwargs) -> int:
         raise ServiceError("service process exited immediately after start")
 
-    with patch("recallium.cli.start_service", _raise_service_error):
+    with patch("recollectium.cli.start_service", _raise_service_error):
         exit_code, stdout, stderr = _run_cli(
             ["--config", str(config_path), "service", "start", "api"],
             capsys,
@@ -461,7 +461,7 @@ async def _exercise_mcp_service(endpoint: str) -> None:
 def test_stop_service_running(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
     config_path = _make_config(tmp_path)
 
-    with patch("recallium.cli.stop_service", return_value=12345):
+    with patch("recollectium.cli.stop_service", return_value=12345):
         exit_code, stdout, stderr = _run_cli(
             ["--config", str(config_path), "service", "stop"],
             capsys,
@@ -476,7 +476,7 @@ def test_stop_service_running(tmp_path: Path, capsys: CaptureFixture[str]) -> No
 def test_stop_service_not_running(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
     config_path = _make_config(tmp_path)
 
-    with patch("recallium.cli.stop_service", return_value=None):
+    with patch("recollectium.cli.stop_service", return_value=None):
         exit_code, stdout, stderr = _run_cli(
             ["--config", str(config_path), "service", "stop"],
             capsys,
@@ -498,12 +498,12 @@ def test_status_running(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
 
     with (
         patch(
-            "recallium.cli.check_running_service",
+            "recollectium.cli.check_running_service",
             return_value={"pid": 12345, "type": "api"},
         ),
-        patch("recallium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
+        patch("recollectium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
         patch(
-            "recallium.cli.read_pid_file", return_value={"pid": 12345, "type": "api"}
+            "recollectium.cli.read_pid_file", return_value={"pid": 12345, "type": "api"}
         ),
     ):
         exit_code, stdout, stderr = _run_cli(
@@ -524,9 +524,9 @@ def test_status_not_running(tmp_path: Path, capsys: CaptureFixture[str]) -> None
     config_path = _make_config(tmp_path)
 
     with (
-        patch("recallium.cli.check_running_service", return_value=None),
-        patch("recallium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
-        patch("recallium.cli.read_pid_file", return_value=None),
+        patch("recollectium.cli.check_running_service", return_value=None),
+        patch("recollectium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
+        patch("recollectium.cli.read_pid_file", return_value=None),
     ):
         exit_code, stdout, stderr = _run_cli(
             ["--config", str(config_path), "service", "status"],
@@ -543,10 +543,10 @@ def test_status_stale_pid(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
     config_path = _make_config(tmp_path)
 
     with (
-        patch("recallium.cli.check_running_service", return_value=None),
-        patch("recallium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
+        patch("recollectium.cli.check_running_service", return_value=None),
+        patch("recollectium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
         patch(
-            "recallium.cli.read_pid_file",
+            "recollectium.cli.read_pid_file",
             return_value={"pid": 99999, "type": "api"},
         ),
     ):
@@ -583,16 +583,16 @@ def test_restart_running_service(tmp_path: Path, capsys: CaptureFixture[str]) ->
 
     with (
         patch(
-            "recallium.cli.check_running_service",
+            "recollectium.cli.check_running_service",
             return_value={"pid": 12345, "type": "api"},
         ),
         patch(
-            "recallium.cli.read_pid_file",
+            "recollectium.cli.read_pid_file",
             return_value={"pid": 12345, "type": "api"},
         ),
-        patch("recallium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
-        patch("recallium.cli.stop_service", _mock_stop),
-        patch("recallium.cli.start_service", _mock_start),
+        patch("recollectium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
+        patch("recollectium.cli.stop_service", _mock_stop),
+        patch("recollectium.cli.start_service", _mock_start),
     ):
         exit_code, stdout, stderr = _run_cli(
             ["--config", str(config_path), "service", "restart"],
@@ -619,13 +619,13 @@ def test_restart_stale_pid(tmp_path: Path, capsys: CaptureFixture[str]) -> None:
         return 12345
 
     with (
-        patch("recallium.cli.check_running_service", return_value=None),
+        patch("recollectium.cli.check_running_service", return_value=None),
         patch(
-            "recallium.cli.read_pid_file",
+            "recollectium.cli.read_pid_file",
             return_value={"pid": 99999, "type": "mcp"},
         ),
-        patch("recallium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
-        patch("recallium.cli.start_service", _mock_start),
+        patch("recollectium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
+        patch("recollectium.cli.start_service", _mock_start),
     ):
         exit_code, stdout, stderr = _run_cli(
             ["--config", str(config_path), "service", "restart"],
@@ -646,9 +646,9 @@ def test_restart_no_service_no_type(
     config_path = _make_config(tmp_path)
 
     with (
-        patch("recallium.cli.check_running_service", return_value=None),
-        patch("recallium.cli.read_pid_file", return_value=None),
-        patch("recallium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
+        patch("recollectium.cli.check_running_service", return_value=None),
+        patch("recollectium.cli.read_pid_file", return_value=None),
+        patch("recollectium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
     ):
         exit_code, stdout, stderr = _run_cli(
             ["--config", str(config_path), "service", "restart"],
@@ -671,10 +671,10 @@ def test_restart_with_type_flag(tmp_path: Path, capsys: CaptureFixture[str]) -> 
         return 12345
 
     with (
-        patch("recallium.cli.check_running_service", return_value=None),
-        patch("recallium.cli.read_pid_file", return_value=None),
-        patch("recallium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
-        patch("recallium.cli.start_service", _mock_start),
+        patch("recollectium.cli.check_running_service", return_value=None),
+        patch("recollectium.cli.read_pid_file", return_value=None),
+        patch("recollectium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
+        patch("recollectium.cli.start_service", _mock_start),
     ):
         exit_code, stdout, stderr = _run_cli(
             ["--config", str(config_path), "service", "restart", "--type", "api"],
@@ -698,10 +698,10 @@ def test_restart_value_error_on_start(
         raise ValueError("unknown service type: xyz")
 
     with (
-        patch("recallium.cli.check_running_service", return_value=None),
-        patch("recallium.cli.read_pid_file", return_value=None),
-        patch("recallium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
-        patch("recallium.cli.start_service", _raise_value_error),
+        patch("recollectium.cli.check_running_service", return_value=None),
+        patch("recollectium.cli.read_pid_file", return_value=None),
+        patch("recollectium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
+        patch("recollectium.cli.start_service", _raise_value_error),
     ):
         exit_code, stdout, stderr = _run_cli(
             ["--config", str(config_path), "service", "restart", "--type", "mcp"],
@@ -723,10 +723,10 @@ def test_restart_conflict_error_on_start(
         raise ServiceConflictError("a mcp service is already running")
 
     with (
-        patch("recallium.cli.check_running_service", return_value=None),
-        patch("recallium.cli.read_pid_file", return_value=None),
-        patch("recallium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
-        patch("recallium.cli.start_service", _raise_conflict),
+        patch("recollectium.cli.check_running_service", return_value=None),
+        patch("recollectium.cli.read_pid_file", return_value=None),
+        patch("recollectium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
+        patch("recollectium.cli.start_service", _raise_conflict),
     ):
         exit_code, stdout, stderr = _run_cli(
             ["--config", str(config_path), "service", "restart", "--type", "api"],
@@ -747,10 +747,10 @@ def test_restart_service_error_on_start(
         raise ServiceError("service process exited immediately after start")
 
     with (
-        patch("recallium.cli.check_running_service", return_value=None),
-        patch("recallium.cli.read_pid_file", return_value=None),
-        patch("recallium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
-        patch("recallium.cli.start_service", _raise_service_error),
+        patch("recollectium.cli.check_running_service", return_value=None),
+        patch("recollectium.cli.read_pid_file", return_value=None),
+        patch("recollectium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
+        patch("recollectium.cli.start_service", _raise_service_error),
     ):
         exit_code, stdout, stderr = _run_cli(
             ["--config", str(config_path), "service", "restart", "--type", "api"],
@@ -917,7 +917,7 @@ def test_start_service_passes_db_path(
         start_calls.append((service_type, db_path, log_level))
         return 42
 
-    with patch("recallium.cli.start_service", _mock_start):
+    with patch("recollectium.cli.start_service", _mock_start):
         exit_code, stdout, stderr = _run_cli(
             [
                 "--config",
@@ -947,10 +947,10 @@ def test_restart_passes_db_path(tmp_path: Path, capsys: CaptureFixture[str]) -> 
         return 42
 
     with (
-        patch("recallium.cli.check_running_service", return_value=None),
-        patch("recallium.cli.read_pid_file", return_value=None),
-        patch("recallium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
-        patch("recallium.cli.start_service", _mock_start),
+        patch("recollectium.cli.check_running_service", return_value=None),
+        patch("recollectium.cli.read_pid_file", return_value=None),
+        patch("recollectium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
+        patch("recollectium.cli.start_service", _mock_start),
     ):
         exit_code, stdout, stderr = _run_cli(
             [
@@ -996,16 +996,16 @@ def test_restart_running_stop_fails_with_conflict(
 
     with (
         patch(
-            "recallium.cli.check_running_service",
+            "recollectium.cli.check_running_service",
             return_value={"pid": 12345, "type": "api"},
         ),
         patch(
-            "recallium.cli.read_pid_file",
+            "recollectium.cli.read_pid_file",
             return_value={"pid": 12345, "type": "api"},
         ),
-        patch("recallium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
-        patch("recallium.cli.stop_service", _mock_stop),
-        patch("recallium.cli.start_service", _mock_start),
+        patch("recollectium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
+        patch("recollectium.cli.stop_service", _mock_stop),
+        patch("recollectium.cli.start_service", _mock_start),
     ):
         with pytest.raises(ServiceConflictError, match="cannot stop"):
             main(
@@ -1022,9 +1022,9 @@ def test_status_corrupt_pid_file(tmp_path: Path, capsys: CaptureFixture[str]) ->
     config_path = _make_config(tmp_path)
 
     with (
-        patch("recallium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
+        patch("recollectium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
         patch(
-            "recallium.cli.read_pid_file",
+            "recollectium.cli.read_pid_file",
             side_effect=ServiceError("corrupted PID file"),
         ),
     ):
@@ -1042,9 +1042,9 @@ def test_restart_corrupt_pid_file(tmp_path: Path, capsys: CaptureFixture[str]) -
     config_path = _make_config(tmp_path)
 
     with (
-        patch("recallium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
+        patch("recollectium.cli.get_pid_file_path", return_value=Path("/fake/pid")),
         patch(
-            "recallium.cli.read_pid_file",
+            "recollectium.cli.read_pid_file",
             side_effect=ServiceError("corrupted PID file"),
         ),
     ):

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from recallium import __version__
-from recallium.models import (
+from recollectium import __version__
+from recollectium.models import (
     ALL_MEMORY_TYPES,
     USER_MEMORY_TYPES,
     WORKSPACE_MEMORY_TYPES,
@@ -93,7 +93,7 @@ def version_payload() -> dict[str, Any]:
     return success_payload(
         {
             "service_api_version": SERVICE_API_VERSION,
-            "recallium_version": __version__,
+            "recollectium_version": __version__,
         }
     )
 

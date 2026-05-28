@@ -1,6 +1,6 @@
-"""Model readiness state file for Recallium Core.
+"""Model readiness state file for Recollectium Core.
 
-Tracks the last-prepared embedding model so Recallium can detect
+Tracks the last-prepared embedding model so Recollectium can detect
 when the configured model has changed and needs re-preparation.
 """
 
