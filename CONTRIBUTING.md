@@ -242,6 +242,9 @@ confirmed before the version-bump PR is opened.
       capability validation, or workspace UID behavior, update
       `docs/opencode-adapter-contract.md` and the matching API docs in the same
       PR.
+
+#### Database migrations
+
 - [ ] If the release changes the SQLite schema, migration plans are shipped and
       tested for each schema change.
 
