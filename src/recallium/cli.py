@@ -1142,7 +1142,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # -- search-user ------------------------------------------------------
     search_user_parser = subparsers.add_parser(
         "search-user",
-        help="search global user memories across all user buckets by default",
+        help="search global user memories",
         description=(
             "Search active user memories semantically and return ranked JSON results. "
             "Searches default to all user buckets unless --type narrows the scope."
@@ -1170,7 +1170,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # -- search-workspace -------------------------------------------------
     search_workspace_parser = subparsers.add_parser(
         "search-workspace",
-        help="search workspace memories across all workspace buckets by default",
+        help="search memories for one workspace UID",
         description=(
             "Search active memories for a specific workspace UID and return ranked "
             "JSON results. Searches default to all workspace buckets unless --type narrows the scope."

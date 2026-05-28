@@ -175,12 +175,41 @@ Response example:
       "memories.get",
       "embedding.status",
       "embedding.jobs.list",
-      "embedding.jobs.get"
+      "embedding.jobs.get",
+      "workspaces.list",
+      "workspaces.rename"
     ],
     "memory_types": {
-      "user": ["fact", "note", "preference", "reflection"],
-      "workspace": ["decision", "summary", "task_context"],
-      "all": ["decision", "fact", "note", "preference", "reflection", "summary", "task_context"]
+      "user": [
+        "fact",
+        "preference",
+        "personal_fact",
+        "social_context",
+        "goal",
+        "communication_style",
+        "note"
+      ],
+      "workspace": [
+        "fact",
+        "decision",
+        "task_context",
+        "configuration",
+        "bug_finding",
+        "note"
+      ],
+      "all": [
+        "fact",
+        "preference",
+        "personal_fact",
+        "social_context",
+        "goal",
+        "communication_style",
+        "note",
+        "decision",
+        "task_context",
+        "configuration",
+        "bug_finding"
+      ]
     }
   }
 }
