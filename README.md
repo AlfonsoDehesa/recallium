@@ -599,7 +599,9 @@ Resolve a UID candidate to its canonical workspace:
 recollectium --db /tmp/recollectium.db workspace resolve recollectium-core
 ```
 
-Add, list, and remove workspace aliases:
+Add, list, and remove workspace aliases. Use `--migrate-existing` when the alias
+UID already has workspace memories and should be folded into the canonical
+workspace in the same transaction:
 
 ```bash
 recollectium --db /tmp/recollectium.db workspace alias add recollectium recollectium-core --migrate-existing

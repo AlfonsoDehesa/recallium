@@ -240,7 +240,10 @@ class RecollectiumCore:
         limit: int | None = None,
     ) -> list[Memory]:
         workspace_uid = _validate_optional_string("workspace_uid", workspace_uid)
-        workspace_uid = self._resolve_workspace_uid(workspace_uid)
+        if workspace_uid is not None and (space is None or space == SPACE_WORKSPACE):
+            workspace_uid = self._resolve_workspace_uid(workspace_uid)
+        else:
+            workspace_uid = self._normalize_uid(workspace_uid)
         validated_type = validate_memory_type_filter(type) if type is not None else None
 
         return self.store.list_memories(

@@ -996,6 +996,41 @@ def test_core_rename_workspace_exact_mode_passthrough(tmp_path: Path) -> None:
     assert result["memories_updated"] == 1
 
 
+def test_workspace_alias_exact_mode_preserves_alias_case(tmp_path: Path) -> None:
+    core = RecollectiumCore(
+        db_path=tmp_path / "aliases-exact-core.db",
+        embedding_provider=FakeEmbeddingProvider(),
+    )
+    core.config._effective_config["workspace"]["uid_normalization"] = "exact"
+
+    core.add_memory(
+        space=SPACE_WORKSPACE,
+        type="fact",
+        content="canonical exact memory",
+        workspace_uid="My Project",
+    )
+    result = core.add_workspace_alias("My Project", "My Project Legacy")
+
+    assert result["migrated_memories"] == 0
+    assert core.resolve_workspace("My Project Legacy") == {
+        "input_uid": "My Project Legacy",
+        "normalized_uid": "My Project Legacy",
+        "canonical_uid": "My Project",
+        "resolved_by_alias": True,
+    }
+
+    alias_memory = core.add_memory(
+        space=SPACE_WORKSPACE,
+        type="fact",
+        content="alias exact memory",
+        workspace_uid="My Project Legacy",
+    )
+    assert alias_memory.workspace_uid == "My Project"
+    assert core.list_workspaces(include_aliases=True) == [
+        {"workspace_uid": "My Project", "aliases": ["My Project Legacy"]}
+    ]
+
+
 def test_core_normalize_uid_rejects_whitespace_only(tmp_path: Path) -> None:
     """_normalize_uid raises ValidationError for whitespace-only UIDs."""
     core = RecollectiumCore(

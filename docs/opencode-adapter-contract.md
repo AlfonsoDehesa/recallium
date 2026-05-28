@@ -152,8 +152,9 @@ Recommended adapter behavior:
   Recollectium Core normalizes workspace UIDs at the storage boundary according to
   `workspace.uid_normalization`; the plugin does not need to pre-normalize the
   value to match Core behavior. Core also resolves configured workspace aliases
-  to their canonical workspace UID before adding, searching, listing, updating,
-  or archiving workspace memories.
+  to their canonical workspace UID when operations interpret caller-supplied
+  workspace UID candidates, such as add, workspace search, workspace-filtered
+  list, readiness checks, and alias-management operations.
 
 If the adapter maintains workspace metadata in a repo-local file, that file is
 an adapter concern, not a Core requirement. Recollectium Core does not require any

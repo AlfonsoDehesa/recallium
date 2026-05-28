@@ -816,7 +816,8 @@ Purpose: list distinct workspace UIDs visible through the API. With `include_ali
 ```json
 {
   "data": [
-    {"workspace_uid": "recollectium", "aliases": ["recollectium-core"]}
+    {"workspace_uid": "recollectium", "aliases": ["recollectium-core"]},
+    {"workspace_uid": "generalist-ai", "aliases": []}
   ]
 }
 ```

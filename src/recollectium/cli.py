@@ -1477,7 +1477,7 @@ def _build_parser() -> argparse.ArgumentParser:
     workspace_parser = subparsers.add_parser(
         "workspace",
         help="list and manage workspace UIDs",
-        description="List known workspace UIDs and rename workspaces.",
+        description="List, resolve, rename, and manage aliases for workspace UIDs.",
     )
     workspace_sub = workspace_parser.add_subparsers(
         dest="workspace_action",
