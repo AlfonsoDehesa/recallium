@@ -11,6 +11,14 @@
 - [ ] If this PR implements a ROADMAP.md item, ROADMAP.md is updated in this PR
 - [ ] Completed roadmap work is moved into the Completed section
 
+## Database migrations
+
+- [ ] This PR does not change the SQLite schema
+- [ ] If it changes the SQLite schema, the PR includes the migration module,
+      existing-row population/default/nullability plan, lazy-migration safety
+      notes, any required background backfill or re-embedding plan, and upgrade
+      tests from the previous schema version
+
 ## Quality gates
 
 - [ ] `uv run ruff check .` passes
