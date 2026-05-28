@@ -28,6 +28,11 @@ from recallium import (
     RecalliumError,
     ValidationError,
 )
+from recallium.errors import (
+    EmbeddingModelUnavailableError,
+    EmbeddingProviderUnavailableError,
+    EmbeddingReadinessTimeoutError,
+)
 from recallium.config import (
     DEFAULTS,
     RecalliumConfig,
@@ -42,6 +47,7 @@ from recallium.config import (
 )
 from recallium.embeddings import BuiltinFastEmbedProvider
 from recallium.logging import setup_logging
+from recallium.model_state import write_model_state
 from recallium.models import SearchResult
 from recallium.mcp_server import create_mcp_server
 from recallium.service import run_service
@@ -409,7 +415,21 @@ def _handle_init_command(
         Path(db_path) if db_path is not None else cfg.resolved_database_path
     )
     SQLiteMemoryStore(selected_db_path)
+    _log.info(
+        "preparing embedding model (first run may download ~100 MB)",
+        extra={"event": "init.model_prepare"},
+    )
     BuiltinFastEmbedProvider().ensure_ready()
+
+    # Record the prepared model so the readiness gate sees it.
+    model_name = cfg.effective_config["embedding"]["model"]
+    provider = BuiltinFastEmbedProvider()
+    write_model_state(
+        Path(user_state_dir("recallium")),
+        model=model_name,
+        dimensions=provider.dimensions,
+        profile=provider.profile_name,
+    )
 
     result = {
         "status": "initialized",
@@ -955,7 +975,8 @@ def _build_parser() -> argparse.ArgumentParser:
         help="initialize Recallium config, database, and model cache",
         description=(
             "Create the config file and XDG directories, run database migrations, "
-            "and download the built-in FastEmbed model so Recallium is ready to use."
+            "and download the built-in FastEmbed model so Recallium is ready to use. "
+            "The first run downloads ~100 MB and may take 30-120 seconds."
         ),
     )
     init_parser = subparsers.choices["init"]
@@ -1570,6 +1591,30 @@ def main(argv: Sequence[str] | None = None) -> int:
         except ValidationError as exc:
             _log.error(f"ValidationError: {exc}", extra={"event": "config.invalid"})
             return 2
+        except EmbeddingReadinessTimeoutError as exc:
+            _log.error(
+                f"EmbeddingReadinessTimeoutError: {exc}\n"
+                "Model preparation timed out. Check your internet connection "
+                "and try 'recallium init' again.",
+                extra={"event": "embedding.readiness_timeout"},
+            )
+            return 1
+        except EmbeddingModelUnavailableError as exc:
+            _log.error(
+                f"EmbeddingModelUnavailableError: {exc}\n"
+                "The embedding model could not be downloaded. "
+                "Check your internet connection and try 'recallium init' again.",
+                extra={"event": "embedding.model_unavailable"},
+            )
+            return 1
+        except EmbeddingProviderUnavailableError as exc:
+            _log.error(
+                f"EmbeddingProviderUnavailableError: {exc}\n"
+                "The embedding provider is unavailable. "
+                "Check your internet connection and try 'recallium init' again.",
+                extra={"event": "embedding.provider_unavailable"},
+            )
+            return 1
         except RecalliumError as exc:
             _log.error(f"{exc.__class__.__name__}: {exc}")
             return 1
@@ -1642,12 +1687,37 @@ def main(argv: Sequence[str] | None = None) -> int:
                 config_path=core_config_path,
                 log_level=args.log_level,
             )
+            core._ensure_model_ready()
         except FileNotFoundError as exc:
             _log.error(str(exc), extra={"event": "config.missing"})
             return 1
         except ValidationError as exc:
             _log.error(f"ValidationError: {exc}", extra={"event": "config.invalid"})
             return 2
+        except EmbeddingReadinessTimeoutError as exc:
+            _log.error(
+                f"EmbeddingReadinessTimeoutError: {exc}\n"
+                "Model preparation timed out. Check your internet connection "
+                "and try 'recallium init' again.",
+                extra={"event": "embedding.readiness_timeout"},
+            )
+            return 1
+        except EmbeddingModelUnavailableError as exc:
+            _log.error(
+                f"EmbeddingModelUnavailableError: {exc}\n"
+                "The embedding model could not be downloaded. "
+                "Check your internet connection and try 'recallium init' again.",
+                extra={"event": "embedding.model_unavailable"},
+            )
+            return 1
+        except EmbeddingProviderUnavailableError as exc:
+            _log.error(
+                f"EmbeddingProviderUnavailableError: {exc}\n"
+                "The embedding provider is unavailable. "
+                "Check your internet connection and try 'recallium init' again.",
+                extra={"event": "embedding.provider_unavailable"},
+            )
+            return 1
         try:
             mcp = create_mcp_server(core)
             import asyncio
@@ -1873,11 +1943,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             db_path=args.db_path, config_path=core_config_path, log_level=args.log_level
         )
 
+        # Ensure embedding model is ready before commands that need it.
+        # Non-embedding commands (list, get, archive, workspace, db-status,
+        # config, update metadata-only) skip this gate.
+        _EMBEDDING_COMMANDS = frozenset({"add", "search-user", "search-workspace"})
+        _needs_embedding = args.command in _EMBEDDING_COMMANDS or (
+            args.command == "update" and args.content is not None
+        )
+        if _needs_embedding:
+            core._ensure_model_ready()
+
         if args.command == "add":
             result = core.add_memory(
                 space=args.space,
                 type=args.type,
-                content=args.content,
+                content=args.content,  # type: ignore[reportArgumentType]
                 workspace_uid=args.workspace_uid,
                 metadata=_parse_metadata(args.metadata),
                 source=args.source,
@@ -1940,6 +2020,30 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
     except FileNotFoundError as exc:
         _log.error(str(exc), extra={"event": "config.missing"})
+        return 1
+    except EmbeddingReadinessTimeoutError as exc:
+        _log.error(
+            f"EmbeddingReadinessTimeoutError: {exc}\n"
+            "Model preparation timed out. The model may be downloading slowly. "
+            "Check your internet connection and try 'recallium init' again.",
+            extra={"event": "embedding.readiness_timeout"},
+        )
+        return 1
+    except EmbeddingModelUnavailableError as exc:
+        _log.error(
+            f"EmbeddingModelUnavailableError: {exc}\n"
+            "The embedding model could not be downloaded. "
+            "Check your internet connection and try 'recallium init' again.",
+            extra={"event": "embedding.model_unavailable"},
+        )
+        return 1
+    except EmbeddingProviderUnavailableError as exc:
+        _log.error(
+            f"EmbeddingProviderUnavailableError: {exc}\n"
+            "The embedding provider is unavailable. "
+            "Check your internet connection and try 'recallium init' again.",
+            extra={"event": "embedding.provider_unavailable"},
+        )
         return 1
     except RecalliumError as exc:
         _log.error(f"{exc.__class__.__name__}: {exc}")

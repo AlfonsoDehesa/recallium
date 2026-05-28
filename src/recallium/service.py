@@ -403,6 +403,19 @@ def run_service(
     core = RecalliumCore(db_path=db_path, config_path=config_path, log_level=log_level)
     log_level = core.config.effective_config["logging"]["level"]
 
+    # Block until the embedding model is ready before accepting connections.
+    try:
+        core._ensure_model_ready()
+    except Exception as exc:
+        import sys
+
+        print(f"recallium serve: model readiness failed: {exc}", file=sys.stderr)
+        print(
+            "Check your internet connection and try 'recallium init' again.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from exc
+
     if service_type == "mcp":
         app = create_mcp_app(core)
     else:

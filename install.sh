@@ -143,6 +143,8 @@ ref=$(resolve_ref)
 package="git+https://github.com/${REPO}.git@${ref}"
 info "Installing Recallium from ${ref}..."
 "$UV_BIN" tool install --python 3.12 --force "$package"
+info "Initializing Recallium (config, database, model)..."
+"$UV_BIN" tool run --from "$package" recallium init || true
 ensure_path_hint
 configure_shell_completion
 record_install_metadata

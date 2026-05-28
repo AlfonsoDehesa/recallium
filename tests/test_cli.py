@@ -20,7 +20,9 @@ from recallium.config import DEFAULTS
 from recallium.cli import main
 from recallium.errors import (
     EmbeddingGenerationError,
+    EmbeddingModelUnavailableError,
     EmbeddingProviderUnavailableError,
+    EmbeddingReadinessTimeoutError,
     ServiceError,
     ValidationError,
 )
@@ -779,6 +781,179 @@ def test_cli_embedding_error_returns_clear_message(
     assert exit_code == 1
     assert stdout == ""
     assert "EmbeddingProviderUnavailableError: FastEmbed is unavailable" in stderr
+
+
+def test_cli_model_unavailable_error_returns_guidance(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    class UnavailableCore:
+        def __init__(self, *args, **kwargs) -> None:
+            raise EmbeddingModelUnavailableError("failed to load embedding model")
+
+    monkeypatch.setattr("recallium.cli.RecalliumCore", UnavailableCore)
+
+    exit_code, stdout, stderr = _run_cli(
+        [
+            "--db",
+            str(tmp_path / "model.db"),
+            "add",
+            "--space",
+            "user",
+            "--type",
+            "note",
+            "--content",
+            "test",
+        ],
+        capsys,
+    )
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert "EmbeddingModelUnavailableError: failed to load embedding model" in stderr
+    assert "recallium init" in stderr
+
+
+def test_cli_readiness_timeout_error_returns_guidance(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    class TimeoutCore:
+        def __init__(self, *args, **kwargs) -> None:
+            raise EmbeddingReadinessTimeoutError("startup timed out")
+
+    monkeypatch.setattr("recallium.cli.RecalliumCore", TimeoutCore)
+
+    exit_code, stdout, stderr = _run_cli(
+        [
+            "--db",
+            str(tmp_path / "timeout.db"),
+            "add",
+            "--space",
+            "user",
+            "--type",
+            "note",
+            "--content",
+            "test",
+        ],
+        capsys,
+    )
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert "EmbeddingReadinessTimeoutError: startup timed out" in stderr
+    assert "recallium init" in stderr
+
+
+def test_cli_update_with_content_gates_model_readiness(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    """Update --content triggers embedding readiness gate."""
+    import recallium.cli as cli_mod
+
+    readiness_called = []
+
+    class TrackingCore:
+        def __init__(self, *args, **kwargs) -> None:
+            self.store = type(
+                "FakeStore",
+                (),
+                {
+                    "get_memory": lambda *a, **kw: {
+                        "id": "m1",
+                        "space": "user",
+                        "type": "note",
+                        "content": "old",
+                        "status": "active",
+                        "embedding_profile": {
+                            "provider": "fake",
+                            "model": "x",
+                            "dimensions": 3,
+                            "version": "1",
+                            "profile": "p",
+                            "max_tokens": 16,
+                            "chunk_tokens": 4,
+                            "chunk_overlap_tokens": 0,
+                            "query_prompt_policy": "raw",
+                        },
+                        "embedding": [1.0, 2.0, 3.0],
+                    },
+                    "update_memory": lambda *a, **kw: None,
+                },
+            )()
+
+        def update_memory(self, memory_id, **kwargs):
+            return {
+                "id": memory_id,
+                "space": "user",
+                "type": "note",
+                "content": kwargs.get("content", "old"),
+            }
+
+        def _ensure_model_ready(self):
+            readiness_called.append(True)
+
+    monkeypatch.setattr(cli_mod, "RecalliumCore", TrackingCore)
+
+    # update with --content should gate
+    exit_code, stdout, stderr = _run_cli(
+        ["--db", str(tmp_path / "udb.db"), "update", "m1", "--content", "new content"],
+        capsys,
+    )
+    assert exit_code == 0
+    assert len(readiness_called) == 1
+
+
+def test_cli_update_metadata_only_skips_readiness_gate(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    """Update without --content skips the embedding readiness gate."""
+    import recallium.cli as cli_mod
+
+    readiness_called = []
+
+    class TrackingCore:
+        def __init__(self, *args, **kwargs) -> None:
+            self.store = type(
+                "FakeStore",
+                (),
+                {
+                    "get_memory": lambda *a, **kw: {
+                        "id": "m1",
+                        "space": "user",
+                        "type": "note",
+                        "content": "old",
+                        "status": "active",
+                        "embedding_profile": {
+                            "provider": "fake",
+                            "model": "x",
+                            "dimensions": 3,
+                            "version": "1",
+                            "profile": "p",
+                            "max_tokens": 16,
+                            "chunk_tokens": 4,
+                            "chunk_overlap_tokens": 0,
+                            "query_prompt_policy": "raw",
+                        },
+                        "embedding": [1.0, 2.0, 3.0],
+                    },
+                    "update_memory": lambda *a, **kw: None,
+                },
+            )()
+
+        def update_memory(self, memory_id, **kwargs):
+            return {"id": memory_id, "space": "user", "type": "note", "content": "old"}
+
+        def _ensure_model_ready(self):
+            readiness_called.append(True)
+
+    monkeypatch.setattr(cli_mod, "RecalliumCore", TrackingCore)
+
+    # update with --source only should skip gate
+    exit_code, stdout, stderr = _run_cli(
+        ["--db", str(tmp_path / "udb2.db"), "update", "m1", "--source", "new-source"],
+        capsys,
+    )
+    assert exit_code == 0
+    assert len(readiness_called) == 0
 
 
 def test_cli_embedding_generation_error_returns_1(
@@ -1801,6 +1976,48 @@ def test_cli_init_reports_model_readiness_error(
     assert exit_code == 1
     assert stdout == ""
     assert "EmbeddingProviderUnavailableError: model unavailable" in stderr
+
+
+def test_cli_init_reports_readiness_timeout_error(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+
+    def _raise_timeout(self) -> None:
+        raise EmbeddingReadinessTimeoutError("startup timed out")
+
+    monkeypatch.setattr(
+        "recallium.cli.BuiltinFastEmbedProvider.ensure_ready",
+        _raise_timeout,
+    )
+
+    exit_code, stdout, stderr = _run_cli(["init"], capsys)
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert "EmbeddingReadinessTimeoutError: startup timed out" in stderr
+    assert "recallium init" in stderr
+
+
+def test_cli_init_reports_model_unavailable_error(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+
+    def _raise_model_error(self) -> None:
+        raise EmbeddingModelUnavailableError("model not found")
+
+    monkeypatch.setattr(
+        "recallium.cli.BuiltinFastEmbedProvider.ensure_ready",
+        _raise_model_error,
+    )
+
+    exit_code, stdout, stderr = _run_cli(["init"], capsys)
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert "EmbeddingModelUnavailableError: model not found" in stderr
+    assert "recallium init" in stderr
 
 
 def test_cli_update_without_memory_id_prints_package_update_instructions(

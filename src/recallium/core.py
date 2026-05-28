@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+from platformdirs import user_state_dir
 import threading
 from typing import Any
 from uuid import uuid4
@@ -24,6 +25,7 @@ from recallium.errors import (
     ValidationError,
 )
 from recallium.logging import setup_logging
+from recallium.model_state import read_model_state, write_model_state
 from recallium.models import (
     SPACE_USER,
     SPACE_WORKSPACE,
@@ -442,6 +444,57 @@ class RecalliumCore:
             raise EmbeddingDimensionMismatchError(
                 f"unexpected embedding dimension: expected {dimensions}, got {len(vector)}"
             )
+
+    # -- model-readiness gate --------------------------------------------------
+    #
+    # _ensure_model_ready() is the single entry point every embedding-dependent
+    # code path must use. It compares the configured embedding model against a
+    # state file, prepares (downloads/warms) the model when there is a mismatch
+    # or no prior preparation, and triggers re-embedding when the model changed.
+    # Future commands that need embeddings MUST call this method first.
+
+    def _ensure_model_ready(self, *, state_dir: Path | None = None) -> None:
+        """Make sure the configured embedding model is downloaded and ready.
+
+        Compares the configured ``embedding.model`` against the last-prepared
+        model recorded in the state file.  If they differ (or no state file
+        exists) the provider's ``ensure_ready()`` is called and a fresh state
+        file is written.  When the model *changed*, stale memories are
+        re-embedded via ``_start_startup_reembedding()``.
+        """
+        resolved_state_dir = state_dir or Path(user_state_dir("recallium"))
+        model_name = str(self.config.effective_config["embedding"]["model"])
+        profile = self.embedding_provider.embedding_profile
+        dimensions = profile.get("dimensions")
+        profile_name = str(profile.get("profile", ""))
+
+        existing = read_model_state(resolved_state_dir)
+        if (
+            existing is not None
+            and existing.get("prepared_model") == model_name
+            and existing.get("dimensions") == dimensions
+        ):
+            return  # already prepared, nothing to do
+
+        was_previously_prepared = existing is not None
+        provider_ready = getattr(self.embedding_provider, "ensure_ready", None)
+        if callable(provider_ready):
+            provider_ready()
+        else:
+            self.embedding_provider.embed("healthcheck")
+
+        write_model_state(
+            resolved_state_dir,
+            model=model_name,
+            dimensions=int(dimensions)
+            if isinstance(dimensions, int) and not isinstance(dimensions, bool)
+            else 0,
+            profile=profile_name,
+        )
+
+        if was_previously_prepared:
+            # Model changed — re-embed stale memories so they match the new model
+            self._start_startup_reembedding()
 
     def _chunk_embed_pairs(self, text: str) -> list[tuple[ContentChunk, list[float]]]:
         chunks = chunk_text_for_profile(text, self.embedding_provider.embedding_profile)
