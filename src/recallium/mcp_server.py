@@ -16,9 +16,7 @@ def create_mcp_server(core: RecalliumCore) -> FastMCP:
     mcp = FastMCP("Recallium")
 
     @mcp.tool()
-    def search_user_memory(
-        query: str, type: str | None = None, limit: int = 10
-    ) -> str:
+    def search_user_memory(query: str, type: str | None = None, limit: int = 10) -> str:
         """Search user-space memories by semantic similarity to the query."""
         try:
             results = core.search_user_memories(query=query, type=type, limit=limit)

@@ -28,26 +28,10 @@ Completed:
 - [x] Local service discovery for adapters through `recallium service discover` and `service-discovery.json`.
 - [x] Workspace UID contract: normalization, listing, rename, and CLI/API/MCP parity.
 - [x] Install-time init and model readiness: central `_ensure_model_ready()` wrapper with state file tracking, service startup gate, CLI embedding gate, bootstrap install auto-init, offline error guidance.
+- [x] Canonical memory buckets and optional read filters: small canonical user/workspace bucket sets, scope-aware write validation, exact-match optional read filters, CLI/API/MCP/docs alignment, and completion coverage.
 
 Remaining release blockers:
 
-### Canonical memory buckets and optional read filters
-
-Release goal: Recallium ships with a small canonical set of memory buckets that
-agents must choose from when writing, while reads default to scope-only search
-unless a bucket filter is explicitly requested.
-
-- [x] Define a stable canonical bucket set for user and workspace memories.
-- [x] Validate memory bucket choice during add and update.
-- [x] Reject unknown buckets with a clear error that lists the allowed values.
-- [x] Add known-bucket completion for `--type` in the CLI (both argcomplete and
-  PowerShell).
-- [x] Document supported buckets and their intended usage in README, CLI help,
-  and API docs.
-- [ ] Keep the schema and endpoints forward-compatible with Phase 2 intent-native
-  naming (`remember`, `recall`, `link`, `forget`).
-- [x] Add tests for valid buckets, unknown buckets, and type completion across
-  both completion engines.
 
 ### OpenCode adapter readiness handoff
 

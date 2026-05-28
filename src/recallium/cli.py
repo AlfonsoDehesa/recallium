@@ -1233,7 +1233,9 @@ def _build_parser() -> argparse.ArgumentParser:
     list_parser.add_argument(
         "--space", help="Filter by memory space, usually 'user' or 'workspace'."
     )
-    list_parser.add_argument("--type", help="Filter by canonical memory type bucket.").completer = ChoicesCompleter(ALL_MEMORY_TYPES)  # pyright: ignore[reportAttributeAccessIssue]
+    list_parser.add_argument(
+        "--type", help="Filter by canonical memory type bucket."
+    ).completer = ChoicesCompleter(ALL_MEMORY_TYPES)  # pyright: ignore[reportAttributeAccessIssue]
     list_parser.add_argument(
         "--status", help="Filter by memory status, such as active or archived."
     )
@@ -1274,7 +1276,9 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs="?",
         help="Memory ID to update. Omit to print package update instructions.",
     )
-    update_parser.add_argument("--type", help="Replacement canonical memory type bucket.").completer = _memory_type_completer  # pyright: ignore[reportAttributeAccessIssue]
+    update_parser.add_argument(
+        "--type", help="Replacement canonical memory type bucket."
+    ).completer = _memory_type_completer  # pyright: ignore[reportAttributeAccessIssue]
     update_parser.add_argument(
         "--content", help="Replacement memory text. Regenerates the stored embedding."
     )

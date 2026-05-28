@@ -150,9 +150,7 @@ class RecalliumCore:
         include_archived: bool = False,
         type: str | None = None,
     ) -> list[SearchResult]:
-        validated_type = (
-            validate_memory_type_filter(type) if type is not None else None
-        )
+        validated_type = validate_memory_type_filter(type) if type is not None else None
         self._ensure_scope_embeddings_ready(
             space=SPACE_USER,
             include_archived=include_archived,
@@ -194,9 +192,7 @@ class RecalliumCore:
             raise ValidationError("workspace_uid is required for workspace search")
         workspace_uid = self._normalize_uid(workspace_uid)
         assert workspace_uid is not None
-        validated_type = (
-            validate_memory_type_filter(type) if type is not None else None
-        )
+        validated_type = validate_memory_type_filter(type) if type is not None else None
 
         self._ensure_scope_embeddings_ready(
             space=SPACE_WORKSPACE,
@@ -243,9 +239,7 @@ class RecalliumCore:
     ) -> list[Memory]:
         workspace_uid = _validate_optional_string("workspace_uid", workspace_uid)
         workspace_uid = self._normalize_uid(workspace_uid)
-        validated_type = (
-            validate_memory_type_filter(type) if type is not None else None
-        )
+        validated_type = validate_memory_type_filter(type) if type is not None else None
 
         return self.store.list_memories(
             space=space,

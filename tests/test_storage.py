@@ -529,7 +529,9 @@ def test_list_memories_filters_by_space_type_status_workspace(tmp_path: Path) ->
     )
     assert [memory.id for memory in workspace_results] == ["w1"]
 
-    task_results = store.list_memories(memory_type="task_context", include_archived=True)
+    task_results = store.list_memories(
+        memory_type="task_context", include_archived=True
+    )
     assert [memory.id for memory in task_results] == ["w2", "w1"]
 
     archived_only = store.list_memories(status=STATUS_ARCHIVED, include_archived=True)
