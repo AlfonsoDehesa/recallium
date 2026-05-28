@@ -106,8 +106,10 @@ Adapters should validate the target service before enabling Recallium-backed too
 Adapters should autodiscover Recallium after the host application loads the
 plugin when the adapter and Core run on the same machine. Users should not need
 to manually configure host, port, PID file, runtime path, or service type for
-that local path. Hosted or remote Core instances are different: the user points
-the plugin at the Core base URL in plugin config, and the adapter validates that
+that local path. If local autodiscovery reports `not_running`, the plugin should
+attempt `recallium service start api` and then rerun discovery before guiding
+the user. Hosted or remote Core instances are different: the user points the
+plugin at the Core base URL in plugin config, and the adapter validates that
 configured endpoint by calling `/v1/health`, `/v1/version`, and
 `/v1/capabilities`. Host-level plugin registration remains outside Recallium
 Core. See `docs/opencode-adapter-contract.md` for the adapter contract and

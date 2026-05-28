@@ -130,6 +130,21 @@ user-facing surface at release quality, alongside the README.
   AGENTS.md so agents and contributors keep it current.
 - [ ] Confirm the Wiki is current and complete during the final release sweep.
 
+### OpenCode plugin work
+
+Release goal: OpenCode can use Recallium Core through a thin plugin or adapter
+that consumes the Core service contract instead of reimplementing memory logic.
+
+- [ ] Build the OpenCode plugin or adapter.
+- [ ] Consume Core service discovery from the plugin.
+- [ ] Support explicit remote Core base-URL configuration for hosted Core
+  instances and validate those endpoints with health, version, and capabilities.
+- [ ] If local autodiscovery reports the service is not running, attempt to start
+  the local API service before guiding the user.
+- [ ] Consume Core workspace UID behavior from the plugin.
+- [ ] Expose Recallium-backed tools inside OpenCode.
+- [ ] Add plugin-facing documentation and troubleshooting guides.
+
 ### Final release sweep
 
 Release goal: no embarrassing loose ends before tagging.
@@ -181,16 +196,6 @@ path is proven.
 - [ ] Confirm `recallium --version` works after each install method.
 - [ ] Confirm `recallium init` works after each install method.
 - [ ] Confirm bootstrap installers can install the published package or release tag.
-
-### OpenCode plugin work
-
-- [ ] Build the OpenCode plugin or adapter outside the Core release scope.
-- [ ] Consume Core service discovery from the plugin.
-- [ ] Support explicit remote Core base-URL configuration for hosted Core
-  instances and validate those endpoints with health, version, and capabilities.
-- [ ] Consume Core workspace UID behavior from the plugin.
-- [ ] Expose Recallium-backed tools inside OpenCode.
-- [ ] Add plugin-facing documentation and troubleshooting guides.
 
 ### Workspace aliases
 

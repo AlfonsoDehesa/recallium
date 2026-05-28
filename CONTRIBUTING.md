@@ -218,10 +218,6 @@ confirmed before the version-bump PR is opened.
       the others expose.
 - [ ] `recallium config` get/set/unset covers every configurable key in
       `config.json`.
-- [ ] If a PR changes service discovery, remote Core addressing, version or
-      capability validation, or workspace UID behavior, update
-      `docs/opencode-adapter-contract.md` and the matching API docs in the same
-      PR.
 
 #### Documentation
 
@@ -242,6 +238,12 @@ confirmed before the version-bump PR is opened.
 - [ ] Completed feature work has been moved into the ROADMAP.md `Completed`
       section in the same PR that implemented it.
 - [ ] CONTRIBUTING.md is current.
+- [ ] If a PR changes service discovery, remote Core addressing, version or
+      capability validation, or workspace UID behavior, update
+      `docs/opencode-adapter-contract.md` and the matching API docs in the same
+      PR.
+- [ ] If the release changes the SQLite schema, migration plans are shipped and
+      tested for each schema change.
 
 #### Shell completion
 

@@ -72,7 +72,11 @@ Discovery returns JSON that includes:
 Adapter behavior:
 
 - If discovery reports a running service, use the returned URLs directly.
-- If discovery reports `not_running`, guide the user to start the API service.
+- If discovery reports `not_running` and the plugin is configured for local
+  autodiscovery, attempt to start the local API service with
+  `recallium service start api`, then run discovery again.
+- If the start attempt fails, or if local autodiscovery is disabled, guide the
+  user to start the API service or configure the remote Core endpoint.
 - If discovery reports invalid or stale metadata, treat that as a local recovery
   problem and surface the error clearly.
 
@@ -198,7 +202,9 @@ identity.
 
 1. Install Recallium Core.
 2. Start the local service or configure the plugin with the remote Core base URL.
-3. For same-machine use, run `recallium service discover`. For remote Core use,
+3. For same-machine use, run `recallium service discover`. If the plugin is set
+   to local autodiscovery and discovery reports `not_running`, attempt
+   `recallium service start api` and then rerun discovery. For remote Core use,
    read the explicit plugin endpoint.
 4. Validate health, version, and capabilities against the resolved endpoint.
 5. Prompt the model to select the active workspace UID candidate from the
