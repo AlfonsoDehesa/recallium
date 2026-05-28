@@ -48,7 +48,14 @@ from recallium.config import (
 from recallium.embeddings import BuiltinFastEmbedProvider
 from recallium.logging import setup_logging
 from recallium.model_state import write_model_state
-from recallium.models import ALL_MEMORY_TYPES, SearchResult, USER_MEMORY_TYPES, WORKSPACE_MEMORY_TYPES
+from recallium.models import (
+    ALL_MEMORY_TYPES,
+    SPACE_USER,
+    SPACE_WORKSPACE,
+    SearchResult,
+    USER_MEMORY_TYPES,
+    WORKSPACE_MEMORY_TYPES,
+)
 from recallium.mcp_server import create_mcp_server
 from recallium.service import run_service
 from recallium.service_contract import SERVICE_DEFAULT_HOST, SERVICE_DEFAULT_PORT
@@ -84,6 +91,19 @@ _COMPLETABLE_CONFIG_KEYS = [
     "directories.runtime",
     "workspace.uid_normalization",
 ]
+
+
+def _memory_type_choices_for_space(space: Any | None) -> tuple[str, ...]:
+    if space == SPACE_USER:
+        return USER_MEMORY_TYPES
+    if space == SPACE_WORKSPACE:
+        return WORKSPACE_MEMORY_TYPES
+    return ALL_MEMORY_TYPES
+
+
+def _memory_type_completer(prefix: str, parsed_args: Any, **_: Any) -> list[str]:
+    choices = _memory_type_choices_for_space(getattr(parsed_args, "space", None))
+    return [choice for choice in choices if choice.startswith(prefix)]
 
 
 class _CliLoggingConfig:
@@ -1111,7 +1131,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--type",
         required=True,
         help="Canonical memory type bucket, such as fact, preference, note, decision, or task_context.",
-    ).completer = ChoicesCompleter(ALL_MEMORY_TYPES)  # pyright: ignore[reportAttributeAccessIssue]
+    ).completer = _memory_type_completer  # pyright: ignore[reportAttributeAccessIssue]
     add_parser.add_argument(
         "--content",
         required=True,
@@ -1254,7 +1274,7 @@ def _build_parser() -> argparse.ArgumentParser:
         nargs="?",
         help="Memory ID to update. Omit to print package update instructions.",
     )
-    update_parser.add_argument("--type", help="Replacement canonical memory type bucket.").completer = ChoicesCompleter(ALL_MEMORY_TYPES)  # pyright: ignore[reportAttributeAccessIssue]
+    update_parser.add_argument("--type", help="Replacement canonical memory type bucket.").completer = _memory_type_completer  # pyright: ignore[reportAttributeAccessIssue]
     update_parser.add_argument(
         "--content", help="Replacement memory text. Regenerates the stored embedding."
     )

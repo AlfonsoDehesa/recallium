@@ -151,7 +151,7 @@ class RecalliumCore:
         type: str | None = None,
     ) -> list[SearchResult]:
         validated_type = (
-            validate_memory_type_filter(type, space=SPACE_USER) if type is not None else None
+            validate_memory_type_filter(type) if type is not None else None
         )
         self._ensure_scope_embeddings_ready(
             space=SPACE_USER,
@@ -195,9 +195,7 @@ class RecalliumCore:
         workspace_uid = self._normalize_uid(workspace_uid)
         assert workspace_uid is not None
         validated_type = (
-            validate_memory_type_filter(type, space=SPACE_WORKSPACE)
-            if type is not None
-            else None
+            validate_memory_type_filter(type) if type is not None else None
         )
 
         self._ensure_scope_embeddings_ready(
@@ -246,7 +244,7 @@ class RecalliumCore:
         workspace_uid = _validate_optional_string("workspace_uid", workspace_uid)
         workspace_uid = self._normalize_uid(workspace_uid)
         validated_type = (
-            validate_memory_type_filter(type, space=space) if type is not None else None
+            validate_memory_type_filter(type) if type is not None else None
         )
 
         return self.store.list_memories(

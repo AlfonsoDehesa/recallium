@@ -18,6 +18,7 @@ from pytest import CaptureFixture
 
 from recallium.config import DEFAULTS
 from recallium.cli import main
+from recallium.models import ALL_MEMORY_TYPES, USER_MEMORY_TYPES, WORKSPACE_MEMORY_TYPES
 from recallium.errors import (
     EmbeddingGenerationError,
     EmbeddingModelUnavailableError,
@@ -92,6 +93,25 @@ def test_cli_help_documents_commands_and_flags(capsys) -> None:
     assert "uninstall" in top_level_help
     assert "completion" in top_level_help
 
+
+def test_cli_memory_type_completer_prefers_known_space() -> None:
+    from recallium.cli import _memory_type_choices_for_space, _memory_type_completer
+
+    assert _memory_type_choices_for_space("user") == USER_MEMORY_TYPES
+    assert _memory_type_choices_for_space("workspace") == WORKSPACE_MEMORY_TYPES
+    assert _memory_type_choices_for_space(None) == ALL_MEMORY_TYPES
+    assert _memory_type_choices_for_space("unknown") == ALL_MEMORY_TYPES
+
+    assert _memory_type_completer("", SimpleNamespace(space="user")) == list(
+        USER_MEMORY_TYPES
+    )
+    assert _memory_type_completer("d", SimpleNamespace(space="workspace")) == [
+        "decision"
+    ]
+    assert _memory_type_completer("f", SimpleNamespace(space=None)) == ["fact"]
+
+
+def test_cli_subcommand_help_documents_commands_and_flags(capsys) -> None:
     add_help = _run_help(["add", "--help"], capsys)
     assert "User memories must not include" in add_help
     assert "Workspace memories require --workspace-uid" in add_help

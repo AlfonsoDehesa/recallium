@@ -121,10 +121,12 @@ def test_core_user_memory_flow_add_get_search_list_update_archive(
     search_results = core.search_user_memories("repair defect", type="note")
     assert [result.memory.id for result in search_results] == [created.id]
 
-    assert core.search_user_memories("repair defect", type="fact") == []
+    assert core.search_user_memories("repair defect", type="decision") == []
 
     listed = core.list_memories(space="user", type="note")
     assert [memory.id for memory in listed] == [created.id]
+
+    assert core.list_memories(space="user", type="decision") == []
 
     updated = core.update_memory(created.id, content="Need to write release notes")
     assert updated.content == "Need to write release notes"
