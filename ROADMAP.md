@@ -202,9 +202,9 @@ path is proven.
 - [ ] Expose alias management through the relevant CLI, API, MCP, and plugin
   surfaces.
 
-## Phase 2 (v0.2.x): Product intelligence
+## Phase 2 (v1.x): Product intelligence
 
-Recallium fulfills its product promise as a personal intelligence engine.
+Recallium fulfills its product promise as a personal intelligence engine after the first 1.0 release line is stable.
 
 - [ ] Daily memory maintenance (dreamer reviews and improves the memory set).
 - [ ] User reflection summaries for conversation topics.

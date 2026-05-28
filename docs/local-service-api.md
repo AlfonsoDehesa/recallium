@@ -9,13 +9,19 @@ This document describes the currently implemented FastAPI local HTTP JSON servic
 - It is not a public internet API and has no auth in this slice.
 - If you bind it to a non-local interface, memory contents may be exposed.
 
-Start it with the CLI:
+For the managed service path used by adapters, start the API service with:
+
+```bash
+recallium service start api
+```
+
+For foreground development or debugging, run the same API server directly:
 
 ```bash
 recallium serve
 ```
 
-Or with explicit host/port/database path:
+Or run the foreground server with explicit host/port/database path:
 
 ```bash
 recallium --db /path/to/recallium.db serve --host 127.0.0.1 --port 8765
