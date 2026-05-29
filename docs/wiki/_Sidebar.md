@@ -1,0 +1,18 @@
+## Recollectium
+
+- [Home](Home)
+- [Quick Start](Quick-Start)
+- [Installation](Installation)
+- [Concepts](Concepts)
+- [Configuration](Configuration)
+- [Features and Commands](Features-and-Commands)
+- [CLI Reference](CLI-Reference)
+- [Service Management](Service-Management)
+- [Logs](Logs)
+- [MCP Server](MCP-Server)
+- [API Reference](API-Reference)
+- [Adapter and Plugin Integration](Adapter-and-Plugin-Integration)
+- [Verified Supported Plugins](Verified-Supported-Plugins)
+- [Troubleshooting](Troubleshooting)
+- [FAQ](FAQ)
+- [About the Author](About-the-Author)
