@@ -162,8 +162,11 @@ jobs:
           PY
 
           # The default bootstrap uninstall now starts a package-removal handoff, so
-          # reinstall the checked-out package before running the purge half of this
-          # smoke test.
+          # wait for that delayed handoff, clear any partially removed tool env,
+          # and reinstall the checked-out package before running the purge half of
+          # this smoke test.
+          sleep 2
+          uv tool uninstall recollectium || true
           uv tool install --force .
           recollectium --version
 
@@ -241,8 +244,11 @@ jobs:
           if (-not $uv) { $uv = Join-Path $env:LOCALAPPDATA "uv\uv.exe" }
 
           # The default bootstrap uninstall now starts a package-removal handoff, so
-          # reinstall the checked-out package before running the purge half of this
-          # smoke test.
+          # wait for that delayed handoff, clear any partially removed tool env,
+          # and reinstall the checked-out package before running the purge half of
+          # this smoke test.
+          Start-Sleep -Seconds 2
+          & $uv tool uninstall recollectium
           & $uv tool install --force .
           if ($LASTEXITCODE -ne 0) { throw "uv tool reinstall failed with exit code $LASTEXITCODE" }
           recollectium --version
