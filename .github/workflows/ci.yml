@@ -197,6 +197,11 @@ jobs:
           PY
 
           uv tool uninstall recollectium
+          if command -v recollectium >/dev/null 2>&1; then
+            echo "recollectium command still exists after uv tool uninstall" >&2
+            command -v recollectium >&2 || true
+            exit 1
+          fi
 
       - name: Verify Recollectium on Windows
         if: runner.os == 'Windows'
@@ -261,3 +266,6 @@ jobs:
           Invoke-PythonSmokeCheck -Command "import json, pathlib; add=json.loads(pathlib.Path('add-purge.json').read_text(encoding='utf-8-sig')); assert add.get('id'), add; purge_stderr=pathlib.Path('uninstall-purge.stderr').read_text(encoding='utf-8-sig'); assert 'The following Recollectium-owned paths will be permanently deleted:' in purge_stderr, purge_stderr; payload=json.loads(pathlib.Path('uninstall-purge.json').read_text(encoding='utf-8-sig')); assert payload['status'] == 'manual_uninstall_required', payload; assert payload['package']['install_method'] == 'bootstrap', payload; assert payload['package']['recommended'] == 'uv tool uninstall recollectium', payload; assert payload['data']['preserved'] is False, payload; purge=payload['data']['purge']; assert purge['dry_run'] is False, payload; assert purge['deleted'], payload; paths=payload['data']['paths']; assert not pathlib.Path(paths['config']).exists(), paths; assert not pathlib.Path(paths['database']).exists(), paths"
 
           & $uv tool uninstall recollectium
+          if (Get-Command recollectium -ErrorAction SilentlyContinue) {
+            throw "recollectium command still exists after uv tool uninstall"
+          }
