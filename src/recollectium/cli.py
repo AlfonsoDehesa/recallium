@@ -2317,7 +2317,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "shell",
         nargs="?",
         choices=list(_COMPLETION_SHELLS),
-        help="Shell to generate completion for (default: auto-detect from $SHELL, falling back to bash).",
+        help="Shell to generate completion for (default: auto-detect bash, zsh, fish, or PowerShell).",
     )
     action_group = completion_parser.add_mutually_exclusive_group()
     action_group.add_argument(
