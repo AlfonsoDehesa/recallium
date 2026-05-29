@@ -8,13 +8,13 @@ Local-first memory for AI agents.
 
 ## About
 
-Recollectium is a Python-first, local-first memory framework for AI agents. It gives agents a durable place to store and search what should survive across chats, projects, tools, and model providers, without tying that memory to one client.
+Recollectium is memory infrastructure for agents that should actually remember. Not vague chat history. Not a black-box profile trapped inside one hosted product. A local, inspectable memory engine you can run, query, migrate, back up, and plug into the tools you already use.
 
-The goal is simple: your agent should not have to get to know you from scratch every time you open a new session. Preferences, project decisions, configuration notes, task context, and important facts should live somewhere you control, somewhere agents can search semantically, inspect plainly, and carry across tools.
+The promise is simple: every new agent session should start with continuity. Your preferences, project decisions, setup notes, hard-won debugging context, and recurring working patterns should not disappear when you change models, switch clients, or open a fresh terminal. Recollectium gives that context a durable home you control.
 
-Recollectium Core owns the memory engine: SQLite storage, embeddings, search, migrations, local service APIs, MCP tools, service lifecycle, structured logging, and adapter-facing discovery. Adapters stay thin. They bring host context to Core, then let Core handle memory semantics.
+Core handles the serious parts: SQLite storage, local embeddings, semantic search, migrations, local service APIs, MCP tools, service lifecycle, structured logs, and adapter-facing discovery. Adapters stay thin. They bring the current workspace context, then let Core handle memory correctly and consistently.
 
-OpenCode is an important first adapter target, but Recollectium is not built around one client. The goal is portable memory infrastructure for any agent that can use a CLI, Python package, local HTTP API, or MCP server.
+OpenCode is the first important adapter target, but Recollectium is bigger than one client. It is the memory layer for a world where people use many agents, many models, and many interfaces, and still want one coherent record of what matters.
 
 ## Why another memory engine?
 
