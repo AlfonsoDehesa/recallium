@@ -18,12 +18,20 @@ jobs:
         id: changelog
         run: |
           VERSION="${{ github.ref_name }}"
-          if [ -f CHANGELOG.md ]; then
-            VERSION_NO_PREFIX="${VERSION#v}"
-            sed -n "/^## v\{0,1\}${VERSION_NO_PREFIX}/,/^## /p" CHANGELOG.md | sed '$d' > body.md
-          else
-            touch body.md
+          VERSION_NO_PREFIX="${VERSION#v}"
+
+          if [ ! -f CHANGELOG.md ]; then
+            echo "CHANGELOG.md is required for releases" >&2
+            exit 1
           fi
+
+          sed -n "/^## v\{0,1\}${VERSION_NO_PREFIX}/,/^## /p" CHANGELOG.md | sed '$d' > body.md
+
+          if [ ! -s body.md ]; then
+            echo "CHANGELOG.md has no section for ${VERSION}" >&2
+            exit 1
+          fi
+
           {
             echo "CHANGELOG<<EOF"
             cat body.md

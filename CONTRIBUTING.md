@@ -140,7 +140,7 @@ One or two sentences describing the change.
 - [ ] `SECURITY.md` updated, or not applicable because ...
 - [ ] `ROADMAP.md` updated, or not applicable because ...
 - [ ] `CONTRIBUTING.md` updated, or not applicable because ...
-- [ ] `CHANGELOG.md` updated, or not applicable because ...
+- [ ] `CHANGELOG.md` updated under `✨ Features`, `🐛 Fixes`, or `🧹 Chores`, or not applicable because ...
 
 ## Database migrations
 
@@ -176,6 +176,7 @@ Before marking a PR ready for review, complete the gates that match the changed 
 - `git diff --check` passes.
 - The PR template is complete.
 - Docs are updated or marked not applicable with a reason for each canonical doc.
+- `CHANGELOG.md` is updated for release-notable work, or the PR explains why no changelog entry is needed.
 - CI is passing or the PR clearly states which check is still pending or failing.
 - Secrets, tokens, credentials, private memory contents, and sensitive local paths are not included.
 
@@ -274,7 +275,43 @@ Canonical docs:
 - `SECURITY.md`: supported versions, vulnerability reporting, local access assumptions, and security posture.
 - `ROADMAP.md`: current progress, release blockers, completed work, and upcoming version targets.
 - `CONTRIBUTING.md`: contributor, PR, quality gate, and release procedure contract.
-- `CHANGELOG.md`: human-readable release notes for published versions.
+- `CHANGELOG.md`: human-readable release notes for published versions. The release workflow uses this file as the curated part of the GitHub Release body.
+
+### Changelog usage
+
+Recollectium keeps a human-written `CHANGELOG.md` and uses GitHub's generated release notes as automation on top of that. GitHub can collect merged PRs automatically, but it cannot reliably decide which changes matter to users or how to phrase them. The changelog is the curated summary; generated release notes are supporting detail.
+
+Use a changelog entry for release-notable work:
+
+- New user-visible behavior, commands, endpoints, config, install behavior, docs surfaces, or integrations.
+- Bug fixes that change behavior, remove user-visible failure modes, or clarify confusing docs.
+- Release chores that matter to users or operators, such as CI coverage, packaging, release automation, dependency policy, or documentation structure.
+
+Skip a changelog entry for changes that are not useful in release notes, such as typo-only fixes, internal test refactors, PR template cleanup, or follow-up edits that are already covered by a broader entry. If you skip it, write the reason in the PR's `CHANGELOG.md` checkbox.
+
+Every release section must use this exact shape:
+
+```markdown
+## Unreleased
+
+### ✨ Features
+
+- Added ...
+
+### 🐛 Fixes
+
+- Fixed ...
+
+### 🧹 Chores
+
+- Updated ...
+```
+
+Use `## Unreleased` while work is accumulating. In the release-prep PR, rename or copy the unreleased notes to the target version heading, such as `## v1.0.0`, then restore a fresh empty `## Unreleased` section above it.
+
+Keep entries short and user-facing. Start each bullet with a past-tense verb such as `Added`, `Fixed`, `Updated`, `Documented`, or `Removed`. Do not paste commit hashes, PR numbers, or internal implementation noise into the changelog unless they help users understand the release.
+
+The changelog shape is enforced by `tests/test_changelog.py`, which requires every release section to contain exactly these subsections in order: `✨ Features`, `🐛 Fixes`, and `🧹 Chores`.
 
 Update `ROADMAP.md` in the same PR when a change implements a release blocker or roadmap item. Move completed work into the `Completed` section, mark the item complete, and keep the remaining roadmap accurate. Do not leave completed work expanded under remaining blockers.
 
@@ -375,7 +412,7 @@ Releases are created automatically when a version tag is pushed. Maintainers sho
 The release-prep PR is a normal PR with a release-specific scope. It should do exactly these things unless the release gate uncovers a required fix:
 
 - Bump `version` in `pyproject.toml`.
-- Add the release section to `CHANGELOG.md`.
+- Move the curated `CHANGELOG.md` entries into the target release section.
 - Update docs only for gaps found during the release gate.
 
 Release steps:
@@ -401,7 +438,7 @@ Release steps:
    git push origin v1.0.0
    ```
 
-9. Wait for `.github/workflows/release.yml` to finish. The workflow combines the changelog section with the merged PR list and creates the GitHub Release.
+9. Wait for `.github/workflows/release.yml` to finish. The workflow publishes the matching `CHANGELOG.md` section as the curated release body and lets GitHub append generated release notes for merged PR detail.
 10. Complete the post-release checks below.
 
 ### Release gate
@@ -425,7 +462,7 @@ Every item in this gate must be confirmed before the release-prep PR is merged.
 - [ ] `SECURITY.md` accurately states supported versions, local access assumptions, vulnerability reporting, and security posture.
 - [ ] `ROADMAP.md` reflects current progress, completed work, release blockers, and upcoming version targets.
 - [ ] `CONTRIBUTING.md` reflects the current contributor and release process.
-- [ ] `CHANGELOG.md` has a clear section for the target release.
+- [ ] `CHANGELOG.md` has a target release section with `✨ Features`, `🐛 Fixes`, and `🧹 Chores` subsections in that order.
 
 #### CLI and completion readiness
 
