@@ -139,7 +139,7 @@ def test_cli_subcommand_help_documents_commands_and_flags(capsys) -> None:
 
     serve_help = _run_help(["serve", "--help"], capsys)
     assert "blocking" in serve_help
-    assert "local-only" in serve_help
+    assert "local-first" in serve_help
     assert "127.0.0.1" in serve_help
     assert "/v1" in serve_help
     assert "--host" in serve_help

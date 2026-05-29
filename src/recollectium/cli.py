@@ -1880,10 +1880,12 @@ def _build_parser() -> argparse.ArgumentParser:
         "serve",
         help="run the local Recollectium HTTP service",
         description=(
-            "Start a blocking local-only HTTP JSON service for Recollectium Core. "
+            "Start a blocking local-first HTTP JSON service for Recollectium Core. "
             "By default it binds to localhost (127.0.0.1), exposes the /v1 "
             "service API, and keeps running until interrupted. Host and port "
-            "can be set via config file or CLI flags. CLI flags override config."
+            "can be set via config file or CLI flags. CLI flags override config. "
+            "Non-local binds can expose unauthenticated memory operations unless "
+            "protected by private networking and external access controls."
         ),
     )
     serve_parser.add_argument(
@@ -1891,7 +1893,8 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help=(
             "Host interface to bind. Overrides service.host from config. "
-            "Defaults to 127.0.0.1."
+            "Defaults to 127.0.0.1. Non-local binds should be protected by "
+            "private networking and external access controls."
         ),
     )
     serve_parser.add_argument(

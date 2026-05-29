@@ -427,7 +427,7 @@ def create_mcp_app(core: RecollectiumCore) -> FastAPI:
     app = FastAPI(
         title="Recollectium MCP Server",
         version="1",
-        description="Local-only MCP server for Recollectium Core.",
+        description="Local-first MCP server for Recollectium Core. In v1, this service has no authentication and is not hardened as a public network service.",
     )
     app.mount("/", mcp.sse_app())
     return app
