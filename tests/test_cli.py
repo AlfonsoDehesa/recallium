@@ -2450,6 +2450,27 @@ def test_cli_uninstall_removes_powershell_completion_from_structured_metadata(
     ]
 
 
+def test_cli_uninstall_ignores_invalid_structured_completion_metadata(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    monkeypatch.setattr(Path, "home", lambda: tmp_path / "home")
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
+    metadata_path = tmp_path / "state" / "recollectium" / "install.json"
+    metadata_path.parent.mkdir(parents=True)
+    metadata_path.write_text(
+        json.dumps({"managed_completion_edits": ["not structured"]}),
+        encoding="utf-8",
+    )
+
+    exit_code, stdout, stderr = _run_cli(["uninstall"], capsys)
+
+    payload = json.loads(stdout)
+    assert exit_code == 0
+    assert stderr == ""
+    assert payload["shell_completion"]["removed"] == []
+
+
 def test_cli_uninstall_bootstrap_starts_package_removal_handoff(
     tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -3437,6 +3458,34 @@ def test_cli_completion_install_refreshes_existing_managed_block(
     assert "old completion" not in content
     assert content.count("# >>> recollectium completion >>>") == 1
     assert 'eval "$(recollectium completion --source bash)"' in content
+
+
+def test_cli_completion_install_reports_already_installed_for_current_managed_block(
+    tmp_path: Path,
+    capsys: CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rc_path = tmp_path / ".bashrc"
+    rc_path.write_text(
+        "# >>> recollectium completion >>>\n"
+        'eval "$(recollectium completion --source bash)"\n'
+        "# <<< recollectium completion <<<\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("recollectium.cli.Path.home", lambda: tmp_path)
+
+    exit_code, stdout, stderr = _run_cli(
+        ["completion", "--install", "bash", "--yes"], capsys
+    )
+
+    assert exit_code == 0
+    assert stderr == ""
+    payload = json.loads(stdout)
+    assert payload["status"] == "already_installed"
+    assert (
+        rc_path.read_text(encoding="utf-8").count("# >>> recollectium completion >>>")
+        == 1
+    )
 
 
 def test_cli_completion_install_dedup_when_already_present(
