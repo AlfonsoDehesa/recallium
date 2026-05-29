@@ -1,30 +1,31 @@
 # MCP Server
 
-MCP lets AI clients call Recollectium memory tools through a standard tool interface. Use MCP when an assistant or agent supports Model Context Protocol and should call Recollectium directly instead of shelling out to the CLI.
-
-Recollectium supports two MCP runtime styles:
-
-- **stdio mode:** the MCP client starts `recollectium mcp-stdio` as a child process.
-- **managed service mode:** Recollectium starts a background MCP service with `recollectium service start mcp`.
+MCP lets AI clients call Recollectium through a standard tool interface. Use it when an assistant or agent supports Model Context Protocol and should call memory tools directly inside the client.
 
 ## What MCP is for
 
-MCP is best when an agent wants tool calls such as "search user memory", "add workspace memory", or "resolve workspace" to appear as native tools inside the client.
+MCP is best when an agent should see Recollectium operations as native tools, such as "search user memory", "add workspace memory", or "resolve workspace".
 
 Use MCP when:
 
 - your client supports MCP tools;
-- you want the agent to call Recollectium without manually composing CLI commands;
+- you want the agent to call Recollectium without composing CLI commands;
 - you want one durable Core database shared by multiple agent surfaces;
-- you want workspace and user memory to remain controlled by Recollectium Core.
+- you want user and workspace memory rules enforced by Recollectium Core.
 
-## Stdio mode
+If you are building an adapter, script, dashboard, or service that talks over HTTP, use the API instead.
+
+## Run the MCP server
+
+Recollectium supports two MCP runtime styles.
+
+### Stdio mode
 
 ```bash
 recollectium mcp-stdio
 ```
 
-This mode is intended for MCP clients that spawn local servers as child processes. The MCP server reads and writes through stdin/stdout. No PID file is created. The server runs for the lifetime of the client connection.
+Use stdio mode when the MCP client starts local servers as child processes. The server reads and writes through stdin/stdout. No PID file is created. The server runs for the lifetime of the client connection.
 
 Useful global options:
 
@@ -34,7 +35,20 @@ recollectium --db /path/to/recollectium.db mcp-stdio
 recollectium --log-level debug mcp-stdio
 ```
 
-### Example client setup
+### Managed HTTP mode
+
+```bash
+recollectium service start mcp
+recollectium service status
+recollectium service discover
+recollectium service stop
+```
+
+Managed mode starts a background MCP service using the configured host and port. It writes PID and discovery files so local adapters can find it.
+
+Use managed mode when a client or adapter expects a long-running local service instead of spawning a stdio child process.
+
+## Example client setup
 
 For clients that accept a command plus arguments, configure a local stdio MCP server with:
 
@@ -78,22 +92,44 @@ OpenCode exposes an `mcp` configuration section. A local Recollectium entry foll
 
 Exact config file locations and names vary by client. Use the client's MCP docs as the source of truth, then point the client at `recollectium mcp-stdio`.
 
-## Managed HTTP mode
+If running from a source checkout during development, use:
 
 ```bash
-recollectium service start mcp
-recollectium service status
-recollectium service discover
-recollectium service stop
+uv --directory /path/to/recollectium run recollectium mcp-stdio
 ```
 
-Managed mode starts a background MCP service using the configured host and port. It writes PID and discovery files so local adapters can find it.
+## Discovery and compatibility
 
-Use managed mode when a client or adapter expects a long-running local service instead of spawning a stdio child process.
+Stdio clients usually manage the MCP process themselves, so discovery is just the command configuration above.
 
-Security reminder: managed MCP service mode is unauthenticated in v1. Keep it bound to localhost unless private networking and external access controls protect it.
+Managed MCP mode can be discovered with:
 
-## Tools
+```bash
+recollectium service discover
+```
+
+Clients and adapters should still treat Recollectium Core as the source of truth for memory rules. Workspace aliases, workspace UID normalization, memory bucket validation, and archive behavior all live in Core.
+
+## Response format
+
+MCP tools return JSON strings, not native Python objects.
+
+Successful memory-returning tools return either a memory object or a list of search/list results. Errors return:
+
+```json
+{"error": "message"}
+```
+
+## Memory rules
+
+- Workspace search requires `workspace_uid`.
+- Adding workspace memories requires `space="workspace"` and `workspace_uid`.
+- Adding user memories requires `space="user"` and must not include `workspace_uid`.
+- Workspace filters on list are optional.
+
+Violations return an error JSON object.
+
+## Operations
 
 All MCP tools return JSON strings. On Recollectium errors, tools return a JSON object containing an `error` field.
 
@@ -270,35 +306,10 @@ Parameters:
 
 Returns: JSON object with old UID, new UID, memory count, and alias update count.
 
-## Return values
 
-MCP tools return JSON strings, not native Python objects.
+## Errors
 
-Successful memory-returning tools return either a memory object or a list of search/list results. Errors return:
-
-```json
-{"error": "message"}
-```
-
-## Client configuration
-
-For a client that spawns stdio servers, configure the command as:
-
-```bash
-recollectium mcp-stdio
-```
-
-If running from a source checkout during development, use:
-
-```bash
-uv --directory /path/to/recollectium run recollectium mcp-stdio
-```
-
-If you need a non-default config or database:
-
-```bash
-recollectium --config /path/to/config.json --db /path/to/recollectium.db mcp-stdio
-```
+MCP tools surface Core errors as JSON instead of raising client-specific exceptions. Common causes include missing required parameters, invalid memory buckets, missing workspace UIDs for workspace operations, missing memory IDs, and embedding provider readiness failures.
 
 ## Security reminder
 

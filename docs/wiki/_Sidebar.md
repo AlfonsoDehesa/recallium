@@ -118,12 +118,13 @@
 <summary><a href="MCP-Server.md">MCP Server</a></summary>
 
 - [What MCP is for](MCP-Server.md#what-mcp-is-for)
-- [Stdio mode](MCP-Server.md#stdio-mode)
+- [Run the MCP server](MCP-Server.md#run-the-mcp-server)
 - [Example client setup](MCP-Server.md#example-client-setup)
-- [Managed HTTP mode](MCP-Server.md#managed-http-mode)
-- [Tools](MCP-Server.md#tools)
-- [Return values](MCP-Server.md#return-values)
-- [Client configuration](MCP-Server.md#client-configuration)
+- [Discovery and compatibility](MCP-Server.md#discovery-and-compatibility)
+- [Response format](MCP-Server.md#response-format)
+- [Memory rules](MCP-Server.md#memory-rules)
+- [Operations](MCP-Server.md#operations)
+- [Errors](MCP-Server.md#errors)
 - [Security reminder](MCP-Server.md#security-reminder)
 
 </details>
@@ -131,16 +132,15 @@
 <details>
 <summary><a href="API-Reference.md">API Reference</a></summary>
 
-- [Local access and security assumptions](API-Reference.md#local-access-and-security-assumptions)
-- [Base URL and versioning](API-Reference.md#base-url-and-versioning)
-- [Adapter discovery workflow](API-Reference.md#adapter-discovery-workflow)
-- [Envelope shapes](API-Reference.md#envelope-shapes)
-- [Version and capability discovery](API-Reference.md#version-and-capability-discovery)
-- [Workspace UID requirements](API-Reference.md#workspace-uid-requirements)
-- [Endpoints](API-Reference.md#endpoints)
-- [Memory object shape](API-Reference.md#memory-object-shape)
-- [Error codes and common failures](API-Reference.md#error-codes-and-common-failures)
-- [Workspace operations](API-Reference.md#workspace-operations)
+- [What API is for](API-Reference.md#what-api-is-for)
+- [Run the API server](API-Reference.md#run-the-api-server)
+- [Example client setup](API-Reference.md#example-client-setup)
+- [Discovery and compatibility](API-Reference.md#discovery-and-compatibility)
+- [Response format](API-Reference.md#response-format)
+- [Memory rules](API-Reference.md#memory-rules)
+- [Operations](API-Reference.md#operations)
+- [Errors](API-Reference.md#errors)
+- [Security reminder](API-Reference.md#security-reminder)
 
 </details>
 
