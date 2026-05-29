@@ -78,8 +78,8 @@ parity for the important Recollectium CLI paths.
 - [ ] Complete config keys for `recollectium config get/set/unset`.
 - [ ] Add install support so the managed completion block can be added to the
   correct PowerShell profile.
-- [ ] Add uninstall support so Recollectium can remove the managed PowerShell
-  completion block.
+- [ ] Add uninstall support so `recollectium uninstall` removes the managed
+  PowerShell completion block.
 - [ ] Ensure bootstrap install records the PowerShell completion profile edit in
   install metadata where appropriate.
 - [ ] Support both Windows PowerShell and PowerShell 7 where practical, or document
@@ -88,8 +88,8 @@ parity for the important Recollectium CLI paths.
 - [ ] Add tests for PowerShell profile install, duplicate detection, uninstall
   cleanup, and dry-run uninstall behavior.
 - [ ] Add docs for manual and automatic PowerShell setup.
-- [ ] Add CI or smoke coverage for the PowerShell completion install path where
-  practical.
+- [ ] Add CI or smoke coverage for the PowerShell completion install path,
+  uninstall-command cleanup path, and profile cleanup assertions where practical.
 
 ### GitHub Wiki
 
