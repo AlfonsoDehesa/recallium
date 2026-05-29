@@ -35,35 +35,9 @@ Completed:
 - [x] CLI error-formatting audit: non-argparse failures return structured JSON on stderr with standardized exit codes, stdout JSON contracts stay clean, and representative failure paths are covered by tests.
 - [x] CI uninstall-flow coverage across bootstrap install-smoke jobs: default uninstall preservation, explicit purge, managed Unix completion cleanup, package-manager guidance assertions, and final `uv tool uninstall recollectium` cleanup.
 - [x] Local access and security documentation audit: canonical `SECURITY.md`, README/API/adapter warnings, release checklist coverage, and private-network guidance for split-machine deployments.
+- [x] PowerShell completion lifecycle: dynamic `Register-ArgumentCompleter` wrapper, install/update/uninstall managed profile blocks, bootstrap metadata, and tests.
 
 Remaining release blockers:
-
-### Rich dynamic PowerShell shell completion
-
-Release goal: Windows users get rich dynamic Tab completion in PowerShell with
-parity for the important Recollectium CLI paths.
-
-- [ ] Add PowerShell as a supported completion target.
-- [ ] Generate a `Register-ArgumentCompleter` script.
-- [ ] Make PowerShell call Recollectium dynamically during Tab completion.
-- [ ] Complete top-level commands.
-- [ ] Complete subcommands.
-- [ ] Complete command flags.
-- [ ] Complete config keys for `recollectium config get/set/unset`.
-- [ ] Add install support so the managed completion block can be added to the
-  correct PowerShell profile.
-- [ ] Add uninstall support so `recollectium uninstall` removes the managed
-  PowerShell completion block.
-- [ ] Ensure bootstrap install records the PowerShell completion profile edit in
-  install metadata where appropriate.
-- [ ] Support both Windows PowerShell and PowerShell 7 where practical, or document
-  the supported shell version clearly.
-- [ ] Add tests for generated PowerShell script output.
-- [ ] Add tests for PowerShell profile install, duplicate detection, uninstall
-  cleanup, and dry-run uninstall behavior.
-- [ ] Add docs for manual and automatic PowerShell setup.
-- [ ] Add CI or smoke coverage for the PowerShell completion install path,
-  uninstall-command cleanup path, and profile cleanup assertions where practical.
 
 ### GitHub Wiki
 

@@ -84,14 +84,31 @@ SQLite database, runs migrations, and downloads the built-in FastEmbed model
 
 ### Shell completion
 
-Bootstrap install configures tab completion for bash, zsh, and fish
-automatically. After `curl | sh`, open a new shell session and `recollectium
-<TAB>` works.
+Bootstrap install configures tab completion automatically:
+
+- Linux/macOS installs bash, zsh, or fish completion based on `$SHELL`.
+  If `$SHELL` is missing or unsupported, it falls back to bash and writes the
+  managed block to `~/.bashrc`.
+- Windows installs PowerShell completion into `$PROFILE.CurrentUserCurrentHost`.
+
+After bootstrap install, open a new shell session and `recollectium <TAB>` works.
+Bootstrap update refreshes the managed completion block instead of appending a
+duplicate, and uninstall removes Recollectium-managed completion blocks while
+preserving unrelated shell/profile content.
 
 To set up completion manually:
 
 ```bash
 recollectium completion --install
+recollectium completion --install bash
+recollectium completion --install zsh
+recollectium completion --install fish
+```
+
+PowerShell:
+
+```powershell
+recollectium completion --install powershell
 ```
 
 To see the setup instructions for a specific shell:
@@ -100,10 +117,21 @@ To see the setup instructions for a specific shell:
 recollectium completion bash
 recollectium completion zsh
 recollectium completion fish
+recollectium completion powershell
 ```
 
-The completion eval line uses a managed comment block so uninstall can
-identify and remove it cleanly:
+PowerShell completion uses a small `Register-ArgumentCompleter` wrapper that asks
+Recollectium for candidates dynamically, so commands, subcommands, flags, and
+config keys stay in sync with the installed CLI. The automatic installer targets
+`$PROFILE.CurrentUserCurrentHost`. If you want completion in every PowerShell
+host, manually add this to `$PROFILE.CurrentUserAllHosts` instead:
+
+```powershell
+recollectium completion powershell --source | Invoke-Expression
+```
+
+The completion setup uses a managed comment block so update and uninstall can
+identify and refresh or remove it cleanly:
 
 ```bash
 # >>> recollectium completion >>>
@@ -193,13 +221,13 @@ Package upgrades use `recollectium upgrade`. Memory record edits use
 recollectium uninstall
 ```
 
-This prints the package-manager command to remove the installed Recollectium CLI.
-Safe uninstall preserves local memories and settings by default. Preserved paths
-include the config file, SQLite database, data directory, model cache, logs, and
-runtime directory, so reinstalling Recollectium later reuses the existing config and
-database and runs any required migrations without overwriting your memories.
-If Recollectium installed a managed shell completion block, safe uninstall removes
-that shell rc block while preserving your memories.
+This removes managed service state and Recollectium-managed shell completion
+blocks. For bootstrap installs, uninstall also starts a safe background handoff to
+run `uv tool uninstall recollectium` after cleanup. Safe uninstall preserves local
+memories and settings by default. Preserved paths include the config file, SQLite
+database, data directory, model cache, logs, and runtime directory, so reinstalling
+Recollectium later reuses the existing config and database and runs any required
+migrations without overwriting your memories.
 
 Package removal commands by install method:
 
