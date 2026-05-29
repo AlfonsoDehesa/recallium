@@ -1,31 +1,14 @@
 # Contributing to Recollectium
 
-Thanks for helping improve Recollectium. This guide is the contributor contract for the repo: how to report issues, set up a development environment, open pull requests, keep docs current, and prepare releases.
+Thanks for helping improve Recollectium. This guide is the contributor contract for the repo: how to report bugs, request features, submit pull requests, and prepare releases.
 
-## Start here
+Use the available GitHub templates. They keep review focused and make sure the information maintainers need is not scattered across comments.
 
-There are three main ways to contribute:
+## 3 ways to contribute
 
-- Open an issue for a bug, question, or feature request.
-- Submit a pull request from a feature branch.
-- Improve docs, examples, or release checklists when behavior changes.
+### 1. Report a bug
 
-The short version:
-
-1. Branch from current `main`.
-2. Keep the PR focused.
-3. Update docs with behavior changes.
-4. Run the required quality gates.
-5. Put the status of every gate in the PR body or final PR comment.
-6. Do not merge until CI is green and the review is resolved.
-
-Recollectium uses `uv` for Python environment management, ruff for formatting and linting, pyright for type checks, and pytest for tests. We target 100 percent coverage on changed code.
-
-## Ways to contribute
-
-### Report a bug
-
-Before opening an issue, check open and closed issues to see whether it has already been reported. Pick the template that fits and fill it out.
+Use the Bug report issue template. Before opening a new issue, check open and closed issues to see whether the problem has already been reported.
 
 A good bug report has three parts: what happened, what you expected, and how to reproduce it.
 
@@ -38,21 +21,32 @@ Include:
 - The exact reproduction steps, in order.
 - Any config, database path, or memory data involved, if it is safe to share.
 
-Do not paste secrets, tokens, credentials, private memory contents, or sensitive local paths into public issues.
+Do not paste secrets, tokens, credentials, private memory contents, or sensitive local paths into public issues. If sensitive data is required to explain the problem, redact it or ask a maintainer how to share it safely.
 
-### Suggest a feature
+### 2. Add a feature request
 
-Describe the problem you are trying to solve, not just the solution you want. A short user story helps:
+Use the Feature request issue template. Describe the problem you are trying to solve, not just the solution you want.
+
+A short user story helps:
 
 ```text
 I want to do X so that Y.
 ```
 
-If the feature affects CLI commands, the local API, MCP tools, configuration, service behavior, logging, install behavior, uninstall behavior, or adapter/plugin behavior, mention the surface you expect to use.
+Include:
 
-### Submit a pull request
+- The use case.
+- The current workaround, if any.
+- The surface you expect to use: CLI, Python API, local HTTP API, MCP, configuration, service lifecycle, logging, install, uninstall, adapter/plugin integration, or docs.
+- Any compatibility constraints you already know about.
 
-Pull requests should be scoped, verified, and easy to review. Keep each PR focused on one feature, fix, or docs change.
+Feature requests do not need a full implementation design. They should make the user need clear enough that maintainers can decide whether it belongs in Core, an adapter, the wiki, or a later roadmap phase.
+
+### 3. Submit a PR
+
+Pull requests should be scoped, verified, documented, and easy to review. Keep each PR focused on one feature, fix, or docs change.
+
+Use the pull request template. Do not delete template sections just because the PR is small. If a section does not apply, mark it as not applicable and say why.
 
 Every PR should answer:
 
@@ -60,21 +54,18 @@ Every PR should answer:
 - Why did it change?
 - How was it verified?
 - Which docs were updated?
-- Are there any risks or follow-up items?
+- What is the status of every required quality gate?
+- Are there any risks, compatibility notes, migration notes, or follow-up items?
 
-## Development setup
+#### Development setup
 
-### Requirements
-
-You need:
+Requirements:
 
 - Python 3.12 or later.
 - `uv`.
 - Git.
 
 Everything else is managed by uv.
-
-### Clone and install
 
 ```bash
 git clone https://github.com/AlfonsoDehesa/recollectium.git
@@ -84,7 +75,7 @@ uv sync --group dev
 
 This creates the project virtual environment, installs Recollectium in editable mode, and installs developer tools such as pytest, ruff, pyright, and coverage.
 
-### Verify your environment
+Verify the environment:
 
 ```bash
 uv run ruff check .
@@ -93,11 +84,9 @@ uv run pytest
 uv run recollectium --help
 ```
 
-Always run project commands through `uv run` so tools use the managed environment instead of a global Python install.
+Always run project commands through `uv run` while developing from a source checkout so tools use the managed environment instead of a global Python install.
 
-## Pull request workflow
-
-### Branches
+#### Branches
 
 All work starts from `main` on a feature branch. Never commit directly to `main` and never push directly to `main`.
 
@@ -114,7 +103,7 @@ Use descriptive branch names:
 - `feat/<topic>` for new features.
 - `chore/<topic>` for maintenance.
 
-### Commits
+#### Commits
 
 Each commit should be one logical, verified change. Do not save all work for one large end-of-branch commit when the work can be split into clean slices.
 
@@ -134,21 +123,62 @@ fix stuff
 address feedback
 ```
 
-### Opening a PR
+#### Opening a PR
 
-Open a PR when there is a concrete change to review. Draft PRs are fine for early feedback. Keep follow-up work on the same PR until the review is done.
+Open a PR when there is a concrete change to review. Draft PRs are fine for early feedback. Keep follow-up work on the same PR until review is done.
 
-Before marking a PR ready, make sure the PR description includes:
+The PR template includes required sections and a quality gate checklist. Fill it out before marking the PR ready for review.
 
-- A concise summary of the change.
-- The reason for the change.
-- The exact commands used for verification.
-- Documentation updated, or a clear explanation for why no docs changed.
-- Risk notes, compatibility notes, and follow-up items if any.
+The PR description should include:
 
-The PR template includes a quality gate checklist. Fill it out before marking the PR ready for review.
+- Summary: one or two sentences describing the change.
+- Changes: the important files or surfaces changed and what was done.
+- Roadmap status: whether the PR implements a `ROADMAP.md` item and whether `ROADMAP.md` was updated.
+- Database migration status: whether the SQLite schema changed, and if so the migration module, existing-row behavior, lazy-migration safety notes, backfill or re-embedding plan, and upgrade tests.
+- Quality gates: every relevant command and whether it passed, failed, or was not applicable.
+- Policy compliance: pytest success rate, feature coverage, codebase coverage, ruff status, and pyright status.
+- Documentation status: which docs changed, or why docs did not need to change.
+- Risks and follow-up: compatibility concerns, known limitations, deferred work, or manual release steps.
 
-### Review and follow-up commits
+Use this structure in the PR body or in a final PR comment before review:
+
+```markdown
+## Summary
+
+One or two sentences describing the change.
+
+## Changes
+
+- Changed X to do Y.
+- Updated docs for Z.
+
+## Documentation
+
+- [ ] README updated or not applicable because ...
+- [ ] Wiki updated or not applicable because ...
+- [ ] API/OpenAPI docs updated or not applicable because ...
+- [ ] SECURITY.md updated or not applicable because ...
+- [ ] ROADMAP.md updated or not applicable because ...
+
+## Verification
+
+- [ ] `git diff --check` passed
+- [ ] `uv run ruff format --check .` passed, or not applicable because ...
+- [ ] `uv run ruff check .` passed
+- [ ] `uv run pyright` passed
+- [ ] `uv run pytest` passed, or not applicable because ...
+- [ ] `uv run pytest --cov=src/recollectium --cov-report=term-missing` passed, or accepted coverage misses are documented
+- [ ] CI passed
+
+## Risks and follow-up
+
+- Risk: ...
+- Follow-up: ...
+```
+
+For docs-only PRs, still list every gate. Do not make the reviewer infer that a gate was skipped.
+
+#### Review and follow-up commits
 
 PRs are reviewed by a codebase administrator and merged to `main` once they pass. When you are ready for review, mark the PR ready or leave a comment asking for review.
 
@@ -165,9 +195,26 @@ When review feedback is in:
 
 A review is not resolved just because a commit was pushed. The final PR state should make it easy for the reviewer to see that each requested change was handled.
 
-## Quality gates
+A good final PR comment includes:
 
-### Required commands
+```markdown
+Addressed review feedback in `<commit>`.
+
+What changed:
+- ...
+
+Verification:
+- `git diff --check`: passed
+- `uv run ruff check .`: passed
+- `uv run pyright`: passed
+- `uv run pytest`: passed or not run because ...
+- CI: passed or pending
+
+Remaining:
+- None, or the exact remaining blocker.
+```
+
+#### Required quality gates
 
 Run these before marking a PR ready when code changes are involved:
 
@@ -190,13 +237,13 @@ uv run pyright
 
 The final release sweep still runs the full gate.
 
-### Coverage expectations
+#### Coverage expectations
 
 Aim for 100 percent coverage on changed or added code. If 100 percent is not feasible, explain the exact uncovered lines in the PR description and why the gap is acceptable.
 
 Do not suppress warnings, loosen rules, or delete tests to make checks pass.
 
-### Structured logging gate
+#### Structured logging gate
 
 Structured logging is a release gate. Before marking a PR ready, confirm that changed major features, endpoints, and code paths are logged where useful. Changed failure paths should emit appropriate structured events.
 
@@ -208,7 +255,7 @@ Logs must:
 
 If a PR changes logging config, log path behavior, service logs, CLI log-level handling, structured log events, or failure paths, update the Wiki Logs page in the same change.
 
-### CLI, API, MCP, and docs parity
+#### CLI, API, MCP, and docs parity
 
 Surface parity matters. If functionality is reachable through one primary surface, confirm whether it belongs in the others.
 
@@ -246,11 +293,9 @@ uv run recollectium upgrade --help
 uv run recollectium uninstall --help
 ```
 
-## Documentation requirements
+#### Documentation requirements
 
 Docs are part of the product. If a PR changes user-facing behavior, update the matching docs in the same PR.
-
-### README and wiki
 
 `README.md` is the public front door. Keep it focused and link to deeper docs.
 
@@ -268,8 +313,6 @@ Docs are part of the product. If a PR changes user-facing behavior, update the m
 - Memory scopes, memory buckets, workspace aliases, embeddings, or background jobs.
 
 The wiki source pages and published GitHub Wiki must stay aligned with README, `docs/local-service-api.md`, `docs/local-service-openapi.json`, `docs/opencode-adapter-contract.md`, `SECURITY.md`, and `ROADMAP.md`.
-
-### API and OpenAPI docs
 
 When adding, removing, or changing local service API endpoints, request schemas, response schemas, error shapes, capability names, version behavior, workspace UID rules, or local access/security assumptions, update both:
 
@@ -289,8 +332,6 @@ Every documented API operation should include:
 
 If the service exposes machine-readable API documentation, keep the served contract and repository documentation consistent.
 
-### Adapter/plugin contract docs
-
 `docs/opencode-adapter-contract.md` is the canonical adapter/plugin contract for the OpenCode adapter path and related integrations.
 
 Update it when a PR changes:
@@ -305,8 +346,6 @@ Update it when a PR changes:
 
 If this contract changes, update the Wiki Adapter and Plugin Integration page in the same PR.
 
-### SECURITY.md and local access warnings
-
 Update `SECURITY.md` and linked local-access warnings when a PR changes:
 
 - Service host or port behavior.
@@ -318,21 +357,13 @@ Update `SECURITY.md` and linked local-access warnings when a PR changes:
 
 Recollectium v1 services are unauthenticated and localhost-first. Docs must keep that clear.
 
-### ROADMAP.md
+When a PR implements a release blocker or roadmap item, update `ROADMAP.md` in the same PR. Move completed work into the `Completed` section, mark the item complete, and keep the remaining roadmap accurate. Do not leave completed work expanded under remaining blockers.
 
-When a PR implements a release blocker or roadmap item, update `ROADMAP.md` in the same PR.
-
-Move completed work into the `Completed` section, mark the item complete, and keep the remaining roadmap accurate. Do not leave completed work expanded under remaining blockers.
-
-## Schema migrations
-
-### What counts as a schema change
+#### Schema migrations
 
 A SQLite schema change includes new tables, columns, indexes, constraints, or data-shape changes to existing rows.
 
 Recollectium uses an internal migration runner under `src/recollectium/migrations/versions/`. Do not assume Alembic is required for ordinary Phase 1 migrations.
-
-### Required migration plan
 
 If a PR changes the SQLite schema, include a migration plan in the PR. The plan must state:
 
@@ -348,23 +379,34 @@ If a PR changes the SQLite schema, include a migration plan in the PR. The plan 
 
 Semantically required fields must not rely on application code silently inventing values for legacy rows unless that fallback is explicitly documented and tested.
 
-### Embedding migration is separate
-
 Embedding migration is not the same as database migration. Provider, model, profile, or vector changes belong to the re-embedding path. Table, column, index, and data-shape changes belong to SQLite schema migrations.
 
-## AI-assisted development
+#### AI-assisted development
 
 AI-assisted development is allowed as long as it follows every convention in this document. The same quality gates, commit standards, docs requirements, and review process apply regardless of how the code was written.
 
 Do not commit AI tooling configuration to the repo. The `.gitignore` excludes common editor and agent directories such as `.opencode/`, `.cursor/`, `.claude/`, and `.aider*`. If a tool writes project config, keep it local. The repo is for Recollectium, not for your development environment.
 
-## For maintainers
+## For admins
 
-### After merge
+This section is for maintainers and release managers.
+
+### Merge policy
 
 Delete the feature branch after merge. The merge commit on `main` is the record.
 
 Do not tag or release directly from a feature branch. Releases happen from `main` only.
+
+### CI
+
+CI runs on every push and PR. The matrix covers:
+
+- `uv run ruff check .`
+- `uv run pyright`
+- Full pytest suite with coverage.
+- Cross-platform bootstrap install smoke tests on Linux, macOS, and Windows.
+
+CI is defined in `.github/workflows/`. If you change how Recollectium builds, installs, upgrades, uninstalls, runs services, or validates completions, update CI in the same PR.
 
 ### Changelog
 
@@ -378,7 +420,7 @@ Prepared the first stable Recollectium Core release with install, service, API, 
 
 The release workflow combines changelog notes with an auto-generated list of merged PRs.
 
-### Release process
+### Release flow
 
 Releases are created automatically when a version tag is pushed. Maintainers should do the release from a clean `main` checkout after the release-prep PR is merged.
 
@@ -387,9 +429,10 @@ Releases are created automatically when a version tag is pushed. Maintainers sho
    - Bumps `version` in `pyproject.toml`.
    - Adds the release section to `CHANGELOG.md`.
    - Updates docs only if the checklist uncovered a docs gap.
-3. Wait for CI and review to pass.
-4. Merge the release-prep PR.
-5. Tag and push from `main`:
+3. Use the PR template and list the status of every gate in the release-prep PR.
+4. Wait for CI and review to pass.
+5. Merge the release-prep PR.
+6. Tag and push from `main`:
 
    ```bash
    git checkout main
@@ -408,27 +451,16 @@ After the release workflow completes:
 - Confirm README and wiki links resolve.
 - If the GitHub Wiki has been initialized, sync `docs/wiki/` to the wiki repository.
 
-### CI
-
-CI runs on every push and PR. The matrix covers:
-
-- `uv run ruff check .`
-- `uv run pyright`
-- Full pytest suite with coverage.
-- Cross-platform bootstrap install smoke tests on Linux, macOS, and Windows.
-
-CI is defined in `.github/workflows/`. If you change how Recollectium builds, installs, upgrades, uninstalls, runs services, or validates completions, update CI in the same PR.
-
-## Pre-release checklist
+### Pre-release checklist
 
 Before cutting a release, run through this checklist. Every item must be confirmed before the version-bump PR is opened.
 
-### Surface parity
+#### Surface parity
 
 - [ ] Every functionality reachable through the CLI is also reachable through the API and the MCP server. No surface is missing an operation the others expose.
 - [ ] `recollectium config` get/set/unset covers every configurable key in `config.json`.
 
-### Documentation
+#### Documentation
 
 - [ ] API docs (`docs/local-service-api.md` and `docs/local-service-openapi.json`) match the running service. The OpenAPI spec is served by the service and matches the repo copy.
 - [ ] MCP tools are documented and the docs match every tool the server exposes.
@@ -459,18 +491,18 @@ Before cutting a release, run through this checklist. Every item must be confirm
 - [ ] If a PR changes service discovery, remote Core addressing, version or capability validation, or workspace UID behavior, update `docs/opencode-adapter-contract.md`, the API docs, and the Wiki Adapter and Plugin Integration page in the same PR.
 - [ ] If a PR changes logging behavior, update the Wiki Logs page in the same PR.
 
-### Database migrations
+#### Database migrations
 
 - [ ] If the release changes the SQLite schema, migration plans are shipped and tested for each schema change.
 
-### Shell completion
+#### Shell completion
 
 - [ ] Every CLI command and flag is reachable through argcomplete. Run `recollectium <TAB>` through every subcommand and confirm completions work.
 - [ ] `recollectium config get/set/unset <TAB>` completes config keys.
 - [ ] PowerShell dynamic completion works through `Register-ArgumentCompleter`. Run `recollectium <TAB>` in PowerShell through every subcommand and confirm completions work.
 - [ ] `recollectium config get/set/unset <TAB>` completes config keys in PowerShell too.
 
-### Install and update
+#### Install and update
 
 - [ ] Bootstrap install works on Linux and macOS: `curl -LsSf <install.sh URL> | sh` succeeds, `recollectium --version` prints the correct version, and `recollectium init` completes.
 - [ ] Bootstrap install works on Windows: `irm <install.ps1 URL> | iex` succeeds end-to-end.
@@ -483,13 +515,13 @@ Before cutting a release, run through this checklist. Every item must be confirm
 - [ ] `recollectium uninstall` prints correct package-manager commands for each install method and preserves data by default.
 - [ ] `recollectium uninstall --purge` works correctly and safely.
 
-### Cross-environment
+#### Cross-environment
 
 - [ ] All CLI commands work on Linux, macOS, and Windows.
 - [ ] All commands work with Python 3.12 and the latest Python release.
 - [ ] The service starts, responds to health checks, and stops cleanly on all supported platforms.
 
-### Quality gates
+#### Quality gates
 
 - [ ] `uv run ruff format .` is clean.
 - [ ] `uv run ruff check .` is clean.
@@ -497,7 +529,7 @@ Before cutting a release, run through this checklist. Every item must be confirm
 - [ ] `uv run pytest` passes.
 - [ ] `uv run pytest --cov=src/recollectium --cov-report=term-missing` reports 100 percent coverage, or accepted misses are documented.
 
-### Release metadata
+#### Release metadata
 
 - [ ] `version` in `pyproject.toml` is bumped to the target version.
 - [ ] `CHANGELOG.md` has an entry for this release under the new version header.
@@ -505,4 +537,4 @@ Before cutting a release, run through this checklist. Every item must be confirm
 
 ## Questions
 
-Open an issue. The repo and wiki are the source of truth for public project docs.
+Open an issue using the available template. The repo and wiki are the source of truth for public project docs.

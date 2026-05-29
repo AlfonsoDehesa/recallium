@@ -2,8 +2,6 @@
 
 ## `recollectium` command not found
 
-After a bootstrap install, you should run `recollectium` directly. You should not need to prefix normal commands with `uv`.
-
 Open a new shell after installation. If `recollectium` is still not found, check the directory where uv installs tool executables:
 
 ```bash
@@ -27,6 +25,8 @@ Then verify the installed command directly:
 recollectium --version
 recollectium --help
 ```
+
+After a bootstrap install, you should run `recollectium` directly. You should not need to prefix normal commands with `uv`.
 
 If `uv` itself is also not found after bootstrap install, the same PATH issue is likely hiding both `uv` and `recollectium`, because bootstrap installs `uv` into the same user bin directory it tries to place on PATH.
 

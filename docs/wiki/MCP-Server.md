@@ -34,6 +34,50 @@ recollectium --db /path/to/recollectium.db mcp-stdio
 recollectium --log-level debug mcp-stdio
 ```
 
+### Example client setup
+
+For clients that accept a command plus arguments, configure a local stdio MCP server with:
+
+```text
+command: recollectium
+args: ["mcp-stdio"]
+```
+
+Claude Code supports adding a local stdio MCP server from the command line:
+
+```bash
+claude mcp add --transport stdio recollectium -- recollectium mcp-stdio
+```
+
+Claude Desktop and other JSON-configured MCP clients commonly use an `mcpServers` block:
+
+```json
+{
+  "mcpServers": {
+    "recollectium": {
+      "command": "recollectium",
+      "args": ["mcp-stdio"]
+    }
+  }
+}
+```
+
+OpenCode exposes an `mcp` configuration section. A local Recollectium entry follows the same command/args shape:
+
+```json
+{
+  "mcp": {
+    "recollectium": {
+      "type": "local",
+      "command": ["recollectium", "mcp-stdio"],
+      "enabled": true
+    }
+  }
+}
+```
+
+Exact config file locations and names vary by client. Use the client's MCP docs as the source of truth, then point the client at `recollectium mcp-stdio`.
+
 ## Managed HTTP mode
 
 ```bash

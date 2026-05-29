@@ -22,10 +22,11 @@
 
 - [Recommended bootstrap install](Installation.md#recommended-bootstrap-install)
 - [Package manager installs](Installation.md#package-manager-installs)
-- [Development install](Installation.md#development-install)
-- [Shell completion](Installation.md#shell-completion)
 - [Upgrade](Installation.md#upgrade)
 - [Uninstall](Installation.md#uninstall)
+- [Additional setup](Installation.md#additional-setup)
+- [Shell completion](Installation.md#shell-completion)
+- [Development install](Installation.md#development-install)
 
 </details>
 
@@ -118,6 +119,7 @@
 
 - [What MCP is for](MCP-Server.md#what-mcp-is-for)
 - [Stdio mode](MCP-Server.md#stdio-mode)
+- [Example client setup](MCP-Server.md#example-client-setup)
 - [Managed HTTP mode](MCP-Server.md#managed-http-mode)
 - [Tools](MCP-Server.md#tools)
 - [Return values](MCP-Server.md#return-values)
