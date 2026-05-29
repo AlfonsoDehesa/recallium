@@ -36,22 +36,9 @@ Completed:
 - [x] CI uninstall-flow coverage across bootstrap install-smoke jobs: default uninstall preservation, explicit purge, managed Unix completion cleanup, package-manager guidance assertions, and final `uv tool uninstall recollectium` cleanup.
 - [x] Local access and security documentation audit: canonical `SECURITY.md`, README/API/adapter warnings, release checklist coverage, and private-network guidance for split-machine deployments.
 - [x] PowerShell completion lifecycle: dynamic `Register-ArgumentCompleter` wrapper, install/update/uninstall managed profile blocks, bootstrap metadata, and tests.
+- [x] Public docs and wiki release pass: focused README with banner and wiki routing, reorganized CONTRIBUTING.md, clarified SECURITY.md, wiki source pages for every release surface, and release checklist coverage for wiki maintenance.
 
 Remaining release blockers:
-
-### GitHub Wiki
-
-Release goal: Recollectium ships with a public GitHub Wiki that covers every
-user-facing surface at release quality, alongside the README.
-
-- [ ] Create and populate the GitHub Wiki with pages for install, config, CLI
-  reference, service management, uninstall, memory types, API overview, and
-  local access/security.
-- [ ] Keep the Wiki in sync with the README and API docs on every PR that
-  changes user-facing behavior, docs, or configuration.
-- [ ] Add Wiki maintenance to CONTRIBUTING.md, the release checklist, and
-  AGENTS.md so agents and contributors keep it current.
-- [ ] Confirm the Wiki is current and complete during the final release sweep.
 
 ### Final release sweep
 
