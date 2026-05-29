@@ -19,3 +19,5 @@ labels: bug
 - OS:
 - Python version (`python --version`):
 - Recollectium version (`recollectium --version`):
+
+## Logs, if possible

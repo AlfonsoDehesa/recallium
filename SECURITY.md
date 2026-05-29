@@ -1,8 +1,10 @@
 # Security Policy
 
-## Recollectium v1 security model
+## Short version
 
-Recollectium is local-first software. It is designed for agents and clients running on the same machine as Recollectium Core.
+Recollectium v1 is local-first software. It is designed for agents and clients running on the same machine as Recollectium Core.
+
+Do not expose Recollectium directly to the public internet.
 
 In v1, Recollectium services are not hardened as public network services:
 
@@ -10,12 +12,16 @@ In v1, Recollectium services are not hardened as public network services:
 - The MCP service has no built-in authentication.
 - Recollectium does not provide API keys, user accounts, ACLs, or built-in TLS termination in v1.
 - Health, version, and capability checks confirm service compatibility. They are not authentication or authorization controls.
+- The SQLite memory database is not encrypted by Recollectium.
 
-Do not expose Recollectium directly to the public internet.
+## Supported security model for v1
 
-## Local-first deployment
+The recommended deployment is simple:
 
-The recommended v1 deployment is to run Recollectium on the same machine as the agent or client and keep services bound to localhost, usually `127.0.0.1`.
+1. Run Recollectium on the same machine as the agent or client.
+2. Keep services bound to localhost, usually `127.0.0.1`.
+3. Use local service discovery for same-machine adapters.
+4. Protect config, logs, cache, runtime files, and the memory database with normal operating-system account protections.
 
 The default local service endpoint is:
 
@@ -23,9 +29,9 @@ The default local service endpoint is:
 http://127.0.0.1:8765
 ```
 
-This default keeps the service reachable only from the local machine under ordinary host networking rules.
+Under ordinary host networking rules, this default keeps the service reachable only from the local machine.
 
-## Running services
+## Running services safely
 
 Recollectium can run managed API and MCP services:
 
@@ -40,28 +46,54 @@ It can also run the API service in the foreground for development and debugging:
 recollectium serve --host 127.0.0.1 --port 8765
 ```
 
+Keep API and MCP services bound to `127.0.0.1` unless you are deliberately running Recollectium over a private network with external access controls.
+
 Binding to a non-local interface, such as `0.0.0.0`, a LAN address, a VPN address, a container bridge, or a public interface, can expose unauthenticated memory operations to anyone who can reach that interface.
 
-## Memory database and local filesystem access
+## What a reachable client can do
 
-The SQLite memory database is not encrypted by Recollectium.
+Any user, process, or network client with sufficient access to the Recollectium data directory, database file, or unauthenticated service endpoint can read, modify, or delete memories.
 
-Any user, process, or network client with sufficient access to the Recollectium data directory, database file, or unauthenticated service endpoint can read, modify, or delete memories. Because memories influence what agents recall, unauthorized memory changes can also influence agent behavior.
+That matters because memories influence what agents recall. Unauthorized memory changes can also influence agent behavior.
 
-Protect the Recollectium data directory and database file like other sensitive local application data. Host-level protections such as operating-system permissions, encrypted home directories, full-disk encryption, encrypted volumes, backups, and endpoint security remain the user's responsibility.
+Treat access to Recollectium as access to a sensitive local application database.
+
+## Local filesystem and database protection
+
+Recollectium stores memory data in SQLite. The database is not encrypted by Recollectium.
+
+Protect these paths like other sensitive local application data:
+
+- The Recollectium config directory.
+- The Recollectium data directory.
+- The SQLite database file.
+- The model cache directory.
+- The logs directory.
+- The runtime directory and service discovery files.
+- Any backups that include Recollectium data.
+
+Host-level protections remain the user's responsibility, including:
+
+- Operating-system account permissions.
+- Encrypted home directories.
+- Full-disk encryption.
+- Encrypted volumes.
+- Backup access controls.
+- Endpoint security.
 
 ## Recommended deployment patterns
 
 Recommended for v1:
 
-- Run Recollectium on the same machine as the agent or client.
-- Keep API and MCP services bound to `127.0.0.1` unless there is a deliberate private-network deployment.
-- Use local service discovery for same-machine adapters.
-- Keep the database and config directories protected by normal OS account permissions.
+- Same-machine agent plus Recollectium Core.
+- Services bound to `127.0.0.1`.
+- Local service discovery for same-machine adapters.
+- Standard OS permissions protecting the database and config directories.
+- Private-network access only when split-machine deployment is truly needed.
 
 If the agent and Recollectium must run on different machines, expose Recollectium only over private networking with external access controls.
 
-For most users who need split-machine access, a private overlay network such as Tailscale is the recommended path. Equivalent private-network approaches can also work, including WireGuard, SSH tunneling, firewall allowlists, or other VPN/overlay networking.
+For most users who need split-machine access, Tailscale is the friendliest path. Equivalent private-network approaches can also work, including WireGuard, SSH tunneling, firewall allowlists, or other VPN/overlay networking.
 
 ## Risky or unsupported deployment patterns
 
@@ -69,9 +101,11 @@ Avoid these v1 deployment patterns unless you have added external protections an
 
 - Binding Recollectium to `0.0.0.0` on an untrusted network.
 - Exposing Recollectium on a public IP address.
-- Publishing Recollectium through a public reverse proxy. Public reverse-proxy exposure is unsupported for v1 unless an advanced user fully supplies and owns external authentication, TLS, and access controls.
+- Publishing Recollectium through a public reverse proxy.
 - Tunneling Recollectium through a public tunnel without restricting who can connect.
 - Assuming Docker, container networking, or a VM boundary alone makes an unauthenticated service safe.
+
+Public reverse-proxy exposure is unsupported for v1 unless an advanced user fully supplies and owns external authentication, TLS, and access controls.
 
 Direct public exposure is unsupported for v1.
 
@@ -85,8 +119,18 @@ Use a private network path and restrict which clients can reach Recollectium:
 4. Validate the Recollectium service with health, version, and capability checks before enabling tools.
 5. Remember that compatibility validation is not authentication. It does not protect the endpoint from other clients that can reach it.
 
-## Reporting security issues
+For remote or split-machine adapter setups, configure the adapter to reach the private Core endpoint explicitly, then validate health, version, and capabilities before enabling Recollectium tools.
+
+## Vulnerability reporting
 
 Please do not publish sensitive vulnerability details in a public GitHub issue.
 
 Use GitHub private vulnerability reporting for this repository if it is enabled. If private vulnerability reporting is unavailable, open a public GitHub issue that asks for a private reporting channel but does not include vulnerability details, proof-of-concept code, private data, or exploit steps.
+
+When reporting, include enough context for maintainers to reproduce and assess the issue safely:
+
+- Affected Recollectium version.
+- Affected command, endpoint, MCP mode, installer, or integration path.
+- Operating system and deployment shape.
+- Whether the service was bound to localhost, a private interface, or a public interface.
+- A high-level impact description that does not expose private data.

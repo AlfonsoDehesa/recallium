@@ -6,30 +6,33 @@
 
 <!-- What files changed and what was done to them. -->
 
-## Roadmap
+## Documentation
 
-- [ ] If this PR implements a ROADMAP.md item, ROADMAP.md is updated in this PR
-- [ ] Completed roadmap work is moved into the Completed section
+- [ ] `README.md` updated, or not applicable because ...
+- [ ] `docs/wiki/` updated, or not applicable because ...
+- [ ] `docs/local-service-api.md` updated, or not applicable because ...
+- [ ] `docs/local-service-openapi.json` updated, or not applicable because ...
+- [ ] `docs/opencode-adapter-contract.md` updated, or not applicable because ...
+- [ ] `SECURITY.md` updated, or not applicable because ...
+- [ ] `ROADMAP.md` updated, or not applicable because ...
+- [ ] `CONTRIBUTING.md` updated, or not applicable because ...
+- [ ] `CHANGELOG.md` updated under `✨ Features`, `🐛 Fixes`, or `🧹 Chores`, or not applicable because ...
 
 ## Database migrations
 
 - [ ] This PR does not change the SQLite schema
-- [ ] If it changes the SQLite schema, the PR includes the migration module,
-      existing-row population/default/nullability plan, lazy-migration safety
-      notes, any required background backfill or re-embedding plan, and upgrade
-      tests from the previous schema version
+- [ ] If it changes the SQLite schema, the PR includes the migration module, existing-row population/default/nullability plan, lazy-migration safety notes, any required background backfill or re-embedding plan, and upgrade tests from the previous schema version
 
 ## Quality gates
 
+- [ ] `git diff --check` passes
+- [ ] `uv run ruff format --check .` passes, or not applicable because ...
 - [ ] `uv run ruff check .` passes
 - [ ] `uv run pyright` passes
-- [ ] `uv run pytest` passes
-- [ ] `uv run pytest --cov=src/recollectium --cov-report=term-missing` targets 100% on changed code
+- [ ] `uv run pytest` passes, or not applicable because ...
+- [ ] `uv run pytest --cov=src/recollectium --cov-report=term-missing` targets 100% on changed code, or accepted misses are documented
+- [ ] CI passes, or is pending at ...
 
-## Policy compliance
+## Risks and follow-up
 
-- Pytest success rate:
-- Test coverage for this feature:
-- Test coverage for codebase:
-- Ruff status:
-- Pyright status:
+<!-- Compatibility notes, known risks, deferred work, or manual release steps. -->
