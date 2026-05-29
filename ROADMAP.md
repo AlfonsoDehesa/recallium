@@ -33,25 +33,9 @@ Completed:
 - [x] Workspace UID aliasing across Core, CLI, API, MCP, docs, and adapter contract: direct aliases, alias resolution for workspace operations, conflict-safe migration with `--migrate-existing`, and rename alias preservation.
 - [x] Package upgrade flow through `recollectium upgrade`: latest-release checks, pip/pipx/uv/bootstrap/source install methods, dry-run/check modes, service-state preservation, docs, unit tests, and install-smoke CI coverage.
 - [x] CLI error-formatting audit: non-argparse failures return structured JSON on stderr with standardized exit codes, stdout JSON contracts stay clean, and representative failure paths are covered by tests.
+- [x] CI uninstall-flow coverage across bootstrap install-smoke jobs: default uninstall preservation, explicit purge, managed Unix completion cleanup, package-manager guidance assertions, and final `uv tool uninstall recollectium` cleanup.
 
 Remaining release blockers:
-
-### CI uninstall-flow coverage
-
-Release goal: every bootstrap install-smoke path also proves Recollectium can be
-uninstalled cleanly.
-
-- [ ] Update CI install-smoke jobs to run the appropriate uninstall flow after the
-  install and CLI smoke checks pass.
-- [ ] Verify default uninstall preserves Recollectium data by default.
-- [ ] Verify purge uninstall removes Recollectium-managed data only when explicitly
-  requested.
-- [ ] Verify managed shell completion cleanup runs during uninstall where that shell
-  completion was installed.
-- [ ] Verify uninstall output gives package-manager guidance without failing the CI
-  job for expected package-manager ownership boundaries.
-- [ ] Cover Linux, macOS, Windows x86_64, and Windows ARM64 install-smoke jobs where
-  practical.
 
 ### Local access and security documentation audit
 
@@ -78,8 +62,8 @@ parity for the important Recollectium CLI paths.
 - [ ] Complete config keys for `recollectium config get/set/unset`.
 - [ ] Add install support so the managed completion block can be added to the
   correct PowerShell profile.
-- [ ] Add uninstall support so Recollectium can remove the managed PowerShell
-  completion block.
+- [ ] Add uninstall support so `recollectium uninstall` removes the managed
+  PowerShell completion block.
 - [ ] Ensure bootstrap install records the PowerShell completion profile edit in
   install metadata where appropriate.
 - [ ] Support both Windows PowerShell and PowerShell 7 where practical, or document
@@ -88,8 +72,8 @@ parity for the important Recollectium CLI paths.
 - [ ] Add tests for PowerShell profile install, duplicate detection, uninstall
   cleanup, and dry-run uninstall behavior.
 - [ ] Add docs for manual and automatic PowerShell setup.
-- [ ] Add CI or smoke coverage for the PowerShell completion install path where
-  practical.
+- [ ] Add CI or smoke coverage for the PowerShell completion install path,
+  uninstall-command cleanup path, and profile cleanup assertions where practical.
 
 ### GitHub Wiki
 

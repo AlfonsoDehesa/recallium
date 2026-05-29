@@ -1034,9 +1034,7 @@ def _load_uninstall_plan(config_path: Path, *, explicit: bool) -> _UninstallPlan
     if not database_path.is_absolute():
         database_path = xdg_dirs["data"] / database_path
 
-    install_metadata_path = (
-        Path(user_state_dir("recollectium")) / _INSTALL_METADATA_FILE
-    )
+    install_metadata_path = _resolve_install_metadata_path()
     return _UninstallPlan(
         config=_UninstallConfig(
             effective_config=effective_config,
@@ -1048,6 +1046,28 @@ def _load_uninstall_plan(config_path: Path, *, explicit: bool) -> _UninstallPlan
         database_path=database_path,
         install_metadata_path=install_metadata_path,
     )
+
+
+def _resolve_install_metadata_path() -> Path:
+    """Return install metadata path, including bootstrap-script legacy paths."""
+    default_path = Path(user_state_dir("recollectium")) / _INSTALL_METADATA_FILE
+    candidates = [default_path]
+    if sys.platform.startswith("win"):
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        if local_app_data:
+            candidates.append(
+                Path(local_app_data) / "recollectium" / _INSTALL_METADATA_FILE
+            )
+    else:
+        candidates.append(
+            Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
+            / "recollectium"
+            / _INSTALL_METADATA_FILE
+        )
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return default_path
 
 
 def _load_install_metadata(path: Path) -> dict[str, Any] | None:
@@ -1318,6 +1338,7 @@ def _handle_uninstall_command(
                 sys.stderr.write(f"  {target['path']}\n")
             sys.stderr.write("\n")
 
+            logging.shutdown()
             data_payload["purge"] = _purge_targets(plan, dry_run=False)
 
     result = {
@@ -1327,10 +1348,11 @@ def _handle_uninstall_command(
         "shell_completion": completion_payload,
         "data": data_payload,
     }
-    _log.info(
-        "Uninstall instructions generated",
-        extra={"event": "uninstall.instructions"},
-    )
+    if not args.purge:
+        _log.info(
+            "Uninstall instructions generated",
+            extra={"event": "uninstall.instructions"},
+        )
     print(json.dumps(result, sort_keys=True))
     return 0
 

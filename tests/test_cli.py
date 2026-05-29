@@ -7,6 +7,7 @@ from copy import deepcopy
 from importlib.metadata import PackageNotFoundError
 from pathlib import Path
 import runpy
+import shutil
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
@@ -2221,6 +2222,95 @@ def test_cli_uninstall_preserves_data_and_uses_install_metadata(
     assert payload["package"]["managed_path_edits"] == ["profile path edit"]
     assert config_path.exists()
     assert db_path.read_text(encoding="utf-8") == "preserved"
+
+
+def test_cli_uninstall_uses_bootstrap_legacy_state_metadata_path(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "legacy-state"))
+    monkeypatch.setattr(
+        "recollectium.cli.user_state_dir",
+        lambda _app_name: str(tmp_path / "platform-state"),
+    )
+    metadata_path = tmp_path / "legacy-state" / "recollectium" / "install.json"
+    metadata_path.parent.mkdir(parents=True)
+    metadata_path.write_text(
+        json.dumps({"install_method": "bootstrap", "source_ref": "ci"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
+
+    exit_code, stdout, stderr = _run_cli(["uninstall"], capsys)
+
+    payload = json.loads(stdout)
+    assert exit_code == 0
+    assert stderr == ""
+    assert payload["package"]["install_method"] == "bootstrap"
+    assert payload["package"]["source_ref"] == "ci"
+
+
+def test_cli_uninstall_uses_windows_bootstrap_metadata_path(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    monkeypatch.setattr("sys.platform", "win32")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "local-app-data"))
+    monkeypatch.setattr(
+        "recollectium.cli.user_state_dir",
+        lambda _app_name: str(tmp_path / "platform-state"),
+    )
+    metadata_path = tmp_path / "local-app-data" / "recollectium" / "install.json"
+    metadata_path.parent.mkdir(parents=True)
+    metadata_path.write_text(
+        json.dumps({"install_method": "bootstrap", "source_ref": "ci"}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
+
+    exit_code, stdout, stderr = _run_cli(["uninstall"], capsys)
+
+    payload = json.loads(stdout)
+    assert exit_code == 0
+    assert stderr == ""
+    assert payload["package"]["install_method"] == "bootstrap"
+    assert payload["package"]["source_ref"] == "ci"
+
+
+def test_cli_uninstall_purge_closes_log_handlers_before_deleting_logs(
+    tmp_path: Path, capsys: CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _set_xdg_home(monkeypatch, tmp_path)
+    config_path = tmp_path / "config" / "recollectium" / "config.json"
+    config_path.parent.mkdir(parents=True)
+    config_path.write_text(json.dumps(DEFAULTS), encoding="utf-8")
+    monkeypatch.setattr("recollectium.cli.stop_service", lambda _config: None)
+    shutdown_called = False
+
+    original_rmtree = shutil.rmtree
+
+    def _shutdown() -> None:
+        nonlocal shutdown_called
+        shutdown_called = True
+
+    def _assert_shutdown_before_delete(path: Path) -> None:
+        if path == tmp_path / "state" / "recollectium" / "logs":
+            assert shutdown_called
+        original_rmtree(path)
+
+    monkeypatch.setattr("recollectium.cli.logging.shutdown", _shutdown)
+    monkeypatch.setattr(
+        "recollectium.cli.shutil.rmtree", _assert_shutdown_before_delete
+    )
+
+    exit_code, stdout, stderr = _run_cli(
+        ["uninstall", "--purge", "--yes-delete-all-recollectium-data"], capsys
+    )
+
+    assert exit_code == 0
+    assert "permanently deleted" in stderr
+    assert json.loads(stdout)["data"]["purge"]["deleted"]
+    assert shutdown_called
 
 
 def test_cli_uninstall_removes_managed_completion_block(
