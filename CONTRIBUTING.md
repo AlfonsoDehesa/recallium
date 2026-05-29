@@ -16,6 +16,7 @@ Include:
 
 - The exact command you ran.
 - The full error output. Do not summarize or trim it.
+- Recollectium logs, if possible.
 - The output of `recollectium --version`.
 - Your OS and Python version, from `python --version`.
 - The exact reproduction steps, in order.
