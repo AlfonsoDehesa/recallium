@@ -92,7 +92,7 @@ recollectium upgrade --install-method uv_tool
 recollectium upgrade --install-method source
 ```
 
-If a managed API or MCP service is running, Recollectium stops it, upgrades the package, then restarts the same service type when the upgrade succeeds. If stopping the service fails, the upgrade is blocked rather than risking a half-updated running service.
+If a managed API or MCP service is running, Recollectium stops it, upgrades the package, then restarts the same service type when the upgrade succeeds.
 
 ## Uninstall
 
