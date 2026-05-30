@@ -55,6 +55,10 @@ DEFAULTS: dict[str, Any] = {
         "backup_count": 5,
     },
     "directories": {"data": None, "cache": None, "logs": None, "runtime": None},
+    "development": {
+        "use_seeded_database": False,
+        "seeded_database_path": "dev-seeded-memory.db",
+    },
     "workspace": {
         "uid_normalization": "normalize",
     },
@@ -202,6 +206,12 @@ def _validate_config_value(data: dict[str, Any], path: str = "") -> None:
                 raise ValidationError(
                     f"directories.{key} must be a string or null (got {type(value).__name__})"
                 )
+
+    _validate_section(
+        data,
+        "development",
+        {"use_seeded_database": bool, "seeded_database_path": str},
+    )
 
     # workspace.uid_normalization must be normalize or exact
     workspace = data.get("workspace", {})
@@ -380,7 +390,14 @@ class RecollectiumConfig:
         _ensure_config_directories(self._xdg_dirs)
 
         # 10. Resolve database path
-        db_path = Path(merged["database"]["path"])
+        development = merged.get("development", {})
+        if (
+            isinstance(development, dict)
+            and development.get("use_seeded_database") is True
+        ):
+            db_path = Path(development["seeded_database_path"])
+        else:
+            db_path = Path(merged["database"]["path"])
         if not db_path.is_absolute():
             db_path = self._xdg_dirs["data"] / db_path
         self._resolved_db_path = db_path

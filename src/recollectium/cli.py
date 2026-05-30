@@ -53,6 +53,7 @@ from recollectium.config import (
     unset_config_value,
     validate_config_file,
 )
+from recollectium.dev_seed import ensure_seeded_dev_database, reset_seeded_dev_database
 from recollectium.embeddings import BuiltinFastEmbedProvider
 from recollectium.logging import setup_logging
 from recollectium.model_state import write_model_state
@@ -111,6 +112,8 @@ _COMPLETABLE_CONFIG_KEYS = [
     "directories.cache",
     "directories.logs",
     "directories.runtime",
+    "development.use_seeded_database",
+    "development.seeded_database_path",
     "workspace.uid_normalization",
 ]
 
@@ -1092,6 +1095,13 @@ def _operation_failed_error(exc: Exception, *, command: str | None) -> int:
         exit_code=1,
         command=command,
     )
+
+
+def _resolve_seeded_dev_database_path(cfg: RecollectiumConfig) -> Path:
+    dev_path = Path(cfg.effective_config["development"]["seeded_database_path"])
+    if not dev_path.is_absolute():
+        dev_path = cfg.xdg_dirs["data"] / dev_path
+    return dev_path
 
 
 def _handle_upgrade_command(
@@ -2600,6 +2610,28 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
 
+    # -- dev ---------------------------------------------------------------
+    dev_parser = subparsers.add_parser(
+        "dev",
+        help="switch or reset the seeded development memory database",
+        description=(
+            "Switch Recollectium between the normal user database and a pre-seeded "
+            "development database, or reset the development database to its canonical "
+            "fixture: 100 user memories across 10 topics and 90 workspace memories "
+            "across 3 workspaces. The regular database is not touched, and the "
+            "command refuses to run while a managed service is already running."
+        ),
+    )
+    dev_parser.add_argument(
+        "state",
+        choices=("true", "false", "reset"),
+        help=(
+            "Use 'true' to route future activity to the seeded dev database, "
+            "'false' to return to the normal database, or 'reset' to recreate "
+            "the seeded dev database."
+        ),
+    )
+
     # -- workspace ---------------------------------------------------------
     workspace_parser = subparsers.add_parser(
         "workspace",
@@ -3212,6 +3244,85 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "upgrade":
         return _handle_upgrade_command(args, config_path, output_format=output_format)
+
+    if args.command == "dev":
+        try:
+            cfg = RecollectiumConfig(core_config_path, log_level=args.log_level)
+            raw_config = load_config_file(config_path)
+            running = check_running_service(cfg)
+            if running is not None:
+                return _emit_cli_failure(
+                    status="service_running",
+                    message="A Recollectium service is running.",
+                    detail=f"{running['type']} service PID {running['pid']} is using the current configuration.",
+                    hint="Stop or restart the service, then run recollectium dev again so future API/MCP activity uses the selected database.",
+                    exit_code=1,
+                    command="dev",
+                    event="dev.service_running",
+                )
+            if args.state in {"true", "false"}:
+                use_seeded_database = args.state == "true"
+                set_config_value(
+                    raw_config,
+                    "development.use_seeded_database",
+                    use_seeded_database,
+                )
+                merged = _deep_merge(deepcopy(DEFAULTS), raw_config)
+                _validate_config_value(merged)
+                if use_seeded_database:
+                    provider = BuiltinFastEmbedProvider()
+                    provider.ensure_ready()
+                    seed_result = ensure_seeded_dev_database(
+                        _resolve_seeded_dev_database_path(cfg), provider
+                    )
+                else:
+                    seed_result = None
+                config_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+                config_path.write_text(
+                    json.dumps(raw_config, indent=2) + "\n", encoding="utf-8"
+                )
+                config_path.chmod(0o600)
+                updated_cfg = RecollectiumConfig(
+                    core_config_path, log_level=args.log_level
+                )
+                result = {
+                    "status": "enabled" if use_seeded_database else "disabled",
+                    "use_seeded_database": use_seeded_database,
+                    "database": str(updated_cfg.resolved_database_path),
+                }
+                if use_seeded_database:
+                    result.update(
+                        {
+                            "seed_status": "ready"
+                            if seed_result is None
+                            else seed_result["status"],
+                            "user_memories": 100,
+                            "workspace_memories": 90,
+                            "workspaces": 3,
+                            "topics": 10,
+                        }
+                    )
+            else:
+                provider = BuiltinFastEmbedProvider()
+                provider.ensure_ready()
+                result = reset_seeded_dev_database(
+                    _resolve_seeded_dev_database_path(cfg), provider
+                )
+        except FileNotFoundError as exc:
+            return _config_missing_error(exc, command="dev")
+        except ValidationError as exc:
+            return _validation_error(exc, command="dev")
+        except ServiceError as exc:
+            return _service_error(exc, command="dev")
+        except (
+            EmbeddingReadinessTimeoutError,
+            EmbeddingModelUnavailableError,
+            EmbeddingProviderUnavailableError,
+            EmbeddingGenerationError,
+        ) as exc:
+            return _embedding_error(exc, command="dev")
+        _emit_success(result, output_format=output_format, command="dev")
+        return 0
 
     if args.command == "uninstall":
         try:

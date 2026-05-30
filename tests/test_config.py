@@ -134,6 +134,36 @@ class TestValidateConfigValue:
     def test_default_cli_output_is_human_readable(self) -> None:
         assert DEFAULTS["cli_output"] == "human_readable"
 
+    def test_default_development_seeded_database_is_disabled(self) -> None:
+        assert DEFAULTS["development"]["use_seeded_database"] is False
+        assert DEFAULTS["development"]["seeded_database_path"] == "dev-seeded-memory.db"
+
+    def test_development_seeded_database_boolean_is_valid(self) -> None:
+        data = deepcopy(DEFAULTS)
+        data["development"]["use_seeded_database"] = True
+
+        _validate_config_value(data)
+
+        assert data["development"]["use_seeded_database"] is True
+
+    def test_invalid_development_seeded_database_type_raises(self) -> None:
+        data = deepcopy(DEFAULTS)
+        data["development"]["use_seeded_database"] = "yes"
+
+        with pytest.raises(
+            ValidationError, match="development.use_seeded_database must be bool"
+        ):
+            _validate_config_value(data)
+
+    def test_invalid_development_seeded_database_path_type_raises(self) -> None:
+        data = deepcopy(DEFAULTS)
+        data["development"]["seeded_database_path"] = 123
+
+        with pytest.raises(
+            ValidationError, match="development.seeded_database_path must be str"
+        ):
+            _validate_config_value(data)
+
     def test_cli_output_human_readable_is_valid(self) -> None:
         data = deepcopy(DEFAULTS)
         data["cli_output"] = "human_readable"
@@ -463,6 +493,28 @@ class TestRecollectiumConfig:
         # Relative path resolved against data dir
         assert cfg.resolved_database_path.name == "mydb.db"
         assert cfg.resolved_database_path.is_absolute()
+
+    def test_seeded_dev_database_uses_separate_resolved_path(
+        self, tmp_path: Path
+    ) -> None:
+        config_path = tmp_path / "config.json"
+        dev_db = tmp_path / "dev" / "seeded.db"
+        config_path.write_text(
+            json.dumps(
+                {
+                    "database": {"path": "regular.db"},
+                    "development": {
+                        "use_seeded_database": True,
+                        "seeded_database_path": str(dev_db),
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        cfg = RecollectiumConfig(config_path)
+
+        assert cfg.resolved_database_path == dev_db
 
     def test_resolved_database_path_absolute(self, tmp_path: Path) -> None:
         config_path = tmp_path / "config.json"

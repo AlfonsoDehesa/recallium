@@ -7,6 +7,7 @@ Recollectium keeps human-written release notes here. Each release section uses t
 ### ✨ Features
 
 - Added configurable CLI output with Rich-backed TTY-colored human-readable summaries/errors by default, JSON for automation, and per-command `--json` / `--human-readable` overrides.
+- Added an optional seeded development memory database with config toggles and `recollectium dev reset` for repeatable embedding and memory-operation tests.
 
 ### 🐛 Fixes
 

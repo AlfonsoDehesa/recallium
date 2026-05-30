@@ -72,6 +72,9 @@ class FakeEmbeddingProvider:
     def similarity(self, first: list[float], second: list[float]) -> float:
         return sum(a * b for a, b in zip(first, second, strict=True))
 
+    def ensure_ready(self, *, timeout_seconds: float = 60.0) -> None:
+        return None
+
 
 def _run_cli(
     args: list[str],
@@ -108,6 +111,7 @@ def test_cli_help_documents_commands_and_flags(capsys) -> None:
     assert "embedding-status" in top_level_help
     assert "embedding-jobs" in top_level_help
     assert "db-status" in top_level_help
+    assert "dev" in top_level_help
     assert "upgrade" in top_level_help
     assert "uninstall" in top_level_help
     assert "completion" in top_level_help
@@ -687,6 +691,264 @@ def test_cli_db_status_reports_migration_state(tmp_path, capsys) -> None:
     assert payload["latest_version"] == 3
     assert payload["pending_versions"] == []
     assert payload["up_to_date"] is True
+
+
+def test_cli_dev_reset_resets_configured_seed_database(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    config_path = tmp_path / "config.json"
+    dev_db = tmp_path / "dev.db"
+    regular_db = tmp_path / "regular.db"
+    config_path.write_text(
+        json.dumps(
+            {
+                "database": {"path": str(regular_db)},
+                "development": {"seeded_database_path": str(dev_db)},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cli_module, "BuiltinFastEmbedProvider", FakeEmbeddingProvider)
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--config", str(config_path), "dev", "reset"],
+        capsys,
+    )
+
+    assert exit_code == 0
+    assert stderr == ""
+    payload = json.loads(stdout)
+    assert payload["database"] == str(dev_db)
+    assert payload["user_memories"] == 100
+    assert payload["workspace_memories"] == 90
+    assert payload["workspaces"] == 3
+    assert dev_db.exists()
+    assert not regular_db.exists()
+
+
+def test_cli_dev_true_and_false_switch_database_without_touching_regular_db(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    config_path = tmp_path / "config.json"
+    dev_db = tmp_path / "dev.db"
+    regular_db = tmp_path / "regular.db"
+    config_path.write_text(
+        json.dumps(
+            {
+                "database": {"path": str(regular_db)},
+                "development": {"seeded_database_path": str(dev_db)},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cli_module, "BuiltinFastEmbedProvider", FakeEmbeddingProvider)
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--config", str(config_path), "dev", "true"],
+        capsys,
+    )
+
+    assert exit_code == 0
+    assert stderr == ""
+    payload = json.loads(stdout)
+    assert payload["status"] == "enabled"
+    assert payload["use_seeded_database"] is True
+    assert payload["database"] == str(dev_db)
+    assert payload["workspace_memories"] == 90
+    assert dev_db.exists()
+    assert not regular_db.exists()
+    loaded = json.loads(config_path.read_text(encoding="utf-8"))
+    assert loaded["development"]["use_seeded_database"] is True
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--config", str(config_path), "dev", "false"],
+        capsys,
+    )
+
+    assert exit_code == 0
+    assert stderr == ""
+    payload = json.loads(stdout)
+    assert payload == {
+        "status": "disabled",
+        "use_seeded_database": False,
+        "database": str(regular_db),
+    }
+    loaded = json.loads(config_path.read_text(encoding="utf-8"))
+    assert loaded["development"]["use_seeded_database"] is False
+    assert not regular_db.exists()
+
+
+def test_cli_dev_reset_resolves_relative_seed_database_path(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    config_path = tmp_path / "config.json"
+    data_dir = tmp_path / "data"
+    config_path.write_text(
+        json.dumps(
+            {
+                "database": {"path": "regular.db"},
+                "directories": {"data": str(data_dir)},
+                "development": {"seeded_database_path": "dev.db"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(cli_module, "BuiltinFastEmbedProvider", FakeEmbeddingProvider)
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--config", str(config_path), "dev", "reset"],
+        capsys,
+    )
+
+    assert exit_code == 0
+    assert stderr == ""
+    payload = json.loads(stdout)
+    assert payload["database"] == str(data_dir / "dev.db")
+    assert (data_dir / "dev.db").exists()
+
+
+def test_cli_dev_reports_config_and_embedding_errors(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    missing_config = tmp_path / "missing.json"
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--config", str(missing_config), "dev", "reset"],
+        capsys,
+    )
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert json.loads(stderr)["status"] == "config_missing"
+
+    invalid_config = tmp_path / "invalid.json"
+    invalid_config.write_text(
+        json.dumps({"development": {"use_seeded_database": "yes"}}),
+        encoding="utf-8",
+    )
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--config", str(invalid_config), "dev", "reset"],
+        capsys,
+    )
+
+    assert exit_code == 2
+    assert stdout == ""
+    assert json.loads(stderr)["status"] == "validation_error"
+
+    class FailingEmbeddingProvider(FakeEmbeddingProvider):
+        def ensure_ready(self, *, timeout_seconds: float = 60.0) -> None:
+            raise EmbeddingProviderUnavailableError("fake provider unavailable")
+
+    valid_config = tmp_path / "valid.json"
+    valid_config.write_text(
+        json.dumps({"development": {"seeded_database_path": str(tmp_path / "dev.db")}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        cli_module, "BuiltinFastEmbedProvider", FailingEmbeddingProvider
+    )
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--config", str(valid_config), "dev", "reset"],
+        capsys,
+    )
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert json.loads(stderr)["status"] == "embedding_provider_unavailable"
+
+
+def test_cli_dev_true_does_not_persist_config_when_embedding_fails(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    config_path = tmp_path / "config.json"
+    dev_db = tmp_path / "dev.db"
+    config_path.write_text(
+        json.dumps({"development": {"seeded_database_path": str(dev_db)}}),
+        encoding="utf-8",
+    )
+
+    class FailingEmbeddingProvider(FakeEmbeddingProvider):
+        def ensure_ready(self, *, timeout_seconds: float = 60.0) -> None:
+            raise EmbeddingProviderUnavailableError("fake provider unavailable")
+
+    monkeypatch.setattr(
+        cli_module, "BuiltinFastEmbedProvider", FailingEmbeddingProvider
+    )
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--config", str(config_path), "dev", "true"],
+        capsys,
+    )
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert json.loads(stderr)["status"] == "embedding_provider_unavailable"
+    loaded = json.loads(config_path.read_text(encoding="utf-8"))
+    assert "use_seeded_database" not in loaded["development"]
+    assert not dev_db.exists()
+
+
+def test_cli_dev_refuses_to_switch_or_reset_while_service_is_running(
+    tmp_path, capsys, monkeypatch
+) -> None:
+    config_path = tmp_path / "config.json"
+    dev_db = tmp_path / "dev.db"
+    config_path.write_text(
+        json.dumps({"development": {"seeded_database_path": str(dev_db)}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        cli_module,
+        "check_running_service",
+        lambda _config: {"type": "api", "pid": 12345},
+    )
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--config", str(config_path), "dev", "true"],
+        capsys,
+    )
+
+    assert exit_code == 1
+    assert stdout == ""
+    payload = json.loads(stderr)
+    assert payload["status"] == "service_running"
+    assert payload["hint"].startswith("Stop or restart the service")
+    loaded = json.loads(config_path.read_text(encoding="utf-8"))
+    assert "use_seeded_database" not in loaded["development"]
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--config", str(config_path), "dev", "reset"],
+        capsys,
+    )
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert json.loads(stderr)["status"] == "service_running"
+    assert not dev_db.exists()
+
+
+def test_cli_dev_reports_service_status_errors(tmp_path, capsys, monkeypatch) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps({"development": {"seeded_database_path": str(tmp_path / "dev.db")}}),
+        encoding="utf-8",
+    )
+
+    def raise_service_error(_config):
+        raise ServiceError("bad pid file")
+
+    monkeypatch.setattr(cli_module, "check_running_service", raise_service_error)
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--config", str(config_path), "dev", "true"],
+        capsys,
+    )
+
+    assert exit_code == 1
+    assert stdout == ""
+    assert json.loads(stderr)["status"] == "service_error"
 
 
 def test_cli_human_readable_flag_formats_failure_output(tmp_path, capsys) -> None:
@@ -1884,6 +2146,24 @@ class TestConfigCommand:
         loaded = json.loads(config_path.read_text())
         assert loaded["service"]["port"] == 9090
         assert isinstance(loaded["service"]["port"], int)
+
+    def test_config_set_can_enable_seeded_dev_database(self, tmp_path, capsys) -> None:
+        config_path = tmp_path / "config.json"
+        exit_code, stdout, stderr = _run_cli(
+            [
+                "--config",
+                str(config_path),
+                "config",
+                "set",
+                "development.use_seeded_database",
+                "true",
+            ],
+            capsys,
+        )
+        assert exit_code == 0
+        assert stderr == ""
+        loaded = json.loads(config_path.read_text())
+        assert loaded["development"]["use_seeded_database"] is True
 
     def test_config_set_preserves_existing_keys(self, tmp_path, capsys) -> None:
         config_path = tmp_path / "config.json"

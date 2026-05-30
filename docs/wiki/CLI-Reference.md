@@ -184,6 +184,22 @@ Shows database schema migration status as JSON for the selected database. It ini
 
 Use global `--db DB_PATH` before the command to inspect a non-default database.
 
+## dev
+
+```bash
+recollectium dev true
+recollectium dev reset
+recollectium dev false
+```
+
+`recollectium dev true` routes future Recollectium activity to the seeded development database. The fixture contains 100 user memories across 10 topic buckets and 90 workspace memories across 3 workspaces.
+
+`recollectium dev reset` recreates the configured seeded database from the canonical fixture. It targets `development.seeded_database_path` and does not touch the regular `database.path` database.
+
+`recollectium dev false` returns future activity to the regular user database without deleting either database.
+
+The dev switch and reset commands refuse to run while a managed Recollectium API or MCP service is running. Stop or restart the service around the switch so service traffic cannot keep using the previously opened database.
+
 ## workspace
 
 Workspace commands manage workspace UIDs, aliases, and renames.
