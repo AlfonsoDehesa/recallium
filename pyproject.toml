@@ -33,6 +33,7 @@ dependencies = [
     "mcp>=1.27.1",
     "packaging>=24",
     "platformdirs>=4",
+    "rich>=15",
     "uvicorn>=0.38",
 ]
 

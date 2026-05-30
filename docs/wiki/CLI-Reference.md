@@ -404,8 +404,7 @@ Prints safe uninstall instructions and stops managed services. By default, it pr
 
 ## Exit behavior and output
 
-- Successful data-returning commands print JSON to stdout by default.
-- Human-readable output is the default. Set `cli_output` to `json` in config, or pass `--json`, when scripts or adapters need machine-readable output.
+- Human-readable output is the default. When the target output stream is a TTY, human-readable output uses Rich-backed ANSI color for headings, field labels, errors, and hints. Set `cli_output` to `json` in config, or pass `--json`, when scripts or adapters need machine-readable output.
 - Pass `--json` to force JSON for one invocation, even when config prefers human-readable output. This is the safest mode for scripts and adapters.
 - `--json` and `--human-readable` are mutually exclusive and may appear before or after the command. If you need one of those strings as a literal command value, put it after `--`.
 - Protocol commands keep their machine contract: `completion --source`, completion candidate generation, `serve`, and `mcp-stdio` do not switch to human text.

@@ -1227,6 +1227,7 @@ dependencies = [
     { name = "mcp" },
     { name = "packaging" },
     { name = "platformdirs" },
+    { name = "rich" },
     { name = "uvicorn" },
 ]
 
@@ -1249,6 +1250,7 @@ requires-dist = [
     { name = "mcp", specifier = ">=1.27.1" },
     { name = "packaging", specifier = ">=24" },
     { name = "platformdirs", specifier = ">=4" },
+    { name = "rich", specifier = ">=15" },
     { name = "uvicorn", specifier = ">=0.38" },
 ]
 

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import io
 import json
+import tomllib
 from copy import deepcopy
 from importlib.metadata import PackageNotFoundError
 from pathlib import Path
@@ -15,12 +17,17 @@ from unittest.mock import patch
 import pytest
 from pytest import CaptureFixture
 
+import recollectium.cli as cli_module
 from recollectium.config import DEFAULTS
 from recollectium.cli import (
+    _emit_failure_payload,
+    _emit_success,
     _extract_cli_output_override,
     _format_human_error,
     _format_human_output,
     _resolve_output_format,
+    _set_cli_output_format,
+    _supports_color,
     main,
 )
 from recollectium.models import (
@@ -771,8 +778,92 @@ def test_cli_human_readable_flag_formats_success_output(tmp_path, capsys) -> Non
     assert stdout.startswith("Db status\n")
     assert "Db path:" in stdout
     assert "Up to date: true" in stdout
+    assert "\x1b[" not in stdout
     with pytest.raises(json.JSONDecodeError):
         json.loads(stdout)
+
+
+class _TTYBuffer(io.StringIO):
+    def isatty(self) -> bool:
+        return True
+
+
+class _NonTTYBuffer(io.StringIO):
+    def isatty(self) -> bool:
+        return False
+
+
+class _BrokenTTYBuffer(io.StringIO):
+    def isatty(self) -> bool:
+        raise OSError("tty unavailable")
+
+
+def test_cli_color_detection_handles_non_tty_streams() -> None:
+    assert _supports_color(object()) is False
+    assert _supports_color(_BrokenTTYBuffer()) is False
+
+
+def test_cli_human_output_uses_rich_as_direct_dependency() -> None:
+    pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
+    dependencies = pyproject["project"]["dependencies"]
+
+    assert cli_module.Console.__module__.startswith("rich.")
+    assert cli_module.Text.__module__.startswith("rich.")
+    assert any(dependency.partition(">=")[0] == "rich" for dependency in dependencies)
+
+
+def test_cli_human_readable_success_uses_color_on_tty(monkeypatch) -> None:
+    stream = _TTYBuffer()
+    monkeypatch.setattr("sys.stdout", stream)
+
+    _emit_success(
+        {"up_to_date": True, "pending_versions": []},
+        output_format="human_readable",
+        command="db-status",
+    )
+
+    output = stream.getvalue()
+    assert output.startswith("\x1b[1;36mDb status\x1b[0m\n")
+    assert "\x1b[1mUp to date:\x1b[0m true" in output
+    assert "\x1b[" in output
+
+
+def test_cli_human_readable_success_does_not_color_non_tty(monkeypatch) -> None:
+    stream = _NonTTYBuffer()
+    monkeypatch.setattr("sys.stdout", stream)
+
+    _emit_success(
+        {"up_to_date": True},
+        output_format="human_readable",
+        command="db-status",
+    )
+
+    output = stream.getvalue()
+    assert output.startswith("Db status\n")
+    assert "\x1b[" not in output
+
+
+def test_cli_human_readable_errors_use_color_on_tty(monkeypatch) -> None:
+    stream = _TTYBuffer()
+    monkeypatch.setattr("sys.stderr", stream)
+    _set_cli_output_format("human_readable")
+
+    try:
+        _emit_failure_payload(
+            {
+                "status": "config_invalid",
+                "message": "Config is invalid.",
+                "detail": "ValidationError: bad value",
+                "hint": "Fix the config file.",
+            }
+        )
+    finally:
+        _set_cli_output_format("json")
+
+    output = stream.getvalue()
+    assert output.startswith("\x1b[1;31mConfig is invalid.\x1b[0m\n")
+    assert "\x1b[1mStatus:\x1b[0m config_invalid" in output
+    assert "\x1b[33mFix the config file.\x1b[0m" in output
 
 
 def test_cli_human_readable_is_default_output(tmp_path, capsys) -> None:
@@ -994,6 +1085,27 @@ def test_cli_human_formatter_covers_command_shapes() -> None:
         {"provider": "builtin-fastembed"}, command="embedding-status"
     )
     assert "Result" in _format_human_output({"ok": True})
+
+
+def test_cli_human_formatter_colors_config_command_shapes() -> None:
+    assert _format_human_output(
+        "human_readable", command="config get", label="cli_output", color=True
+    ).startswith("\x1b[1mcli_output:\x1b[0m human_readable")
+    assert _format_human_output(
+        {"model": "demo"}, command="config get", label="embedding", color=True
+    ).startswith('\x1b[1membedding:\x1b[0m {"model": "demo"}')
+    assert _format_human_output(
+        {"key": "cli_output", "value": "json"}, command="config set", color=True
+    ).startswith("\x1b[1;36mConfig updated:\x1b[0m cli_output = json")
+    assert _format_human_output(
+        {"key": "cli_output"}, command="config unset", color=True
+    ).startswith("\x1b[1;36mConfig key removed:\x1b[0m cli_output")
+    assert _format_human_output(
+        {"path": "/tmp/config.json"}, command="config init", color=True
+    ).startswith("\x1b[1;36mConfig initialized:\x1b[0m /tmp/config.json")
+    assert _format_human_output(
+        {"path": "/tmp/config.json"}, command="config reset", color=True
+    ).startswith("\x1b[1;36mConfig reset to defaults:\x1b[0m /tmp/config.json")
 
 
 def test_cli_output_helpers_cover_sys_argv_and_invalid_config_shapes(

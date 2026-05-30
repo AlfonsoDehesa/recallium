@@ -76,7 +76,7 @@ The effective config is the built-in defaults merged with any values in your con
 | Setting | Type | Default | Options | What it does |
 |---|---|---|---|---|
 | `version` | integer | `1` | `1` | Config schema version. Recollectium uses this to validate the config format. Do not change it unless a future migration says to. |
-| `cli_output` | string | `human_readable` | `human_readable`, `json` | Output format for CLI command results and non-argparse failures. Use `human_readable` for terminal-friendly summaries and errors. Use `json` for scripts and adapters. |
+| `cli_output` | string | `human_readable` | `human_readable`, `json` | Output format for CLI command results and non-argparse failures. Use `human_readable` for terminal-friendly summaries and errors. Human-readable output uses Rich-backed ANSI color only when the target stream is a TTY; pipes and captured output remain plain text. Use `json` for scripts and adapters. |
 | `database.path` | string path | `recollectium.db` | relative or absolute path | SQLite database file. Relative paths resolve under the data directory. Absolute paths are used as written. |
 | `embedding.provider` | string | `builtin-fastembed` | currently `builtin-fastembed` | Embedding provider. v1 supports the built-in local FastEmbed provider. |
 | `embedding.model` | string | `jinaai/jina-embeddings-v2-small-en` | currently the built-in model | Embedding model name. Other models are planned for future releases, but v1 validates the built-in profile. |
@@ -120,7 +120,7 @@ recollectium config doctor
 
 ### `recollectium config`
 
-Prints the effective config as formatted JSON. This is the best first command when you want to know which values Recollectium is actually using.
+Prints the effective config as human-readable text by default. Pass `--json` when you need formatted JSON. This is the best first command when you want to know which values Recollectium is actually using.
 
 ### `recollectium config --path`
 

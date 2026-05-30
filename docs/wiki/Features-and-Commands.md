@@ -79,7 +79,7 @@ Workspace memory types:
 
 ## Output contracts
 
-CLI commands that return command data print human-readable summaries to stdout by default. Set `cli_output` to `json` in config, or pass `--json`, for scripts and adapters. Pass `--human-readable` to force terminal-friendly summaries for one invocation. `--json` and `--human-readable` are mutually exclusive and can appear before or after the command.
+CLI commands that return command data print human-readable summaries to stdout by default. When the target output stream is a TTY, human-readable output uses Rich-backed ANSI color for headings, field labels, errors, and hints. Non-TTY output stays plain text. Set `cli_output` to `json` in config, or pass `--json`, for scripts and adapters. Pass `--human-readable` to force terminal-friendly summaries for one invocation. `--json` and `--human-readable` are mutually exclusive and can appear before or after the command.
 
 Protocol commands keep their machine contract regardless of `cli_output`: `completion --source`, completion candidate generation, `serve`, and `mcp-stdio` do not switch to human text.
 
