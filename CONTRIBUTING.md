@@ -6,7 +6,7 @@ Use the available GitHub templates. They keep review focused and make sure maint
 
 ## 1. Submit a feature request
 
-Use the Feature request issue template. Describe the problem you are trying to solve, not just the solution you want.
+Use the Feature request issue template. Describe the problem you are trying to solve before proposing a solution.
 
 A short user story helps:
 
@@ -43,7 +43,7 @@ Do not paste secrets, tokens, credentials, private memory contents, or sensitive
 
 ## 3. Submit a PR
 
-Pull requests should be scoped, verified, documented, and easy to review. Keep each PR focused on one feature, fix, or docs change.
+Keep pull requests focused on one feature, fix, or docs change. Include verification steps and documentation updates where applicable.
 
 Use the pull request template. Do not delete template sections just because the PR is small. If a section does not apply, mark it as not applicable and say why.
 
@@ -211,7 +211,7 @@ If the docs change wiki navigation or anchors, verify the wiki sidebar and links
 
 #### Required for CLI, API, MCP, and service changes
 
-Surface parity matters. If functionality is reachable through one primary surface, confirm whether it belongs in the others. Before release, every functionality reachable through the CLI must also be reachable through the API and the MCP server unless there is a documented reason not to expose it.
+If functionality is reachable through one primary interface, confirm whether it belongs in the others. Before release, every CLI feature must also be reachable through the API and MCP server unless the PR documents why it is excluded.
 
 When adding, removing, or changing CLI commands or flags, update CLI help text and docs in the same PR. Every CLI command should have:
 
@@ -522,4 +522,4 @@ After the release workflow completes:
 - [ ] Confirm README and wiki links resolve.
 - [ ] If the GitHub Wiki has been initialized, sync `docs/wiki/` to the wiki repository.
 
-For questions, open an issue using the available template. The repo and wiki are the source of truth for public project docs.
+For questions, open an issue using the available template. Use the repo and wiki as the public project documentation.

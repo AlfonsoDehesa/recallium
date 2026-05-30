@@ -2,18 +2,18 @@
 
 Welcome to the Recollectium manual.
 
-Recollectium is a local-first memory engine for AI agents. It gives agents a durable, inspectable place to store and search facts, preferences, decisions, task context, and project knowledge without locking that memory inside one client.
+Recollectium is a local-first memory engine for AI agents. It stores and searches facts, preferences, decisions, task context, and project knowledge without tying that memory to one client.
 
 ## What sets Recollectium apart
 
-Recollectium is not just a helper database for one agent. It is a portable memory layer designed around ownership, semantic recall, and agent interoperability.
+Recollectium is a portable memory layer for local ownership, semantic recall, and interoperability across agents.
 
-- **Local-first by default:** memory lives on your machine unless you choose otherwise.
-- **User memory matters:** Recollectium treats user preferences, communication style, durable goals, and personal context as first-class memory, not an afterthought behind project-only notes.
-- **Semantic search by meaning:** agents can ask for "preferences about wording" and find the right preference memories without needing an exact `type` filter every time.
-- **Portable across agents and models:** any tool that can use CLI, Python, HTTP, or MCP can use the same Core.
-- **Simple to self-host:** installation is one command, runtime is local, storage is SQLite, and services are managed by Recollectium.
-- **Open source and community driven:** Recollectium is built for people who want their memory stack to be inspectable, extensible, and owned by the community.
+- Memory lives on your machine unless you choose otherwise.
+- User preferences, communication style, durable goals, and personal context can be stored separately from project notes.
+- Semantic search lets agents find relevant memories without exact keyword or type matches.
+- Tools that can use CLI, Python, HTTP, or MCP can share the same Core.
+- Installation is one command, storage is SQLite, and services are managed by Recollectium.
+- The project is open source, inspectable, and portable.
 
 ## Start here
 

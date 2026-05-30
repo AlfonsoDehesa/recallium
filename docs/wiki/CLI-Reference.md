@@ -1,6 +1,6 @@
 # CLI Reference
 
-The `recollectium` command is the main user-facing interface to Recollectium Core. Commands print human-readable output by default when they return command data. Use `--json` or `cli_output: json` when scripts and adapters need machine-readable output. Non-argparse runtime failures follow the same output preference on stderr.
+The `recollectium` command is the main CLI for Recollectium Core. Commands print human-readable output by default when they return command data. Use `--json` or `cli_output: json` for scripts and adapters. Non-argparse runtime failures follow the same output preference on stderr.
 
 Global form:
 
@@ -76,7 +76,7 @@ Options:
 recollectium search-user [--type TYPE] [--limit LIMIT] [--include-archived] "query"
 ```
 
-Searches user-space memories by semantic similarity. This is the right command when the question is about the person using the agent: preferences, communication style, personal facts, durable goals, and cross-project context.
+Searches user-space memories by semantic similarity. Use this when the query is about the person using the agent: preferences, communication style, personal facts, durable goals, or cross-project context.
 
 Arguments and options:
 
@@ -93,7 +93,7 @@ Arguments and options:
 recollectium search-workspace --workspace-uid UID [--type TYPE] [--limit LIMIT] [--include-archived] "query"
 ```
 
-Searches memories for one workspace. This is the right command when the question is about a repo, project, implementation detail, task, decision, bug, or configuration.
+Searches memories for one workspace. Use this when the query is about a repo, project, implementation detail, task, decision, bug, or configuration.
 
 Arguments and options:
 

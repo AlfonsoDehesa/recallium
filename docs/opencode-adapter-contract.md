@@ -1,7 +1,7 @@
 # OpenCode adapter contract for Recollectium
 
-This document describes the contract between Recollectium Core and a future
-OpenCode adapter or plugin.
+This document describes the contract between Recollectium Core and an OpenCode
+adapter or plugin.
 
 Recollectium Core already exposes the local service, workspace memory operations,
 and workspace UID normalization contract that an adapter needs. The adapter's
@@ -16,7 +16,7 @@ Recollectium v1 is local-first. API and MCP services are unauthenticated and are
 
 Health, version, and capability validation confirms service compatibility. It is not authentication or authorization. Adapters must not treat a reachable, compatible endpoint as proof that the endpoint is safe to expose or safe to share with untrusted clients.
 
-For split-machine deployments, users should connect over private networking. Tailscale is the recommended friendly default for most users; WireGuard, SSH tunneling, firewall allowlists, or equivalent VPN/overlay networking can also work.
+For split-machine deployments, users should connect over private networking. Tailscale, WireGuard, SSH tunneling, firewall allowlists, or equivalent VPN/overlay networking can work.
 
 ## What the adapter must do
 
@@ -43,7 +43,7 @@ A Recollectium adapter should:
 - Pass the UID candidate to Recollectium Core and let Core apply its configured
   workspace UID normalization at the storage boundary.
 - Expose user-memory and workspace-memory operations as separate tools.
-- Treat Recollectium Core as the source of truth for memory storage and search.
+- Use Recollectium Core for memory storage and search.
 
 ## Service discovery contract
 
@@ -92,7 +92,7 @@ Adapter behavior:
 - If the start attempt fails, or if local autodiscovery is disabled, guide the
   user to start the API service or configure the remote Core endpoint.
 - If discovery reports invalid or stale metadata, treat that as a local recovery
-  problem and surface the error clearly.
+  problem and report the error clearly.
 
 ## Validation contract
 
@@ -208,7 +208,7 @@ operations.
 
 ## Error handling contract
 
-The adapter should surface service problems clearly:
+The adapter should report service problems clearly:
 
 - local service not running
 - configured remote endpoint unreachable

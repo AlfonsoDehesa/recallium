@@ -16,7 +16,7 @@ No. The v1 API and MCP services are unauthenticated and localhost-first. Do not 
 
 The built-in local profile currently uses `jinaai/jina-embeddings-v2-small-en` through FastEmbed.
 
-Other models are planned for future releases. The current v1 contract focuses on one reliable built-in local profile so installation, search, and re-embedding behavior are predictable.
+Other models are planned. The v1 contract uses one built-in local profile so installation, search, and re-embedding behavior stay predictable.
 
 ## Should agents search by type first?
 
@@ -28,7 +28,7 @@ If the result set is too broad, narrow by type. Type filters are useful when the
 
 ## What is the difference between `serve` and `service start api`?
 
-`recollectium serve` runs the local HTTP API in the foreground. It is useful for development, debugging, and seeing logs directly in the terminal.
+`recollectium serve` runs the local HTTP API in the foreground, which is useful for development, debugging, and viewing logs in the terminal.
 
 `recollectium service start api` starts a managed background API service, writes PID and discovery metadata, and is the recommended path for adapters and plugins.
 

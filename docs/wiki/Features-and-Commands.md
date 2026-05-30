@@ -1,6 +1,6 @@
 # Features and Commands
 
-This page gives a practical map of what Recollectium can do across CLI, API, and MCP. For exhaustive command examples, see [CLI Reference](CLI-Reference.md). For endpoint payloads, see [API Reference](API-Reference.md). For MCP tool contracts, see [MCP Server](MCP-Server.md).
+This page maps Recollectium features to CLI commands, API endpoints, and MCP tools. For full command examples, see [CLI Reference](CLI-Reference.md). For endpoint payloads, see [API Reference](API-Reference.md). For MCP tool contracts, see [MCP Server](MCP-Server.md).
 
 ## Memory operations
 
@@ -79,7 +79,7 @@ Workspace memory types:
 
 ## Output contracts
 
-CLI commands that return command data print human-readable summaries to stdout by default. When the target output stream is a TTY, human-readable output uses Rich-backed ANSI color for headings, field labels, errors, and hints. Non-TTY output stays plain text. Set `cli_output` to `json` in config, or pass `--json`, for scripts and adapters. Pass `--human-readable` to force terminal-friendly summaries for one invocation. `--json` and `--human-readable` are mutually exclusive and can appear before or after the command.
+CLI commands print human-readable summaries to stdout by default. In a TTY, that output uses Rich-backed ANSI color for headings, field labels, errors, and hints. Non-TTY output stays plain text. For scripts and adapters, set `cli_output` to `json` in config or pass `--json`. Pass `--human-readable` to force terminal-friendly summaries for one invocation. `--json` and `--human-readable` are mutually exclusive and can appear before or after the command.
 
 Protocol commands keep their machine contract regardless of `cli_output`: `completion --source`, completion candidate generation, `serve`, and `mcp-stdio` do not switch to human text.
 

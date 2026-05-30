@@ -16,7 +16,7 @@ In v1, Recollectium services are not hardened as public network services:
 
 ## Supported security model for v1
 
-The recommended deployment is simple:
+Recommended v1 deployment:
 
 1. Run Recollectium on the same machine as the agent or client.
 2. Keep services bound to localhost, usually `127.0.0.1`.
@@ -93,7 +93,7 @@ Recommended for v1:
 
 If the agent and Recollectium must run on different machines, expose Recollectium only over private networking with external access controls.
 
-For most users who need split-machine access, Tailscale is the friendliest path. Equivalent private-network approaches can also work, including WireGuard, SSH tunneling, firewall allowlists, or other VPN/overlay networking.
+For most split-machine deployments, use Tailscale or an equivalent private-network approach such as WireGuard, SSH tunneling, firewall allowlists, or other VPN/overlay networking.
 
 ## Risky or unsupported deployment patterns
 
@@ -105,7 +105,7 @@ Avoid these v1 deployment patterns unless you have added external protections an
 - Tunneling Recollectium through a public tunnel without restricting who can connect.
 - Assuming Docker, container networking, or a VM boundary alone makes an unauthenticated service safe.
 
-Public reverse-proxy exposure is unsupported for v1 unless an advanced user fully supplies and owns external authentication, TLS, and access controls.
+Public reverse-proxy exposure is unsupported for v1 unless external authentication, TLS, and access controls are configured outside Recollectium.
 
 Direct public exposure is unsupported for v1.
 

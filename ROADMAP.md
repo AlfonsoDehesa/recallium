@@ -2,10 +2,9 @@
 
 ## Phase 1 (v1.0.0): Release-ready core
 
-Recollectium Core is installable, runnable, documented, and ready for the first
-public release. The local service, CLI, API, bootstrap installers, service
-lifecycle, shell completion for Unix shells, uninstall behavior, and service
-discovery are already in place.
+Recollectium Core is implemented for the v1.0.0 release. The local service,
+CLI, API, bootstrap installers, service lifecycle, Unix shell completion,
+uninstall behavior, and service discovery are in place.
 
 Completed:
 
@@ -13,7 +12,7 @@ Completed:
 - [x] Local FastAPI service API with health, version, capabilities, memory, and embedding endpoints.
 - [x] Smart local embeddings with built-in FastEmbed using `jinaai/jina-embeddings-v2-small-en`.
 - [x] Background re-embedding worker with embedding job tracking.
-- [x] Full test coverage push across the implemented core surface.
+- [x] Test coverage across the implemented Core code paths.
 - [x] Versioned SQLite schema migrations with an internal migration runner.
 - [x] Config file system and predictable data, cache, log, and runtime directories.
 - [x] Service lifecycle and service type support for API and MCP services.
@@ -22,13 +21,13 @@ Completed:
 - [x] Repository policy docs, contribution workflow, issue templates, and release checklist.
 - [x] AGPL-3.0 license selection.
 - [x] Cross-platform bootstrap install flow for Linux, macOS, and Windows.
-- [x] Safe uninstall surface with default data preservation and explicit purge.
+- [x] Uninstall commands preserve data by default and support explicit purge.
 - [x] Bash, zsh, and fish shell completion through argcomplete.
 - [x] Uninstall cleanup for Recollectium-managed shell completion blocks.
 - [x] Local service discovery for adapters through `recollectium service discover` and `service-discovery.json`.
 - [x] Workspace UID contract: normalization, listing, rename, and CLI/API/MCP parity.
 - [x] Install-time init and model readiness: central `_ensure_model_ready()` wrapper with state file tracking, service startup gate, CLI embedding gate, bootstrap install auto-init, offline error guidance.
-- [x] Canonical memory buckets and optional read filters: small canonical user/workspace bucket sets, scope-aware write validation, exact-match optional read filters, CLI/API/MCP/docs alignment, and completion coverage.
+- [x] Memory buckets and optional read filters: user/workspace bucket sets, scope-aware write validation, exact-match optional read filters, CLI/API/MCP/docs alignment, and completion coverage.
 - [x] OpenCode adapter readiness handoff: documented service discovery, health/version/capabilities validation, workspace UID resolution, adapter workflow, and adapter contract docs.
 - [x] Workspace UID aliasing across Core, CLI, API, MCP, docs, and adapter contract: direct aliases, alias resolution for workspace operations, conflict-safe migration with `--migrate-existing`, and rename alias preservation.
 - [x] Package upgrade flow through `recollectium upgrade`: latest-release checks, pip/pipx/uv/bootstrap/source install methods, dry-run/check modes, service-state preservation, docs, unit tests, and install-smoke CI coverage.
@@ -44,7 +43,7 @@ Remaining release blockers:
 
 ### Final release sweep
 
-Release goal: no embarrassing loose ends before tagging.
+Release goal: complete the remaining verification work before tagging.
 
 - [ ] Run the full release checklist in `CONTRIBUTING.md`.
 - [ ] Confirm all CLI help text is accurate.
@@ -68,7 +67,7 @@ Release goal: no embarrassing loose ends before tagging.
 - [ ] Push the tag.
 - [ ] Confirm GitHub Release is created.
 
-## Phase 1.5 (post-1.0.0 follow-up): Post-release polish
+## Phase 1.5 (post-1.0.0 follow-up): Post-release fixes
 
 Phase 1.5 is limited to follow-up work that happens after the 1.0.0 release
 path is proven.
@@ -112,7 +111,7 @@ that consumes the Core service contract instead of reimplementing memory logic.
 
 ## Phase 2 (v1.x): Product intelligence
 
-Recollectium fulfills its product promise as a personal intelligence engine after the first 1.0 release line is stable.
+Phase 2 starts after the 1.0 release line is stable and focuses on memory maintenance, summaries, retention, and retrieval quality.
 
 - [ ] Daily memory maintenance (dreamer reviews and improves the memory set).
 - [ ] User reflection summaries for conversation topics.

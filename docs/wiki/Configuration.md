@@ -1,6 +1,6 @@
 # Configuration
 
-Recollectium uses a JSON config file plus XDG-style directories for data, cache, logs, and runtime files. Most users can install and run Recollectium without editing config manually. Use this page when you want to inspect paths, change the service port, move the database, or understand every setting.
+Recollectium uses a JSON config file and XDG-style directories for data, cache, logs, and runtime files. Most users do not need to edit config manually. Use this page to inspect paths, change the service port, move the database, or review available settings.
 
 ## Config location
 
@@ -120,7 +120,7 @@ recollectium config doctor
 
 ### `recollectium config`
 
-Prints the effective config as human-readable text by default. Pass `--json` when you need formatted JSON. This is the best first command when you want to know which values Recollectium is actually using.
+Prints the effective config as human-readable text by default. Pass `--json` for formatted JSON. Use this first when checking which values Recollectium is using.
 
 ### `recollectium config --path`
 
@@ -199,4 +199,4 @@ recollectium --json list
 recollectium --json service discover
 ```
 
-Use config for durable settings. Use CLI overrides for tests, temporary databases, debugging, output-format changes, or one-off operations. `--json` and `--human-readable` are mutually exclusive and can appear before or after the command. They override `cli_output` for one invocation only, including non-argparse failure output. If a command needs the literal value `--json` or `--human-readable`, put it after `--` so it is treated as a value instead of an output flag. `completion --source`, completion candidate generation, `serve`, and `mcp-stdio` keep their protocol output regardless of `cli_output`.
+Use config for persistent settings. Use CLI overrides for tests, temporary databases, debugging, output-format changes, or one-off operations. `--json` and `--human-readable` are mutually exclusive and can appear before or after the command. They override `cli_output` for one invocation only, including non-argparse failure output. If a command needs the literal value `--json` or `--human-readable`, put it after `--` so it is treated as a value instead of an output flag. `completion --source`, completion candidate generation, `serve`, and `mcp-stdio` keep their protocol output regardless of `cli_output`.

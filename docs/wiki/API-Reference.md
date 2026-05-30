@@ -1,6 +1,6 @@
 # API Reference
 
-This page is the user-readable reference for the local HTTP JSON API. It keeps the full service contract detail, but groups it around the questions users and adapter authors actually have: what the API is for, how to run it, how clients discover it, what the response format looks like, and which operations are available.
+This page documents the local HTTP JSON API: when to use it, how to run it, how clients discover it, response formats, and available operations.
 
 The canonical machine-readable contract is `docs/local-service-openapi.json`. The canonical human contract for service behavior is `docs/local-service-api.md`.
 
@@ -8,7 +8,7 @@ The canonical machine-readable contract is `docs/local-service-openapi.json`. Th
 
 Use the API when a local adapter, script, daemon, UI, or integration needs to call Recollectium over HTTP.
 
-The API is best for:
+Use the API for:
 
 - adapters that run outside the Recollectium process;
 - local services that need stable JSON endpoints;
@@ -18,7 +18,7 @@ The API is best for:
 
 Common API-style integration targets include OpenCode plugins, VS Code extensions, web UIs, LangChain agents, LlamaIndex agents, Semantic Kernel apps, and custom agent adapters.
 
-If an AI client supports MCP, MCP is usually the nicer agent-facing integration path because tools show up directly inside the client. If you are building an adapter, web UI, script, service integration, test harness, or anything that talks HTTP, use the API.
+If an AI client supports MCP, use MCP for direct tool integration. Use the API for adapters, web UIs, scripts, service integrations, test harnesses, and other HTTP clients.
 
 ## Run the API server
 
@@ -617,7 +617,7 @@ Search responses return a list of:
 #### 8) Embedding status
 
 - Method and path: `GET /v1/embedding/status`
-- Purpose: return the active local embedding profile, runtime posture, startup re-embedding job reference, status paths, and recent embedding jobs.
+- Purpose: return the active local embedding profile, runtime settings, startup re-embedding job reference, status paths, and recent embedding jobs.
 - Side effects: none.
 - Successful response: HTTP `200` with current embedding profile and optional startup job ID.
 

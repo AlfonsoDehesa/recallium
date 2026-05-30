@@ -617,7 +617,7 @@ Search responses return a list of:
 ### 8) Embedding status
 
 - Method and path: `GET /v1/embedding/status`
-- Purpose: return the active local embedding profile, runtime posture, startup re-embedding job reference, status paths, and recent embedding jobs.
+- Purpose: return the active local embedding profile, runtime settings, startup re-embedding job reference, status paths, and recent embedding jobs.
 - Side effects: none.
 - Successful response: HTTP `200` with current embedding profile and optional startup job ID.
 

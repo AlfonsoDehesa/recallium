@@ -1,6 +1,6 @@
 # Adapter and Plugin Integration
 
-This page gives the practical integration path for adapters and plugins. The canonical contract remains in the repo at [docs/opencode-adapter-contract.md](https://github.com/AlfonsoDehesa/Recollectium/blob/main/docs/opencode-adapter-contract.md).
+This page summarizes adapter and plugin integration. The detailed contract is [docs/opencode-adapter-contract.md](https://github.com/AlfonsoDehesa/Recollectium/blob/main/docs/opencode-adapter-contract.md).
 
 ## Adapter responsibilities
 
@@ -8,8 +8,8 @@ Adapters should:
 
 - Discover or configure the Recollectium Core endpoint.
 - Validate health, version, and capabilities before enabling tools.
-- Choose workspace UID candidates from where work is actually happening.
-- Pass memory operations to Core instead of owning durable memory state.
+- Choose workspace UID candidates from the active project context.
+- Send memory operations to Core instead of storing adapter-owned memory state.
 - Keep host-specific details out of Core.
 
 Adapters should not:
@@ -69,7 +69,7 @@ Adapters should map host actions to Core operations:
 
 - Search user memory for user-wide preferences and facts.
 - Search workspace memory for project-specific context.
-- Add memory when the user or agent has a durable fact, preference, decision, task context, configuration, or bug finding worth keeping.
+- Add memory for durable facts, preferences, decisions, task context, configuration, or bug findings.
 - Update or archive memory when old information becomes stale.
 
 ## Security warning

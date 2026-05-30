@@ -1,6 +1,6 @@
 # MCP Server
 
-This page is the user-readable reference for Recollectium's Model Context Protocol surface. It keeps the full MCP tool detail, but groups it around the same questions as the API reference: what MCP is for, how to run it, how clients discover or configure it, what the response format looks like, and which operations are available.
+This page documents Recollectium's Model Context Protocol interface: when to use it, how to run it, how clients discover or configure it, response formats, and available tools.
 
 MCP and API expose the same core memory operations where the transport makes sense. MCP also has extra stdio guidance because many MCP clients start tool servers as child processes instead of connecting to a long-running HTTP service.
 
@@ -8,7 +8,7 @@ MCP and API expose the same core memory operations where the transport makes sen
 
 Use MCP when an assistant or agent client supports Model Context Protocol and should see Recollectium as native tools.
 
-MCP is best for:
+Use MCP for:
 
 - AI clients that can load local MCP tool servers;
 - agents that should call memory tools without composing CLI commands;
@@ -18,7 +18,7 @@ MCP is best for:
 
 Common stdio MCP clients include Claude Code, Claude Desktop, Cursor, and OpenCode. Common HTTP MCP clients or tools include MCP Inspector, OpenAI Agents SDK, and remote MCP gateways.
 
-If you are building an adapter, web UI, script, service integration, test harness, or anything that talks HTTP directly, use the API instead. If your client supports MCP tools and the integration is agent-facing, MCP is usually the nicer path.
+Use the API for adapters, web UIs, scripts, service integrations, test harnesses, and other direct HTTP clients. Use MCP when the client supports MCP tools and the integration is agent-facing.
 
 ## Run the MCP server
 
@@ -136,7 +136,7 @@ Not-running response shape:
 
 `recollectium service start api` and `recollectium service start mcp` write the running response to `{runtime_dir}/service-discovery.json` after process ownership is verified. `recollectium service stop`, `recollectium service status`, and `recollectium service discover` remove stale Recollectium-owned PID and discovery files when they prove the managed process is gone.
 
-Clients and adapters should still treat Recollectium Core as the source of truth for memory rules. Workspace aliases, workspace UID normalization, memory bucket validation, archive behavior, and embedding readiness all live in Core.
+Clients and adapters should rely on Recollectium Core for memory rules. Core handles workspace aliases, workspace UID normalization, memory bucket validation, archive behavior, and embedding readiness.
 
 For same-machine stdio clients, compatibility is normally handled by the MCP initialization flow and the available tool list. For managed MCP or adapter flows, validate the service before enabling Recollectium-backed tools when the client supports that validation. This confirms compatibility, not authentication or authorization:
 
@@ -205,7 +205,7 @@ Recollectium errors return a JSON object with an `error` field:
 {"error": "workspace_uid is required for workspace search"}
 ```
 
-Unlike the HTTP API, MCP tool errors do not currently use the `{"error":{"code":...,"message":...,"details":...}}` envelope. The MCP surface serializes the Core error message into `{"error":"..."}` so clients can display the failure inside the tool result.
+MCP tool errors do not currently use the HTTP API `{"error":{"code":...,"message":...,"details":...}}` envelope. MCP serializes the Core error message as `{"error":"..."}` for display in the tool result.
 
 ## Memory rules
 

@@ -8,7 +8,7 @@ Adapters and plugins should stay thin. They provide host context, choose workspa
 
 ## User memory
 
-User memory is global to the person using the agent. It is good for durable preferences, personal facts, communication style, goals, and other information that should follow the user across projects.
+User memory is global to the person using the agent. Use it for durable preferences, personal facts, communication style, goals, and other context that should follow the user across projects.
 
 User buckets:
 
@@ -22,7 +22,7 @@ User buckets:
 
 ## Workspace memory
 
-Workspace memory is scoped to a project, repo, task area, or other durable work context. It is good for project facts, design decisions, task context, configuration, and bug findings.
+Workspace memory is scoped to a project, repo, task area, or other durable work context. Use it for project facts, design decisions, task context, configuration, and bug findings.
 
 Workspace buckets:
 
@@ -89,4 +89,4 @@ recollectium embedding-jobs --state failed
 recollectium embedding-jobs --job-id JOB_ID
 ```
 
-For normal users, this usually only matters during first install, after an upgrade, or when troubleshooting search quality. For adapter authors, these commands and the matching API endpoints are the compatibility and readiness checks for semantic memory.
+Most users only need these commands during first install, after an upgrade, or while troubleshooting search quality. Adapter authors can use them, and the matching API endpoints, to check semantic-memory readiness.
