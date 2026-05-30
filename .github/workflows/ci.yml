@@ -87,8 +87,8 @@ jobs:
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           recollectium --version
-          recollectium upgrade --check --install-method bootstrap --repo "$GITHUB_REPOSITORY" > upgrade-check.json
-          recollectium upgrade --dry-run --install-method bootstrap --repo "$GITHUB_REPOSITORY" > upgrade-dry-run.json
+          recollectium upgrade --check --install-method bootstrap --repo "$GITHUB_REPOSITORY" --json > upgrade-check.json
+          recollectium upgrade --dry-run --install-method bootstrap --repo "$GITHUB_REPOSITORY" --json > upgrade-dry-run.json
           python - <<'PY'
           import json
           from pathlib import Path
@@ -133,8 +133,8 @@ jobs:
           Path("completion-targets.json").write_text(json.dumps(completion_targets), encoding="utf-8")
           PY
 
-          recollectium add --space user --type note --content "CI uninstall smoke sentinel" > add-default.json
-          recollectium uninstall > uninstall-default.json 2> uninstall-default.stderr
+          recollectium add --space user --type note --content "CI uninstall smoke sentinel" --json > add-default.json
+          recollectium uninstall --json > uninstall-default.json 2> uninstall-default.stderr
 
           python - <<'PY'
           import json
@@ -171,8 +171,8 @@ jobs:
           recollectium --version
 
           recollectium init
-          recollectium add --space user --type note --content "CI purge uninstall smoke sentinel" > add-purge.json
-          recollectium uninstall --purge --yes-delete-all-recollectium-data > uninstall-purge.json 2> uninstall-purge.stderr
+          recollectium add --space user --type note --content "CI purge uninstall smoke sentinel" --json > add-purge.json
+          recollectium uninstall --purge --yes-delete-all-recollectium-data --json > uninstall-purge.json 2> uninstall-purge.stderr
 
           python - <<'PY'
           import json
@@ -211,8 +211,8 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           recollectium --version
-          recollectium upgrade --check --install-method bootstrap --repo "$env:GITHUB_REPOSITORY" | Out-File -Encoding utf8 upgrade-check.json
-          recollectium upgrade --dry-run --install-method bootstrap --repo "$env:GITHUB_REPOSITORY" | Out-File -Encoding utf8 upgrade-dry-run.json
+          recollectium upgrade --check --install-method bootstrap --repo "$env:GITHUB_REPOSITORY" --json | Out-File -Encoding utf8 upgrade-check.json
+          recollectium upgrade --dry-run --install-method bootstrap --repo "$env:GITHUB_REPOSITORY" --json | Out-File -Encoding utf8 upgrade-dry-run.json
           python -c "import json, pathlib; payloads=[json.loads(pathlib.Path(p).read_text(encoding='utf-8-sig')) for p in ['upgrade-check.json','upgrade-dry-run.json']]; assert all(p['status'] in {'up_to_date', 'dry_run'} for p in payloads), payloads; assert all(p['install_method'] == 'bootstrap' for p in payloads), payloads"
 
       - name: Verify uninstall on Windows
@@ -241,8 +241,8 @@ jobs:
             }
           }
 
-          Invoke-RecollectiumSmokeCommand -Arguments @("add", "--space", "user", "--type", "note", "--content", "CI uninstall smoke sentinel") -StdoutPath add-default.json -StderrPath add-default.stderr
-          Invoke-RecollectiumSmokeCommand -Arguments @("uninstall") -StdoutPath uninstall-default.json -StderrPath uninstall-default.stderr
+          Invoke-RecollectiumSmokeCommand -Arguments @("add", "--space", "user", "--type", "note", "--content", "CI uninstall smoke sentinel", "--json") -StdoutPath add-default.json -StderrPath add-default.stderr
+          Invoke-RecollectiumSmokeCommand -Arguments @("uninstall", "--json") -StdoutPath uninstall-default.json -StderrPath uninstall-default.stderr
 
           Invoke-PythonSmokeCheck -Command "import json, pathlib; add=json.loads(pathlib.Path('add-default.json').read_text(encoding='utf-8-sig')); assert add.get('id'), add; assert pathlib.Path('uninstall-default.stderr').read_text(encoding='utf-8-sig') == ''; payload=json.loads(pathlib.Path('uninstall-default.json').read_text(encoding='utf-8-sig')); assert payload['status'] == 'manual_uninstall_required', payload; assert payload['package']['install_method'] == 'bootstrap', payload; assert payload['package']['recommended'] == 'uv tool uninstall recollectium', payload; assert payload['data']['preserved'] is True, payload; paths=payload['data']['paths']; assert pathlib.Path(paths['config']).exists(), paths; assert pathlib.Path(paths['database']).exists(), paths"
 
@@ -261,8 +261,8 @@ jobs:
 
           Invoke-RecollectiumSmokeCommand -Arguments @("init") -StdoutPath init-purge.json -StderrPath init-purge.stderr
           Invoke-PythonSmokeCheck -Command "import pathlib; assert pathlib.Path('init-purge.stderr').read_text(encoding='utf-8-sig') == ''"
-          Invoke-RecollectiumSmokeCommand -Arguments @("add", "--space", "user", "--type", "note", "--content", "CI purge uninstall smoke sentinel") -StdoutPath add-purge.json -StderrPath add-purge.stderr
-          Invoke-RecollectiumSmokeCommand -Arguments @("uninstall", "--purge", "--yes-delete-all-recollectium-data") -StdoutPath uninstall-purge.json -StderrPath uninstall-purge.stderr
+          Invoke-RecollectiumSmokeCommand -Arguments @("add", "--space", "user", "--type", "note", "--content", "CI purge uninstall smoke sentinel", "--json") -StdoutPath add-purge.json -StderrPath add-purge.stderr
+          Invoke-RecollectiumSmokeCommand -Arguments @("uninstall", "--purge", "--yes-delete-all-recollectium-data", "--json") -StdoutPath uninstall-purge.json -StderrPath uninstall-purge.stderr
 
           Invoke-PythonSmokeCheck -Command "import json, pathlib; add=json.loads(pathlib.Path('add-purge.json').read_text(encoding='utf-8-sig')); assert add.get('id'), add; purge_stderr=pathlib.Path('uninstall-purge.stderr').read_text(encoding='utf-8-sig'); assert 'The following Recollectium-owned paths will be permanently deleted:' in purge_stderr, purge_stderr; payload=json.loads(pathlib.Path('uninstall-purge.json').read_text(encoding='utf-8-sig')); assert payload['status'] == 'manual_uninstall_required', payload; assert payload['package']['install_method'] == 'bootstrap', payload; assert payload['package']['recommended'] == 'uv tool uninstall recollectium', payload; assert payload['data']['preserved'] is False, payload; purge=payload['data']['purge']; assert purge['dry_run'] is False, payload; assert purge['deleted'], payload; paths=payload['data']['paths']; assert not pathlib.Path(paths['config']).exists(), paths; assert not pathlib.Path(paths['database']).exists(), paths"
 

@@ -64,6 +64,7 @@ def _make_config(tmp_path: Path) -> Path:
     logs_dir = tmp_path / "logs"
     runtime_dir = tmp_path / "run"
     config_data = dict(DEFAULTS)
+    config_data["cli_output"] = "json"
     config_data["directories"] = {
         "data": str(data_dir),
         "cache": str(cache_dir),

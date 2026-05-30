@@ -16,7 +16,13 @@ import pytest
 from pytest import CaptureFixture
 
 from recollectium.config import DEFAULTS
-from recollectium.cli import main
+from recollectium.cli import (
+    _extract_cli_output_override,
+    _format_human_error,
+    _format_human_output,
+    _resolve_output_format,
+    main,
+)
 from recollectium.models import (
     ALL_MEMORY_TYPES,
     USER_MEMORY_TYPES,
@@ -60,7 +66,14 @@ class FakeEmbeddingProvider:
         return sum(a * b for a, b in zip(first, second, strict=True))
 
 
-def _run_cli(args: list[str], capsys: CaptureFixture[str]) -> tuple[int, str, str]:
+def _run_cli(
+    args: list[str],
+    capsys: CaptureFixture[str],
+    *,
+    json_by_default: bool = True,
+) -> tuple[int, str, str]:
+    if json_by_default and "--json" not in args and "--human-readable" not in args:
+        args = ["--json", *args]
     exit_code = main(args)
     captured = capsys.readouterr()
     return exit_code, captured.out, captured.err
@@ -80,6 +93,8 @@ def test_cli_help_documents_commands_and_flags(capsys) -> None:
     top_level_help = _run_help(["--help"], capsys)
     assert "Recollectium Core local memory CLI" in top_level_help
     assert "--version" in top_level_help
+    assert "--json" in top_level_help
+    assert "--human-readable" in top_level_help
     assert "initialize Recollectium config" in top_level_help
     assert "add a user or workspace memory" in top_level_help
     assert "search memories for one workspace UID" in top_level_help
@@ -665,6 +680,398 @@ def test_cli_db_status_reports_migration_state(tmp_path, capsys) -> None:
     assert payload["latest_version"] == 3
     assert payload["pending_versions"] == []
     assert payload["up_to_date"] is True
+
+
+def test_cli_human_readable_flag_formats_failure_output(tmp_path, capsys) -> None:
+    config_path = tmp_path / "config.json"
+
+    exit_code, stdout, stderr = _run_cli(
+        [
+            "--config",
+            str(config_path),
+            "config",
+            "set",
+            "logging.level",
+            "trace",
+            "--human-readable",
+        ],
+        capsys,
+    )
+
+    assert exit_code == 2
+    assert stdout == ""
+    assert stderr.startswith("Config is invalid.\n")
+    assert "Status: config_invalid" in stderr
+    assert "Detail: ValidationError: logging.level must be one of" in stderr
+    with pytest.raises(json.JSONDecodeError):
+        json.loads(stderr)
+
+
+def test_cli_human_readable_config_formats_failure_output(tmp_path, capsys) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "cli_output": "human_readable",
+                "service": {"port": "not-an-int"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--config", str(config_path), "config", "get", "service.port"],
+        capsys,
+        json_by_default=False,
+    )
+
+    assert exit_code == 2
+    assert stdout == ""
+    assert stderr.startswith("Config is invalid.\n")
+    assert "Status: config_invalid" in stderr
+    assert "service.port must be int" in stderr
+
+
+def test_cli_json_flag_formats_failure_output_as_json(tmp_path, capsys) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "cli_output": "human_readable",
+                "service": {"port": "not-an-int"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--config", str(config_path), "config", "get", "service.port", "--json"],
+        capsys,
+    )
+
+    assert exit_code == 2
+    assert stdout == ""
+    payload = json.loads(stderr)
+    assert payload["status"] == "config_invalid"
+    assert "service.port must be int" in payload["detail"]
+
+
+def test_cli_human_readable_flag_formats_success_output(tmp_path, capsys) -> None:
+    db_path = tmp_path / "human-status.db"
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--db", str(db_path), "db-status", "--human-readable"],
+        capsys,
+    )
+
+    assert exit_code == 0
+    assert stderr == ""
+    assert stdout.startswith("Db status\n")
+    assert "Db path:" in stdout
+    assert "Up to date: true" in stdout
+    with pytest.raises(json.JSONDecodeError):
+        json.loads(stdout)
+
+
+def test_cli_human_readable_is_default_output(tmp_path, capsys) -> None:
+    db_path = tmp_path / "default-human-status.db"
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--db", str(db_path), "db-status"], capsys, json_by_default=False
+    )
+
+    assert exit_code == 0
+    assert stderr == ""
+    assert stdout.startswith("Db status\n")
+    with pytest.raises(json.JSONDecodeError):
+        json.loads(stdout)
+
+
+def test_cli_output_config_controls_success_output(tmp_path, capsys) -> None:
+    config_path = tmp_path / "config.json"
+    db_path = tmp_path / "configured-human.db"
+    config_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "cli_output": "human_readable",
+                "database": {"path": str(db_path)},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--config", str(config_path), "db-status"],
+        capsys,
+        json_by_default=False,
+    )
+
+    assert exit_code == 0
+    assert stderr == ""
+    assert stdout.startswith("Db status\n")
+
+
+def test_cli_json_flag_overrides_human_readable_config(tmp_path, capsys) -> None:
+    config_path = tmp_path / "config.json"
+    db_path = tmp_path / "configured-json.db"
+    config_path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "cli_output": "human_readable",
+                "database": {"path": str(db_path)},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code, stdout, stderr = _run_cli(
+        ["--config", str(config_path), "db-status", "--json"], capsys
+    )
+
+    assert exit_code == 0
+    assert stderr == ""
+    payload = json.loads(stdout)
+    assert payload["db_path"] == str(db_path)
+
+
+def test_cli_output_flags_work_before_command(tmp_path, capsys) -> None:
+    db_path = tmp_path / "before-command.db"
+
+    human_code, human_out, human_err = _run_cli(
+        ["--human-readable", "--db", str(db_path), "db-status"], capsys
+    )
+    assert human_code == 0
+    assert human_err == ""
+    assert human_out.startswith("Db status\n")
+
+    json_code, json_out, json_err = _run_cli(
+        ["--json", "--db", str(db_path), "db-status"], capsys
+    )
+    assert json_code == 0
+    assert json_err == ""
+    assert json.loads(json_out)["db_path"] == str(db_path)
+
+
+def test_cli_output_flag_literals_can_follow_double_dash(tmp_path, capsys) -> None:
+    config_path = tmp_path / "config.json"
+
+    exit_code, stdout, stderr = _run_cli(
+        [
+            "--config",
+            str(config_path),
+            "config",
+            "set",
+            "logging.level",
+            "--",
+            "--json",
+        ],
+        capsys,
+    )
+
+    assert exit_code == 2
+    assert stdout == ""
+    assert "logging.level must be one of" in stderr
+    assert "--json" in stderr
+
+
+def test_cli_output_flags_are_mutually_exclusive(capsys) -> None:
+    exit_code, stdout, stderr = _run_cli(
+        ["db-status", "--json", "--human-readable"], capsys
+    )
+
+    assert exit_code == 2
+    assert stdout == ""
+    assert stderr.startswith("Choose either --json or --human-readable, not both.\n")
+    assert "Status: validation_error" in stderr
+
+
+def test_completion_complete_line_stays_json_under_human_output_config(
+    tmp_path, capsys
+) -> None:
+    config_path = tmp_path / "config.json"
+    config_path.write_text(
+        json.dumps({"version": 1, "cli_output": "human_readable"}), encoding="utf-8"
+    )
+
+    exit_code, stdout, stderr = _run_cli(
+        [
+            "--config",
+            str(config_path),
+            "completion",
+            "--complete-line",
+            "recollectium c",
+            "--point",
+            "14",
+        ],
+        capsys,
+    )
+
+    assert exit_code == 0
+    assert stderr == ""
+    assert isinstance(json.loads(stdout), list)
+
+
+def test_cli_human_formatter_covers_command_shapes() -> None:
+    memory = {
+        "id": 123,
+        "space": "workspace",
+        "workspace_uid": "demo",
+        "type": "decision",
+        "status": "active",
+        "source": "test",
+        "confidence": 0.9,
+        "sensitivity": "normal",
+        "content": "Use SQLite.",
+        "metadata": {"ticket": "R-1"},
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-02T00:00:00Z",
+        "archived_at": "2026-01-03T00:00:00Z",
+    }
+
+    assert _format_human_output(None) == "Done\n"
+    assert _format_human_output([]) == "No results\n"
+    assert "- plain" in _format_human_output(["plain", 2])
+    assert "1. Memory 123" in _format_human_output([{"memory": memory, "score": 0.75}])
+    assert '1. {"name": "demo"}' in _format_human_output([{"name": "demo"}])
+    assert _format_human_output(3, label="count") == "count: 3\n"
+    assert _format_human_output("ok") == "ok\n"
+    assert "Memory added" in _format_human_output(memory, command="add")
+    assert "Memory updated" in _format_human_output(memory, command="update")
+    assert "Memory archived" in _format_human_output(memory, command="archive")
+    assert "cli_output: human_readable" in _format_human_output(
+        "human_readable", command="config get", label="cli_output"
+    )
+    assert 'embedding: {"model": "demo"}' in _format_human_output(
+        {"model": "demo"}, command="config get", label="embedding"
+    )
+    assert "Config updated:" in _format_human_output(
+        {"key": "cli_output", "value": "json"}, command="config set"
+    )
+    assert "Config key removed:" in _format_human_output(
+        {"key": "cli_output"}, command="config unset"
+    )
+    assert "Exit code: 2" in _format_human_error(
+        {
+            "status": "validation_error",
+            "message": "Input validation failed.",
+            "detail": "bad value",
+            "hint": "try again",
+            "exit_code": 2,
+        }
+    )
+    assert "Config initialized:" in _format_human_output(
+        {"path": "/tmp/config.json"}, command="config init"
+    )
+    assert "Config reset to defaults:" in _format_human_output(
+        {"path": "/tmp/config.json"}, command="config reset"
+    )
+    assert "Config doctor" in _format_human_output(
+        {"status": "ok", "checks": {"config": "/tmp/config.json"}},
+        command="config doctor",
+    )
+    assert "Effective configuration" in _format_human_output(
+        {
+            "nested": {"key": "value"},
+            "items": [{"name": "one"}, "two"],
+            "empty": [],
+        },
+        command="config",
+    )
+    assert "Recollectium initialized" in _format_human_output(
+        {"database": "/tmp/recollectium.db"}, command="init"
+    )
+    assert "Workspace result" in _format_human_output(
+        {"canonical_uid": "demo"}, command="workspace resolve"
+    )
+    assert "Service result" in _format_human_output(
+        {"status": "running"}, command="service status"
+    )
+    assert "Embedding status" in _format_human_output(
+        {"provider": "builtin-fastembed"}, command="embedding-status"
+    )
+    assert "Result" in _format_human_output({"ok": True})
+
+
+def test_cli_output_helpers_cover_sys_argv_and_invalid_config_shapes(
+    tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr("sys.argv", ["recollectium", "list", "--human-readable"])
+    cleaned, output_format, conflict = _extract_cli_output_override(None)
+    assert cleaned == ["list"]
+    assert output_format == "human_readable"
+    assert conflict is False
+
+    cleaned, output_format, conflict = _extract_cli_output_override(
+        ["--human-readable", "list", "--json"]
+    )
+    assert cleaned == ["list"]
+    assert output_format == "json"
+    assert conflict is True
+
+    cleaned, output_format, conflict = _extract_cli_output_override(
+        ["config", "set", "logging.level", "--", "--json"]
+    )
+    assert cleaned == ["config", "set", "logging.level", "--", "--json"]
+    assert output_format is None
+    assert conflict is False
+
+    config_path = tmp_path / "config.json"
+    config_path.write_text('{"version": 1, "cli_output": "invalid"}', encoding="utf-8")
+    assert (
+        _resolve_output_format(config_path=config_path, explicit=True, override=None)
+        == "human_readable"
+    )
+    config_path.write_text("{bad", encoding="utf-8")
+    assert (
+        _resolve_output_format(config_path=config_path, explicit=True, override=None)
+        == "human_readable"
+    )
+
+
+def test_cli_config_human_readable_setup_commands(tmp_path, capsys) -> None:
+    config_path = tmp_path / "config.json"
+
+    init_code, init_out, init_err = _run_cli(
+        ["--config", str(config_path), "config", "init", "--human-readable"], capsys
+    )
+    assert init_code == 0
+    assert init_err == ""
+    assert "Config initialized:" in init_out
+
+    set_code, set_out, set_err = _run_cli(
+        [
+            "--config",
+            str(config_path),
+            "config",
+            "set",
+            "cli_output",
+            "human_readable",
+            "--human-readable",
+        ],
+        capsys,
+    )
+    assert set_code == 0
+    assert set_err == ""
+    assert "Config updated: cli_output = human_readable" in set_out
+
+    unset_code, unset_out, unset_err = _run_cli(
+        [
+            "--config",
+            str(config_path),
+            "config",
+            "unset",
+            "cli_output",
+            "--human-readable",
+        ],
+        capsys,
+    )
+    assert unset_code == 0
+    assert unset_err == ""
+    assert "Config key removed: cli_output" in unset_out
 
 
 def test_cli_db_status_missing_explicit_config_errors(tmp_path, capsys) -> None:
@@ -1543,12 +1950,13 @@ class TestConfigCommand:
         assert exit_code == 0
         assert stderr == ""
         assert config_path.exists()
-        assert "OK config:" in stdout
-        assert "OK data:" in stdout
-        assert "OK cache:" in stdout
-        assert "OK logs:" in stdout
-        assert "OK runtime:" in stdout
-        assert "Config doctor checks passed" in stdout
+        payload = json.loads(stdout)
+        assert payload["status"] == "ok"
+        assert payload["checks"]["config"] == str(config_path)
+        assert "data" in payload["checks"]
+        assert "cache" in payload["checks"]
+        assert "logs" in payload["checks"]
+        assert "runtime" in payload["checks"]
 
     def test_config_doctor_explicit_missing_file_errors(self, tmp_path, capsys) -> None:
         config_path = tmp_path / "missing" / "config.json"
@@ -1599,7 +2007,7 @@ class TestConfigCommand:
         )
 
         assert exit_code == 1
-        assert "OK config:" in stdout
+        assert stdout == ""
         assert "FAIL data directory is not writable:" in stderr
         assert "FAIL cache directory is not writable:" in stderr
         assert "FAIL logs directory is not writable:" in stderr
@@ -1633,7 +2041,7 @@ class TestConfigCommand:
         exit_code, stdout, stderr = _run_cli(["config", "doctor"], capsys)
 
         assert exit_code == 1
-        assert "OK config:" in stdout
+        assert stdout == ""
         assert "FAIL data directory missing:" in stderr
         assert "FAIL cache path is not a directory:" in stderr
         assert "FAIL database parent directory missing:" in stderr
@@ -1805,7 +2213,7 @@ class TestConfigCommand:
 
         assert exit_code == 0
         assert stderr == ""
-        assert f"Config reset to defaults: {config_path}" in stdout
+        assert json.loads(stdout) == {"path": str(config_path)}
         assert config_path.exists()
         loaded = json.loads(config_path.read_text())
         assert loaded["version"] == 1
@@ -1825,7 +2233,7 @@ class TestConfigCommand:
 
         assert exit_code == 0
         assert stderr == ""
-        assert f"Config reset to defaults: {config_path}" in stdout
+        assert json.loads(stdout) == {"path": str(config_path)}
         loaded = json.loads(config_path.read_text())
         assert "custom" not in loaded
         assert loaded["logging"]["level"] == "info"  # back to default
@@ -1839,8 +2247,7 @@ class TestConfigCommand:
 
         assert exit_code == 0
         assert stderr == ""
-        assert str(config_path) in stdout
-        assert "Config reset to defaults:" in stdout
+        assert json.loads(stdout) == {"path": str(config_path)}
 
     def test_config_help_shows_actions(self, capsys) -> None:
         help_text = _run_help(["config", "--help"], capsys)

@@ -1,6 +1,6 @@
 # Logs
 
-Recollectium writes structured JSON logs for diagnostics while keeping CLI stdout usable for JSON command output.
+Recollectium writes structured JSON logs for diagnostics while keeping CLI stdout reserved for command output. CLI output is human-readable by default and can be switched to JSON with `cli_output` or `--json`; logs still stay out of stdout.
 
 ## Default location
 

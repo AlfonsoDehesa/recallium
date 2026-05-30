@@ -84,7 +84,7 @@ Managed MCP mode can be discovered with:
 recollectium service discover
 ```
 
-The command exits `0` when a managed service is running, exits `1` when no service is running, and exits `2` when config or discovery metadata is invalid. It prints JSON on stdout and does not create a config file just to inspect discovery state.
+The command exits `0` when a managed service is running, exits `1` when no service is running, and exits `2` when config or discovery metadata is invalid. It prints human-readable output on stdout by default and does not create a config file just to inspect discovery state. Use `recollectium service discover --json` in adapters and scripts.
 
 Running managed MCP response shape:
 

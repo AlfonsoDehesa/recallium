@@ -31,6 +31,9 @@ SUPPORTED_EMBEDDING_PROVIDER = "builtin-fastembed"
 SUPPORTED_EMBEDDING_MODEL = "jinaai/jina-embeddings-v2-small-en"
 SUPPORTED_LOGGING_LEVELS = {"debug", "info", "warning", "error"}
 SUPPORTED_LOGGING_FORMATS = {"json"}
+CLI_OUTPUT_JSON = "json"
+CLI_OUTPUT_HUMAN_READABLE = "human_readable"
+SUPPORTED_CLI_OUTPUT_FORMATS = {CLI_OUTPUT_JSON, CLI_OUTPUT_HUMAN_READABLE}
 
 # ---------------------------------------------------------------------------
 # Defaults
@@ -38,6 +41,7 @@ SUPPORTED_LOGGING_FORMATS = {"json"}
 
 DEFAULTS: dict[str, Any] = {
     "version": CONFIG_VERSION,
+    "cli_output": CLI_OUTPUT_HUMAN_READABLE,
     "database": {"path": "recollectium.db"},
     "embedding": {
         "provider": SUPPORTED_EMBEDDING_PROVIDER,
@@ -114,6 +118,15 @@ def _validate_config_value(data: dict[str, Any], path: str = "") -> None:
     value.
     """
     _check_type(data, "version", int, path)
+    _check_type(data, "cli_output", str, path)
+    if isinstance(data.get("cli_output"), str):
+        cli_output = data["cli_output"].lower()
+        if cli_output not in SUPPORTED_CLI_OUTPUT_FORMATS:
+            allowed = ", ".join(sorted(SUPPORTED_CLI_OUTPUT_FORMATS))
+            raise ValidationError(
+                f"cli_output must be one of: {allowed} (got {data['cli_output']!r})"
+            )
+        data["cli_output"] = cli_output
     if data["version"] < 1:
         raise ValidationError(f"version must be >= 1 (got {data['version']})")
 
@@ -325,6 +338,7 @@ class RecollectiumConfig:
         config_path: str | Path | None = None,
         *,
         log_level: str | None = None,
+        cli_output: str | None = None,
     ) -> None:
         # 1. Resolve config path
         if config_path is not None:
@@ -353,6 +367,8 @@ class RecollectiumConfig:
         # 6. Apply runtime overrides
         if log_level is not None:
             merged["logging"]["level"] = log_level.lower()
+        if cli_output is not None:
+            merged["cli_output"] = cli_output.lower()
 
         # 7. Validate
         _validate_config_value(merged)

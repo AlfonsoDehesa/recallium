@@ -67,6 +67,7 @@ Common next steps:
 - Local FastEmbed embeddings with `jinaai/jina-embeddings-v2-small-en`.
 - Background re-embedding jobs and embedding status inspection.
 - CLI, Python API, local HTTP API, and MCP surfaces.
+- Configurable CLI output, with human-readable text by default and JSON available for automation.
 - Managed API and MCP service lifecycle with discovery metadata for adapters.
 - Structured JSON logging with rotation.
 - Bootstrap install, package upgrade, safe uninstall, and shell completion.

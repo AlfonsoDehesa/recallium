@@ -36,6 +36,8 @@ from recollectium.errors import (
     MigrationError,
 )
 from recollectium.config import (
+    CLI_OUTPUT_HUMAN_READABLE,
+    CLI_OUTPUT_JSON,
     DEFAULTS,
     RecollectiumConfig,
     _deep_merge,
@@ -91,6 +93,7 @@ _PURGE_CONFIRMATION = "delete all recollectium data"
 
 _COMPLETABLE_CONFIG_KEYS = [
     "version",
+    "cli_output",
     "database.path",
     "embedding.provider",
     "embedding.model",
@@ -201,6 +204,176 @@ def _to_payload(data: Any) -> Any:
     return data
 
 
+def _json_scalar(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, sort_keys=True)
+
+
+def _humanize_key(key: str) -> str:
+    return key.replace("_", " ").replace("-", " ").capitalize()
+
+
+def _format_mapping_lines(mapping: dict[str, Any], *, indent: int = 0) -> list[str]:
+    lines: list[str] = []
+    prefix = " " * indent
+    for key, value in mapping.items():
+        label = _humanize_key(str(key))
+        if isinstance(value, dict):
+            lines.append(f"{prefix}{label}:")
+            lines.extend(_format_mapping_lines(value, indent=indent + 2))
+        elif isinstance(value, list):
+            if not value:
+                lines.append(f"{prefix}{label}: none")
+            else:
+                lines.append(f"{prefix}{label}:")
+                for item in value:
+                    if isinstance(item, dict):
+                        lines.extend(_format_mapping_lines(item, indent=indent + 2))
+                    else:
+                        lines.append(f"{' ' * (indent + 2)}- {_json_scalar(item)}")
+        elif value is not None:
+            lines.append(f"{prefix}{label}: {_json_scalar(value)}")
+    return lines
+
+
+def _memory_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    if "memory" in payload and isinstance(payload["memory"], dict):
+        return payload["memory"]
+    return payload
+
+
+def _format_memory(payload: dict[str, Any], *, index: int | None = None) -> list[str]:
+    memory = _memory_payload(payload)
+    title_prefix = f"{index}. " if index is not None else ""
+    memory_id = memory.get("id", "unknown")
+    type_value = memory.get("type")
+    status = memory.get("status")
+    score = payload.get("score", memory.get("score"))
+    headline = f"{title_prefix}Memory {memory_id}"
+    details = [str(item) for item in (type_value, status) if item]
+    if details:
+        headline += f" ({', '.join(details)})"
+    if score is not None:
+        headline += f" score={score}"
+    lines = [headline]
+    for key in ("space", "workspace_uid", "source", "confidence", "sensitivity"):
+        if memory.get(key) is not None:
+            lines.append(f"  {_humanize_key(key)}: {_json_scalar(memory[key])}")
+    content = memory.get("content")
+    if content is not None:
+        lines.append(f"  Content: {content}")
+    metadata = memory.get("metadata")
+    if metadata:
+        lines.append(f"  Metadata: {json.dumps(metadata, sort_keys=True)}")
+    for key in ("created_at", "updated_at", "archived_at"):
+        if memory.get(key):
+            lines.append(f"  {_humanize_key(key)}: {memory[key]}")
+    return lines
+
+
+def _format_human_output(
+    payload: Any, *, command: str | None = None, label: str | None = None
+) -> str:
+    payload = _to_payload(payload)
+    if payload is None:
+        return "Done\n"
+    if isinstance(payload, list):
+        if not payload:
+            return "No results\n"
+        if all(isinstance(item, dict) for item in payload):
+            lines = [f"{len(payload)} result{'s' if len(payload) != 1 else ''}"]
+            for index, item in enumerate(payload, start=1):
+                if "content" in item or "memory" in item:
+                    lines.extend(_format_memory(item, index=index))
+                else:
+                    lines.append(f"{index}. {json.dumps(item, sort_keys=True)}")
+            return "\n".join(lines) + "\n"
+        return "\n".join(f"- {_json_scalar(item)}" for item in payload) + "\n"
+    if not isinstance(payload, dict):
+        if label:
+            return f"{label}: {_json_scalar(payload)}\n"
+        return f"{_json_scalar(payload)}\n"
+
+    if command in {"add", "get", "update", "archive"} or "content" in payload:
+        title = "Memory"
+        if command == "add":
+            title = "Memory added"
+        elif command == "update":
+            title = "Memory updated"
+        elif command == "archive":
+            title = "Memory archived"
+        return "\n".join([title, *_format_memory(payload)]) + "\n"
+
+    if command == "config get" and label is not None:
+        return f"{label}: {_json_scalar(payload)}\n"
+    if command == "config set":
+        return f"Config updated: {payload.get('key')} = {_json_scalar(payload.get('value'))}\n"
+    if command == "config unset":
+        return f"Config key removed: {payload.get('key')}\n"
+    if command == "config init":
+        return f"Config initialized: {payload.get('path')}\n"
+    if command == "config reset":
+        return f"Config reset to defaults: {payload.get('path')}\n"
+    if command == "config doctor":
+        lines = ["Config doctor"]
+        lines.extend(_format_mapping_lines(payload, indent=2))
+        return "\n".join(lines) + "\n"
+    if command == "config":
+        return (
+            "Effective configuration\n"
+            + "\n".join(_format_mapping_lines(payload, indent=2))
+            + "\n"
+        )
+
+    if command == "init":
+        lines = ["Recollectium initialized"]
+        lines.extend(_format_mapping_lines(payload, indent=2))
+        return "\n".join(lines) + "\n"
+
+    if command and command.startswith("workspace"):
+        lines = ["Workspace result"]
+        lines.extend(_format_mapping_lines(payload, indent=2))
+        return "\n".join(lines) + "\n"
+
+    if command and command.startswith("service"):
+        lines = ["Service result"]
+        lines.extend(_format_mapping_lines(payload, indent=2))
+        return "\n".join(lines) + "\n"
+
+    if command in {
+        "db-status",
+        "embedding-status",
+        "embedding-jobs",
+        "upgrade",
+        "uninstall",
+        "completion",
+    }:
+        heading = _humanize_key(command)
+        lines = [heading]
+        lines.extend(_format_mapping_lines(payload, indent=2))
+        return "\n".join(lines) + "\n"
+
+    lines = [_humanize_key(command or "result")]
+    lines.extend(_format_mapping_lines(payload, indent=2))
+    return "\n".join(lines) + "\n"
+
+
+def _emit_success(
+    payload: Any,
+    *,
+    output_format: str,
+    command: str | None = None,
+    label: str | None = None,
+    json_indent: int | None = None,
+) -> None:
+    payload = _to_payload(payload)
+    if output_format == CLI_OUTPUT_HUMAN_READABLE:
+        sys.stdout.write(_format_human_output(payload, command=command, label=label))
+        return
+    print(json.dumps(payload, indent=json_indent, sort_keys=True))
+
+
 def _parse_config_value(raw: str) -> Any:
     """Parse a CLI-provided config value as JSON; fall back to string on failure."""
     try:
@@ -223,6 +396,64 @@ def _core_config_path(explicit_path: str | None) -> Path | None:
     if explicit_path is None:
         return None
     return Path(explicit_path)
+
+
+def _extract_cli_output_override(
+    argv: Sequence[str] | None,
+) -> tuple[list[str] | None, str | None, bool]:
+    """Remove output override flags so they work before or after subcommands."""
+    raw_args = list(sys.argv[1:] if argv is None else argv)
+    output_format: str | None = None
+    cleaned: list[str] = []
+    conflict = False
+    literal_args = False
+    for item in raw_args:
+        if literal_args:
+            cleaned.append(item)
+            continue
+        if item == "--":
+            literal_args = True
+            cleaned.append(item)
+            continue
+        if item == "--json":
+            if output_format == CLI_OUTPUT_HUMAN_READABLE:
+                conflict = True
+            output_format = CLI_OUTPUT_JSON
+            continue
+        if item == "--human-readable":
+            if output_format == CLI_OUTPUT_JSON:
+                conflict = True
+            output_format = CLI_OUTPUT_HUMAN_READABLE
+            continue
+        cleaned.append(item)
+    if argv is None:
+        return None if cleaned == raw_args else cleaned, output_format, conflict
+    return cleaned, output_format, conflict
+
+
+def _resolve_output_format(
+    *,
+    config_path: Path,
+    explicit: bool,
+    override: str | None,
+) -> str:
+    if override is not None:
+        return override
+    if not config_path.exists():
+        return CLI_OUTPUT_HUMAN_READABLE
+    try:
+        raw = load_config_file(config_path)
+        merged = _deep_merge(deepcopy(DEFAULTS), raw)
+        try:
+            _validate_config_value(merged)
+        except ValidationError:
+            configured = raw.get("cli_output") if isinstance(raw, dict) else None
+            if configured in {CLI_OUTPUT_JSON, CLI_OUTPUT_HUMAN_READABLE}:
+                return str(configured)
+            return CLI_OUTPUT_HUMAN_READABLE
+    except (FileNotFoundError, ValidationError, OSError):
+        return CLI_OUTPUT_HUMAN_READABLE
+    return str(merged.get("cli_output", CLI_OUTPUT_HUMAN_READABLE))
 
 
 def _load_effective_config(config_path: Path, *, explicit: bool) -> RecollectiumConfig:
@@ -274,6 +505,7 @@ def _handle_config_command(
     config_path: Path,
     *,
     explicit: bool,
+    output_format: str,
 ) -> int:
     """Handle the `recollectium config` command and its subcommands."""
     if args.config_action == "get":
@@ -286,7 +518,9 @@ def _handle_config_command(
             return _config_invalid_error(exc, command="config get")
         except KeyError as exc:
             return _not_found_error(exc, command="config get")
-        print(json.dumps(value, sort_keys=True))
+        _emit_success(
+            value, output_format=output_format, command="config get", label=args.key
+        )
         return 0
 
     if args.config_action == "set":
@@ -306,6 +540,12 @@ def _handle_config_command(
         except ValidationError as exc:
             return _config_invalid_error(exc, command="config set")
         config_path.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
+        if output_format == CLI_OUTPUT_HUMAN_READABLE:
+            _emit_success(
+                {"key": args.key, "value": value},
+                output_format=output_format,
+                command="config set",
+            )
         return 0
 
     if args.config_action == "unset":
@@ -320,6 +560,12 @@ def _handle_config_command(
         except KeyError as exc:
             return _not_found_error(exc, command="config unset")
         config_path.write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
+        if output_format == CLI_OUTPUT_HUMAN_READABLE:
+            _emit_success(
+                {"key": args.key},
+                output_format=output_format,
+                command="config unset",
+            )
         return 0
 
     if args.config_action == "init":
@@ -336,6 +582,12 @@ def _handle_config_command(
         config_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         config_path.write_text(json.dumps(DEFAULTS, indent=2) + "\n", encoding="utf-8")
         config_path.chmod(0o600)
+        if output_format == CLI_OUTPUT_HUMAN_READABLE:
+            _emit_success(
+                {"path": str(config_path)},
+                output_format=output_format,
+                command="config init",
+            )
         return 0
 
     if args.config_action == "doctor":
@@ -347,7 +599,7 @@ def _handle_config_command(
             return _config_missing_error(exc, command="config doctor")
 
         failures: list[str] = []
-        print(f"OK config: {cfg.config_file_path}")
+        checks: dict[str, str] = {"config": str(cfg.config_file_path)}
 
         for name in ("data", "cache", "logs", "runtime"):
             directory = cfg.xdg_dirs[name]
@@ -360,7 +612,7 @@ def _handle_config_command(
             if not _directory_writable(directory):
                 failures.append(f"{name} directory is not writable: {directory}")
                 continue
-            print(f"OK {name}: {directory}")
+            checks[name] = str(directory)
 
         db_parent = cfg.resolved_database_path.parent
         if not db_parent.exists():
@@ -370,7 +622,7 @@ def _handle_config_command(
         elif not _directory_writable(db_parent):
             failures.append(f"database parent directory is not writable: {db_parent}")
         else:
-            print(f"OK database parent: {db_parent}")
+            checks["database_parent"] = str(db_parent)
 
         if failures:
             for failure in failures:
@@ -385,7 +637,11 @@ def _handle_config_command(
                 failures=failures,
             )
 
-        print("Config doctor checks passed")
+        _emit_success(
+            {"status": "ok", "checks": checks},
+            output_format=output_format,
+            command="config doctor",
+        )
         return 0
 
     if args.config_action == "edit":
@@ -413,7 +669,11 @@ def _handle_config_command(
         config_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         config_path.write_text(json.dumps(DEFAULTS, indent=2) + "\n", encoding="utf-8")
         config_path.chmod(0o600)
-        print(f"Config reset to defaults: {config_path}")
+        _emit_success(
+            {"path": str(config_path)},
+            output_format=output_format,
+            command="config reset",
+        )
         return 0
 
     if args.validate:
@@ -433,7 +693,12 @@ def _handle_config_command(
         return 0
 
     if args.defaults:
-        print(json.dumps(DEFAULTS, indent=2, sort_keys=True))
+        _emit_success(
+            DEFAULTS,
+            output_format=output_format,
+            command="config",
+            json_indent=2,
+        )
         return 0
 
     # No subcommand or flag: print effective config
@@ -443,7 +708,12 @@ def _handle_config_command(
         return _config_missing_error(exc, command="config")
     except ValidationError as exc:
         return _config_invalid_error(exc, command="config")
-    print(json.dumps(cfg.effective_config, indent=2, sort_keys=True))
+    _emit_success(
+        cfg.effective_config,
+        output_format=output_format,
+        command="config",
+        json_indent=2,
+    )
     return 0
 
 
@@ -453,6 +723,7 @@ def _handle_init_command(
     explicit: bool,
     db_path: str | None,
     log_level: str | None,
+    output_format: str,
 ) -> int:
     """Initialize Recollectium config, directories, database, and model cache."""
     if explicit and not config_path.exists():
@@ -491,18 +762,51 @@ def _handle_init_command(
         "database": str(selected_db_path),
         "embedding_model": cfg.effective_config["embedding"]["model"],
     }
-    print(json.dumps(result, sort_keys=True))
+    _emit_success(result, output_format=output_format, command="init")
     return 0
 
 
 # -- CLI failure contract -------------------------------------------------
 #
-# Except for argparse-generated help/usage output, command failures print one
-# structured JSON object to stderr and keep stdout reserved for success JSON.
+# Except for argparse-generated help/usage output, command failures follow the
+# active CLI output format on stderr and keep stdout reserved for success output.
 # Logs are diagnostic telemetry only: they must not be used as CLI control-flow
 # payloads, must not write to stdout, and must avoid sensitive content.
 def _print_json_stderr(payload: dict[str, object]) -> None:
     print(json.dumps(payload, sort_keys=True), file=sys.stderr)
+
+
+_CURRENT_CLI_OUTPUT_FORMAT = CLI_OUTPUT_JSON
+
+
+def _set_cli_output_format(output_format: str) -> None:
+    global _CURRENT_CLI_OUTPUT_FORMAT
+    _CURRENT_CLI_OUTPUT_FORMAT = output_format
+
+
+def _format_human_error(payload: dict[str, object]) -> str:
+    lines = [str(payload.get("message") or "Command failed.")]
+    status = payload.get("status")
+    if status is not None:
+        lines.append(f"  Status: {_json_scalar(status)}")
+    detail = payload.get("detail")
+    if detail is not None:
+        lines.append(f"  Detail: {_json_scalar(detail)}")
+    hint = payload.get("hint")
+    if hint is not None:
+        lines.append(f"  Hint: {_json_scalar(hint)}")
+    for key, value in payload.items():
+        if key in {"message", "status", "detail", "hint"}:
+            continue
+        lines.append(f"  {_humanize_key(key)}: {_json_scalar(value)}")
+    return "\n".join(lines)
+
+
+def _emit_failure_payload(payload: dict[str, object]) -> None:
+    if _CURRENT_CLI_OUTPUT_FORMAT == CLI_OUTPUT_HUMAN_READABLE:
+        print(_format_human_error(payload), file=sys.stderr)
+        return
+    _print_json_stderr(payload)
 
 
 def _emit_cli_failure(
@@ -524,7 +828,7 @@ def _emit_cli_failure(
     for key, value in fields.items():
         if value is not None:
             payload[key] = value
-    _print_json_stderr(payload)
+    _emit_failure_payload(payload)
     _log.info(
         "CLI command failed",
         extra={
@@ -690,7 +994,9 @@ def _operation_failed_error(exc: Exception, *, command: str | None) -> int:
     )
 
 
-def _handle_upgrade_command(args: argparse.Namespace, config_path: Path) -> int:
+def _handle_upgrade_command(
+    args: argparse.Namespace, config_path: Path, *, output_format: str
+) -> int:
     """Check for and optionally apply a Recollectium package upgrade."""
     metadata = load_install_metadata()
     install_method = (
@@ -758,7 +1064,7 @@ def _handle_upgrade_command(args: argparse.Namespace, config_path: Path) -> int:
     if plan.status in {"up_to_date", "dry_run", "update_available"} and (
         args.check or args.dry_run or plan.command is None
     ):
-        print(json.dumps(payload, sort_keys=True))
+        _emit_success(payload, output_format=output_format, command="upgrade")
         return 0
 
     if plan.status == "unsupported_install_method":
@@ -876,7 +1182,7 @@ def _handle_upgrade_command(args: argparse.Namespace, config_path: Path) -> int:
             command="upgrade",
             event="upgrade.service_restart_failed",
         )
-    print(json.dumps(payload, sort_keys=True))
+    _emit_success(payload, output_format=output_format, command="upgrade")
     return 0
 
 
@@ -1002,7 +1308,7 @@ def _completion_candidates(line: str, point: int | None) -> list[str]:
     return candidates
 
 
-def _handle_completion_command(args: argparse.Namespace) -> int:
+def _handle_completion_command(args: argparse.Namespace, *, output_format: str) -> int:
     if args.complete_line is not None:
         candidates = _completion_candidates(args.complete_line, args.point)
         print(json.dumps(candidates, sort_keys=True))
@@ -1064,7 +1370,9 @@ def _handle_completion_command(args: argparse.Namespace) -> int:
             }
             if shell == "powershell":
                 response_payload["profile"] = str(rc_path)
-            print(json.dumps(response_payload, sort_keys=True))
+            _emit_success(
+                response_payload, output_format=output_format, command="completion"
+            )
             return 0
 
         block = _completion_block(shell)
@@ -1089,7 +1397,9 @@ def _handle_completion_command(args: argparse.Namespace) -> int:
             }
             if shell == "powershell":
                 response_payload["profile"] = str(rc_path)
-            print(json.dumps(response_payload, sort_keys=True))
+            _emit_success(
+                response_payload, output_format=output_format, command="completion"
+            )
             return 0
 
         if not args.yes:
@@ -1131,7 +1441,9 @@ def _handle_completion_command(args: argparse.Namespace) -> int:
         }
         if shell == "powershell":
             response_payload["profile"] = str(rc_path)
-        print(json.dumps(response_payload, sort_keys=True))
+        _emit_success(
+            response_payload, output_format=output_format, command="completion"
+        )
         return 0
 
     if shell == "powershell":
@@ -1461,6 +1773,7 @@ def _handle_uninstall_command(
     config_path: Path,
     *,
     explicit: bool,
+    output_format: str,
 ) -> int:
     """Print uninstall instructions and optionally purge Recollectium-owned data."""
     if args.yes_delete_all_recollectium_data and not args.purge:
@@ -1549,7 +1862,7 @@ def _handle_uninstall_command(
             "Uninstall instructions generated",
             extra={"event": "uninstall.instructions"},
         )
-    print(json.dumps(result, sort_keys=True))
+    _emit_success(result, output_format=output_format, command="uninstall")
     return 0
 
 
@@ -1557,6 +1870,7 @@ def _handle_workspace_command(
     args: argparse.Namespace,
     *,
     core: RecollectiumCore,
+    output_format: str,
 ) -> int:
     """Handle the `recollectium workspace` subcommands."""
     if args.workspace_action == "list":
@@ -1564,13 +1878,15 @@ def _handle_workspace_command(
             include_archived=getattr(args, "include_archived", False),
             include_aliases=getattr(args, "include_aliases", False),
         )
-        print(json.dumps(uids, sort_keys=True))
+        _emit_success(uids, output_format=output_format, command="workspace list")
         return 0
 
     if args.workspace_action == "resolve":
         try:
             result = core.resolve_workspace(args.uid)
-            print(json.dumps(result, sort_keys=True))
+            _emit_success(
+                result, output_format=output_format, command="workspace resolve"
+            )
             return 0
         except ValidationError as exc:
             return _validation_error(
@@ -1593,7 +1909,9 @@ def _handle_workspace_command(
                 result = core.remove_workspace_alias(args.alias_uid)
             else:  # pragma: no cover — parser enforces valid actions
                 return 1
-            print(json.dumps(result, sort_keys=True))
+            _emit_success(
+                result, output_format=output_format, command="workspace alias"
+            )
             return 0
         except ValidationError as exc:
             return _workspace_validation_error(exc, command="workspace alias")
@@ -1606,7 +1924,9 @@ def _handle_workspace_command(
                 old_uid=args.old_uid,
                 new_uid=args.new_uid,
             )
-            print(json.dumps(result, sort_keys=True))
+            _emit_success(
+                result, output_format=output_format, command="workspace rename"
+            )
             return 0
         except ValidationError as exc:
             return _workspace_validation_error(exc, command="workspace rename")
@@ -1655,6 +1975,17 @@ def _build_parser() -> argparse.ArgumentParser:
             "Does not modify the config file."
         ),
     )
+    output_group = parser.add_mutually_exclusive_group()
+    output_group.add_argument(
+        "--json",
+        action="store_true",
+        help="Print JSON output for this invocation, overriding cli_output.",
+    )
+    output_group.add_argument(
+        "--human-readable",
+        action="store_true",
+        help="Print human-readable output for this invocation, overriding cli_output.",
+    )
     parser.add_argument(
         "--version",
         action="store_true",
@@ -1693,7 +2024,8 @@ def _build_parser() -> argparse.ArgumentParser:
         description=(
             "Inspect, validate, and edit the Recollectium JSON config file. "
             "Without arguments, prints the effective configuration (defaults "
-            "merged with explicit overrides) as formatted JSON."
+            "merged with explicit overrides) as human-readable text by default, "
+            "or as JSON when requested."
         ),
     )
     config_parser.add_argument(
@@ -1709,7 +2041,10 @@ def _build_parser() -> argparse.ArgumentParser:
     config_parser.add_argument(
         "--defaults",
         action="store_true",
-        help="Print built-in default values as formatted JSON without creating a file.",
+        help=(
+            "Print built-in default values without creating a file. Uses JSON "
+            "by default, or human-readable text when requested."
+        ),
     )
 
     config_sub = config_parser.add_subparsers(
@@ -2362,11 +2697,22 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the Recollectium CLI."""
+    _set_cli_output_format(CLI_OUTPUT_JSON)
+    argv, output_override, output_conflict = _extract_cli_output_override(argv)
     parser = _build_parser()
     argcomplete.autocomplete(parser)
-    if argv == [] or (argv is None and len(sys.argv) == 1):
+    effective_argv = sys.argv[1:] if argv is None else list(argv)
+    if not effective_argv:
         parser.print_help()
         return 0
+    if output_conflict:
+        _set_cli_output_format(output_override or CLI_OUTPUT_JSON)
+        return _emit_cli_failure(
+            status="validation_error",
+            message="Choose either --json or --human-readable, not both.",
+            exit_code=2,
+            command="output",
+        )
     args = parser.parse_args(argv)
 
     if getattr(args, "version", False):
@@ -2381,12 +2727,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return 0
 
-    if args.command == "completion":
-        return _handle_completion_command(args)
+    if args.command == "completion" and (args.source or args.complete_line is not None):
+        return _handle_completion_command(args, output_format=CLI_OUTPUT_JSON)
 
     # Resolve config path
     config_path = _resolve_config_path(args.config_path)
     core_config_path = _core_config_path(args.config_path)
+    output_format = _resolve_output_format(
+        config_path=config_path,
+        explicit=args.config_path is not None,
+        override=output_override,
+    )
+    _set_cli_output_format(output_format)
     if not (args.command == "upgrade" and (args.check or args.dry_run)):
         _setup_cli_logging(config_path, log_level=args.log_level)
     _log.info(
@@ -2394,12 +2746,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         extra={"event": "cli.command", "context": {"command": args.command}},
     )
 
+    if args.command == "completion":
+        return _handle_completion_command(args, output_format=output_format)
+
     # -- config command ---------------------------------------------------
     if args.command == "config":
         return _handle_config_command(
             args,
             config_path,
             explicit=args.config_path is not None,
+            output_format=output_format,
         )
 
     if args.command == "init":
@@ -2409,6 +2765,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 explicit=args.config_path is not None,
                 db_path=args.db_path,
                 log_level=args.log_level,
+                output_format=output_format,
             )
         except FileNotFoundError as exc:
             return _config_missing_error(exc, command="init")
@@ -2499,7 +2856,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return _config_invalid_error(exc, command=args.command)
         try:
             store = SQLiteMemoryStore(db_path)
-            print(json.dumps(store.migration_status(), sort_keys=True))
+            _emit_success(
+                store.migration_status(),
+                output_format=output_format,
+                command="db-status",
+            )
         except MigrationError as exc:
             return _emit_cli_failure(
                 status="migration_error",
@@ -2549,7 +2910,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     explicit=args.config_path is not None,
                 )
                 payload = discover_service(plan.config)
-                print(json.dumps(payload, sort_keys=True))
+                _emit_success(
+                    payload, output_format=output_format, command="service discover"
+                )
                 if payload["status"] == "not_running":
                     return 1
             except FileNotFoundError as exc:
@@ -2574,16 +2937,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 host = cfg.effective_config["service"]["host"]
                 port = cfg.effective_config["service"]["port"]
                 endpoint = f"http://{host}:{port}"
-                print(
-                    json.dumps(
-                        {
-                            "status": "started",
-                            "type": args.type,
-                            "pid": pid,
-                            "endpoint": endpoint,
-                        },
-                        sort_keys=True,
-                    )
+                _emit_success(
+                    {
+                        "status": "started",
+                        "type": args.type,
+                        "pid": pid,
+                        "endpoint": endpoint,
+                    },
+                    output_format=output_format,
+                    command="service start",
                 )
             except ServiceConflictError as exc:
                 return _service_error(
@@ -2613,9 +2975,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return _config_invalid_error(exc, command=args.command)
             pid = stop_service(cfg)
             if pid is not None:
-                print(json.dumps({"status": "stopped", "pid": pid}, sort_keys=True))
+                _emit_success(
+                    {"status": "stopped", "pid": pid},
+                    output_format=output_format,
+                    command="service stop",
+                )
             else:
-                print(json.dumps({"status": "no_service_running"}, sort_keys=True))
+                _emit_success(
+                    {"status": "no_service_running"},
+                    output_format=output_format,
+                    command="service stop",
+                )
             return 0
 
         if args.service_action == "status":
@@ -2634,16 +3004,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             if running is not None:
                 host = cfg.effective_config["service"]["host"]
                 port = cfg.effective_config["service"]["port"]
-                print(
-                    json.dumps(
-                        {
-                            "running": True,
-                            "type": running["type"],
-                            "pid": running["pid"],
-                            "endpoint": f"http://{host}:{port}",
-                        },
-                        sort_keys=True,
-                    )
+                _emit_success(
+                    {
+                        "running": True,
+                        "type": running["type"],
+                        "pid": running["pid"],
+                        "endpoint": f"http://{host}:{port}",
+                    },
+                    output_format=output_format,
+                    command="service status",
                 )
             else:
                 status_info: dict[str, object] = {"running": False}
@@ -2652,7 +3021,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                         "type": raw_pid_info["type"],
                         "pid": raw_pid_info["pid"],
                     }
-                print(json.dumps(status_info, sort_keys=True))
+                _emit_success(
+                    status_info, output_format=output_format, command="service status"
+                )
             return 0
 
         if args.service_action == "restart":
@@ -2701,16 +3072,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 )
                 host = cfg.effective_config["service"]["host"]
                 port = cfg.effective_config["service"]["port"]
-                print(
-                    json.dumps(
-                        {
-                            "status": "restarted",
-                            "type": service_type,
-                            "pid": pid,
-                            "endpoint": f"http://{host}:{port}",
-                        },
-                        sort_keys=True,
-                    )
+                _emit_success(
+                    {
+                        "status": "restarted",
+                        "type": service_type,
+                        "pid": pid,
+                        "endpoint": f"http://{host}:{port}",
+                    },
+                    output_format=output_format,
+                    command="service restart",
                 )
             except ServiceConflictError as exc:
                 return _service_error(
@@ -2741,7 +3111,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
 
     if args.command == "upgrade":
-        return _handle_upgrade_command(args, config_path)
+        return _handle_upgrade_command(args, config_path, output_format=output_format)
 
     if args.command == "uninstall":
         try:
@@ -2749,6 +3119,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args,
                 config_path,
                 explicit=args.config_path is not None,
+                output_format=output_format,
             )
         except FileNotFoundError as exc:
             return _config_missing_error(exc, command=args.command)
@@ -2834,7 +3205,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         elif args.command == "archive":
             result = core.archive_memory(args.memory_id)
         elif args.command == "workspace":
-            return _handle_workspace_command(args, core=core)
+            return _handle_workspace_command(
+                args, core=core, output_format=output_format
+            )
         elif args.command == "embedding-status":
             result = core.active_embedding_status()
         elif args.command == "embedding-jobs":
@@ -2872,5 +3245,5 @@ def main(argv: Sequence[str] | None = None) -> int:
     except RecollectiumError as exc:
         return _operation_failed_error(exc, command=args.command)
 
-    print(json.dumps(_to_payload(result), sort_keys=True))
+    _emit_success(result, output_format=output_format, command=args.command)
     return 0

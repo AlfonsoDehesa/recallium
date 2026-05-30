@@ -1,6 +1,6 @@
 # CLI Reference
 
-The `recollectium` command is the main user-facing interface to Recollectium Core. Commands print JSON on success when they return machine-readable data. Most runtime failures print structured JSON to stderr and exit non-zero.
+The `recollectium` command is the main user-facing interface to Recollectium Core. Commands print human-readable output by default when they return command data. Use `--json` or `cli_output: json` when scripts and adapters need machine-readable output. Non-argparse runtime failures follow the same output preference on stderr.
 
 Global form:
 
@@ -10,19 +10,23 @@ recollectium [GLOBAL OPTIONS] COMMAND [COMMAND OPTIONS]
 
 ## Global options
 
-These options go before the command:
+Global options normally go before the command. The output-format flags, `--json` and `--human-readable`, may appear before or after the command.
 
 | Option | Values | What it does |
 |---|---|---|
 | `--config CONFIG_PATH` | path | Uses a specific JSON config file instead of the default XDG config path. Explicit missing paths fail except for config creation commands. |
 | `--db DB_PATH` | path | Overrides `database.path` for this invocation. Useful for tests, alternate profiles, or temporary databases. |
 | `--log-level LEVEL` | `debug`, `info`, `warning`, `error` | Overrides the configured log level for this run only. It does not write to the config file. |
+| `--json` | none | Prints JSON success and failure output for this invocation, overriding `cli_output`. Mutually exclusive with `--human-readable`. |
+| `--human-readable` | none | Prints human-readable success and non-argparse failure output for this invocation, overriding `cli_output`. Mutually exclusive with `--json`. |
 | `--version` | none | Prints the installed Recollectium version and exits. |
 
 Example:
 
 ```bash
 recollectium --log-level debug --db /tmp/recollectium.db list
+recollectium list --json
+recollectium service discover --json
 ```
 
 ## init
@@ -42,7 +46,7 @@ Options:
 Notes:
 
 - First run may download the FastEmbed model cache and can take longer than later runs.
-- Success prints JSON containing config, data, cache, logs, runtime, database, and embedding model paths.
+- Success prints initialized config, data, cache, logs, runtime, database, and embedding model paths.
 
 ## add
 
@@ -400,8 +404,12 @@ Prints safe uninstall instructions and stops managed services. By default, it pr
 
 ## Exit behavior and output
 
-- Successful data-returning commands print JSON to stdout.
-- Most non-argparse failures print structured JSON to stderr and exit non-zero.
+- Successful data-returning commands print JSON to stdout by default.
+- Human-readable output is the default. Set `cli_output` to `json` in config, or pass `--json`, when scripts or adapters need machine-readable output.
+- Pass `--json` to force JSON for one invocation, even when config prefers human-readable output. This is the safest mode for scripts and adapters.
+- `--json` and `--human-readable` are mutually exclusive and may appear before or after the command. If you need one of those strings as a literal command value, put it after `--`.
+- Protocol commands keep their machine contract: `completion --source`, completion candidate generation, `serve`, and `mcp-stdio` do not switch to human text.
+- Non-argparse failures follow the selected output format on stderr.
 - Validation errors usually exit `2`.
 - Runtime, service, database, migration, not-found, and embedding errors usually exit `1`.
-- `service discover` intentionally prints `status: "not_running"` JSON to stdout and exits `1` when no managed service is running, so adapters can read the state.
+- `service discover` intentionally prints `status: "not_running"` to stdout and exits `1` when no managed service is running, so adapters can read the state. Use `--json` for adapter or script discovery calls.

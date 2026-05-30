@@ -50,7 +50,7 @@ Adapters should use discovery instead of hardcoding PID files, runtime paths, ho
 
 When a managed service is running, discovery returns service type, endpoint, API prefix, health URL, version URL, capabilities URL, PID path, discovery file path, runtime directory, config path, and version information.
 
-When no service is running, discovery exits 1 and prints machine-readable `status: "not_running"` JSON to stdout.
+When no service is running, discovery exits 1 and prints `status: "not_running"` output to stdout. Use `recollectium service discover --json` for adapter or script calls.
 
 ## Stop
 

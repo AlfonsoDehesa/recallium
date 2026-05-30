@@ -79,8 +79,10 @@ Workspace memory types:
 
 ## Output contracts
 
-Successful CLI commands that return data print JSON to stdout.
+CLI commands that return command data print human-readable summaries to stdout by default. Set `cli_output` to `json` in config, or pass `--json`, for scripts and adapters. Pass `--human-readable` to force terminal-friendly summaries for one invocation. `--json` and `--human-readable` are mutually exclusive and can appear before or after the command.
 
-Most non-argparse command failures write structured JSON to stderr and leave stdout empty. Validation and input errors usually exit `2`. Runtime, service, database, migration, resource, not-found, and embedding errors usually exit `1`.
+Protocol commands keep their machine contract regardless of `cli_output`: `completion --source`, completion candidate generation, `serve`, and `mcp-stdio` do not switch to human text.
 
-The intentional exception is `recollectium service discover`: when no managed service is running, it exits `1`, writes `status: "not_running"` JSON to stdout, and leaves stderr empty so adapters can read the discovery state.
+Non-argparse command failures follow the same output format on stderr. In JSON mode they write a structured JSON object; in human-readable mode they write a readable message with status, detail, hint, and other fields. Validation and input errors usually exit `2`. Runtime, service, database, migration, resource, not-found, and embedding errors usually exit `1`.
+
+The intentional exception is `recollectium service discover`: when no managed service is running, it exits `1`, writes `status: "not_running"` output to stdout, and leaves stderr empty so adapters can read the discovery state. Use `--json` for adapter discovery calls if a user config may prefer human-readable output.

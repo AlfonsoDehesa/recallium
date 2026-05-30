@@ -41,6 +41,7 @@ The effective config is the built-in defaults merged with any values in your con
 ```json
 {
   "version": 1,
+  "cli_output": "human_readable",
   "database": {
     "path": "recollectium.db"
   },
@@ -75,6 +76,7 @@ The effective config is the built-in defaults merged with any values in your con
 | Setting | Type | Default | Options | What it does |
 |---|---|---|---|---|
 | `version` | integer | `1` | `1` | Config schema version. Recollectium uses this to validate the config format. Do not change it unless a future migration says to. |
+| `cli_output` | string | `human_readable` | `human_readable`, `json` | Output format for CLI command results and non-argparse failures. Use `human_readable` for terminal-friendly summaries and errors. Use `json` for scripts and adapters. |
 | `database.path` | string path | `recollectium.db` | relative or absolute path | SQLite database file. Relative paths resolve under the data directory. Absolute paths are used as written. |
 | `embedding.provider` | string | `builtin-fastembed` | currently `builtin-fastembed` | Embedding provider. v1 supports the built-in local FastEmbed provider. |
 | `embedding.model` | string | `jinaai/jina-embeddings-v2-small-en` | currently the built-in model | Embedding model name. Other models are planned for future releases, but v1 validates the built-in profile. |
@@ -155,6 +157,7 @@ Examples:
 ```bash
 recollectium config set service.port 9090
 recollectium config set logging.level '"debug"'
+recollectium config set cli_output json
 recollectium config set directories.data '"/data/recollectium"'
 ```
 
@@ -192,6 +195,8 @@ Global CLI options override config values for one invocation only:
 recollectium --db /tmp/recollectium.db list
 recollectium --config /tmp/config.json config
 recollectium --log-level debug search-user "preferences about wording"
+recollectium --json list
+recollectium --json service discover
 ```
 
-Use config for durable settings. Use CLI overrides for tests, temporary databases, debugging, or one-off operations.
+Use config for durable settings. Use CLI overrides for tests, temporary databases, debugging, output-format changes, or one-off operations. `--json` and `--human-readable` are mutually exclusive and can appear before or after the command. They override `cli_output` for one invocation only, including non-argparse failure output. If a command needs the literal value `--json` or `--human-readable`, put it after `--` so it is treated as a value instead of an output flag. `completion --source`, completion candidate generation, `serve`, and `mcp-stdio` keep their protocol output regardless of `cli_output`.

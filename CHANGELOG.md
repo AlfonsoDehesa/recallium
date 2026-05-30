@@ -6,7 +6,7 @@ Recollectium keeps human-written release notes here. Each release section uses t
 
 ### ✨ Features
 
-- None yet.
+- Added configurable CLI output with human-readable summaries/errors by default, JSON for automation, and per-command `--json` / `--human-readable` overrides.
 
 ### 🐛 Fixes
 

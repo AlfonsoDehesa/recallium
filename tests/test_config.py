@@ -131,6 +131,39 @@ class TestValidateConfigValue:
     def test_valid_default_config_passes(self) -> None:
         _validate_config_value(deepcopy(DEFAULTS))
 
+    def test_default_cli_output_is_human_readable(self) -> None:
+        assert DEFAULTS["cli_output"] == "human_readable"
+
+    def test_cli_output_human_readable_is_valid(self) -> None:
+        data = deepcopy(DEFAULTS)
+        data["cli_output"] = "human_readable"
+
+        _validate_config_value(data)
+
+        assert data["cli_output"] == "human_readable"
+
+    def test_cli_output_is_normalized(self) -> None:
+        data = deepcopy(DEFAULTS)
+        data["cli_output"] = "HUMAN_READABLE"
+
+        _validate_config_value(data)
+
+        assert data["cli_output"] == "human_readable"
+
+    def test_invalid_cli_output_type_raises(self) -> None:
+        data = deepcopy(DEFAULTS)
+        data["cli_output"] = 42
+
+        with pytest.raises(ValidationError, match="cli_output must be str"):
+            _validate_config_value(data)
+
+    def test_unsupported_cli_output_raises(self) -> None:
+        data = deepcopy(DEFAULTS)
+        data["cli_output"] = "yaml"
+
+        with pytest.raises(ValidationError, match="cli_output must be one of"):
+            _validate_config_value(data)
+
     def test_invalid_version_type_raises(self) -> None:
         data = deepcopy(DEFAULTS)
         data["version"] = "1"
@@ -447,6 +480,16 @@ class TestRecollectiumConfig:
         _write_starter_config(config_path)
         cfg = RecollectiumConfig(config_path)
         assert cfg.config_file_path == config_path
+
+    def test_cli_output_runtime_override(self, tmp_path: Path) -> None:
+        config_path = tmp_path / "config.json"
+        config_path.write_text(
+            json.dumps({"version": 1, "cli_output": "json"}), encoding="utf-8"
+        )
+
+        cfg = RecollectiumConfig(config_path, cli_output="human_readable")
+
+        assert cfg.effective_config["cli_output"] == "human_readable"
 
     def test_xdg_dirs_respects_overrides(self, tmp_path: Path) -> None:
         config_path = tmp_path / "config.json"
