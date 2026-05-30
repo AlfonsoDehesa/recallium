@@ -32,6 +32,7 @@ This page gives a practical map of what Recollectium can do across CLI, API, and
 | Initialize | `init` | `--db` | Creates config, directories, database, migrations, and model cache. |
 | Config inspect/edit | `config` | `--path`, `--defaults`, `--validate`, `get`, `set`, `unset`, `init --force`, `doctor`, `edit`, `reset` | Reads, validates, creates, edits, or resets configuration. |
 | Database status | `db-status` | global `--db` | Shows current and pending schema migrations. |
+| Seeded dev database | `dev` | `true`, `false`, `reset` | Switches between the normal database and the seeded development database, or resets the seeded fixture without touching the regular database. |
 | Start service | `service start api`, `service start mcp` | service type: `api` or `mcp` | Starts a managed background service and writes discovery metadata. |
 | Stop service | `service stop` | none | Stops the running managed service. |
 | Service status | `service status` | none | Shows whether a managed service is running. |

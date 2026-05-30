@@ -39,6 +39,7 @@ from recollectium.models import (
     validate_memory_update_input,
 )
 from recollectium.config import RecollectiumConfig
+from recollectium.dev_seed import ensure_seeded_dev_database
 from recollectium.search import rank_memory_candidates
 from recollectium.storage import SQLiteMemoryStore, utc_now_iso
 
@@ -78,8 +79,15 @@ class RecollectiumCore:
             extra={"event": "core.init", "context": {"db_path": str(selected_path)}},
         )
 
-        self.store = SQLiteMemoryStore(selected_path)
         self.embedding_provider = embedding_provider or BuiltinFastEmbedProvider()
+        development = self.config.effective_config.get("development", {})
+        if (
+            db_path is None
+            and isinstance(development, dict)
+            and development.get("use_seeded_database") is True
+        ):
+            ensure_seeded_dev_database(selected_path, self.embedding_provider)
+        self.store = SQLiteMemoryStore(selected_path)
         self.immediate_reembedding_threshold = immediate_reembedding_threshold
         self._embedding_job_lock = threading.Lock()
         self._active_deferred_embedding_jobs: dict[

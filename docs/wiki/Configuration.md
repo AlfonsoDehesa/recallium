@@ -65,6 +65,10 @@ The effective config is the built-in defaults merged with any values in your con
     "logs": null,
     "runtime": null
   },
+  "development": {
+    "use_seeded_database": false,
+    "seeded_database_path": "dev-seeded-memory.db"
+  },
   "workspace": {
     "uid_normalization": "normalize"
   }
@@ -90,6 +94,8 @@ The effective config is the built-in defaults merged with any values in your con
 | `directories.cache` | string path or null | `null` | path or `null` | Cache directory override. Used for cached runtime assets. Null means use XDG defaults. |
 | `directories.logs` | string path or null | `null` | path or `null` | Logs directory override. Null means use XDG state defaults. |
 | `directories.runtime` | string path or null | `null` | path or `null` | Runtime directory override for PID and discovery files. Null means use `XDG_RUNTIME_DIR` when available, otherwise a fallback under data. |
+| `development.use_seeded_database` | boolean | `false` | `true`, `false` | Uses a separate seeded development database instead of `database.path` for normal Recollectium operations. Enable this for embedding/search/operation testing without touching your regular memory database. |
+| `development.seeded_database_path` | string path | `dev-seeded-memory.db` | relative or absolute path | SQLite path for the seeded development database. Relative paths resolve under the data directory. `recollectium dev reset` replaces this database with the canonical fixture. |
 | `workspace.uid_normalization` | string | `normalize` | `normalize`, `exact` | Controls workspace UID cleanup. `normalize` lowercases and slugifies workspace candidates. `exact` keeps caller-provided UIDs as-is after validation. |
 
 ## XDG paths
@@ -159,6 +165,7 @@ recollectium config set service.port 9090
 recollectium config set logging.level '"debug"'
 recollectium config set cli_output json
 recollectium config set directories.data '"/data/recollectium"'
+recollectium dev true
 ```
 
 ### `recollectium config unset KEY`
@@ -186,6 +193,50 @@ Replaces the config file with a fresh copy of defaults. Use this when you want t
 ### `recollectium config doctor`
 
 Checks that the config is valid and that resolved data, cache, logs, runtime, and database parent directories exist, are directories, and are writable.
+
+## Seeded development database
+
+Recollectium can switch normal operations to a pre-seeded development database for repeatable embedding and memory-operation tests. The seeded database is separate from your regular `database.path` and contains:
+
+- 100 user memories across 10 topic buckets.
+- 3 workspaces.
+- 30 memories per workspace, for 90 workspace memories total.
+
+Enable it with the dev switch:
+
+```bash
+recollectium dev true
+```
+
+Optionally choose a custom path:
+
+```bash
+recollectium config set development.seeded_database_path '"/tmp/recollectium-dev-seed.db"'
+```
+
+When `development.use_seeded_database` is `true`, commands and core operations use `development.seeded_database_path` instead of `database.path`. If the seeded database is missing or incomplete, Recollectium recreates it before opening the store.
+
+`recollectium dev true`, `recollectium dev false`, and `recollectium dev reset` refuse to run while a managed Recollectium service is already running. Stop or restart the service around the switch so API and MCP traffic cannot keep writing to the previously opened database.
+
+Reset the development fixture back to its canonical seeded state:
+
+```bash
+recollectium dev reset
+```
+
+Return to your regular memory database with one config change:
+
+```bash
+recollectium dev false
+```
+
+You can also remove the explicit setting and fall back to the default:
+
+```bash
+recollectium config unset development.use_seeded_database
+```
+
+`dev reset` only targets `development.seeded_database_path`. It does not touch `database.path`.
 
 ## CLI overrides
 

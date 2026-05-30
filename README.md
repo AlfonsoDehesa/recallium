@@ -48,6 +48,7 @@ Common next steps:
 - Install details: [Installation](docs/wiki/Installation.md)
 - Learn the model: [Concepts](docs/wiki/Concepts.md)
 - Configure Recollectium: [Configuration](docs/wiki/Configuration.md)
+- Use a seeded development database: [Seeded development database](docs/wiki/Configuration.md#seeded-development-database)
 - Use the CLI: [CLI Reference](docs/wiki/CLI-Reference.md)
 - Start services: [Service Management](docs/wiki/Service-Management.md)
 - Read logs: [Logs](docs/wiki/Logs.md)
@@ -64,6 +65,7 @@ Common next steps:
 - Background re-embedding jobs and embedding status inspection.
 - CLI, Python API, local HTTP API, and MCP surfaces.
 - Configurable CLI output, with Rich-backed TTY color for human-readable text and JSON available for automation.
+- Optional seeded development database for repeatable embedding, search, and memory-operation tests without touching your regular memory DB.
 - Managed API and MCP service lifecycle with discovery metadata for adapters.
 - Structured JSON logging with rotation.
 - Bootstrap install, package upgrade, safe uninstall, and shell completion.
