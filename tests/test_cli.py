@@ -1076,6 +1076,27 @@ def test_cli_human_formatter_covers_command_shapes() -> None:
     assert "Result" in _format_human_output({"ok": True})
 
 
+def test_cli_human_formatter_colors_config_command_shapes() -> None:
+    assert _format_human_output(
+        "human_readable", command="config get", label="cli_output", color=True
+    ).startswith("\x1b[1mcli_output:\x1b[0m human_readable")
+    assert _format_human_output(
+        {"model": "demo"}, command="config get", label="embedding", color=True
+    ).startswith('\x1b[1membedding:\x1b[0m {"model": "demo"}')
+    assert _format_human_output(
+        {"key": "cli_output", "value": "json"}, command="config set", color=True
+    ).startswith("\x1b[1;36mConfig updated:\x1b[0m cli_output = json")
+    assert _format_human_output(
+        {"key": "cli_output"}, command="config unset", color=True
+    ).startswith("\x1b[1;36mConfig key removed:\x1b[0m cli_output")
+    assert _format_human_output(
+        {"path": "/tmp/config.json"}, command="config init", color=True
+    ).startswith("\x1b[1;36mConfig initialized:\x1b[0m /tmp/config.json")
+    assert _format_human_output(
+        {"path": "/tmp/config.json"}, command="config reset", color=True
+    ).startswith("\x1b[1;36mConfig reset to defaults:\x1b[0m /tmp/config.json")
+
+
 def test_cli_output_helpers_cover_sys_argv_and_invalid_config_shapes(
     tmp_path, monkeypatch
 ) -> None:

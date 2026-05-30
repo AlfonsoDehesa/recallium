@@ -343,6 +343,8 @@ def _format_human_output(
                     lines.append(f"{index}. {json.dumps(item, sort_keys=True)}")
             return "\n".join(lines) + "\n"
         return "\n".join(f"- {_json_scalar(item)}" for item in payload) + "\n"
+    if command == "config get" and label is not None:
+        return f"{_format_label(label, color=color)} {_json_scalar(payload)}\n"
     if not isinstance(payload, dict):
         if label:
             return f"{label}: {_json_scalar(payload)}\n"
@@ -366,16 +368,20 @@ def _format_human_output(
             + "\n"
         )
 
-    if command == "config get" and label is not None:
-        return f"{label}: {_json_scalar(payload)}\n"
     if command == "config set":
-        return f"Config updated: {payload.get('key')} = {_json_scalar(payload.get('value'))}\n"
+        heading = _style("Config updated:", _ANSI_HEADING, enabled=color)
+        return (
+            f"{heading} {payload.get('key')} = {_json_scalar(payload.get('value'))}\n"
+        )
     if command == "config unset":
-        return f"Config key removed: {payload.get('key')}\n"
+        heading = _style("Config key removed:", _ANSI_HEADING, enabled=color)
+        return f"{heading} {payload.get('key')}\n"
     if command == "config init":
-        return f"Config initialized: {payload.get('path')}\n"
+        heading = _style("Config initialized:", _ANSI_HEADING, enabled=color)
+        return f"{heading} {payload.get('path')}\n"
     if command == "config reset":
-        return f"Config reset to defaults: {payload.get('path')}\n"
+        heading = _style("Config reset to defaults:", _ANSI_HEADING, enabled=color)
+        return f"{heading} {payload.get('path')}\n"
     if command == "config doctor":
         lines = [_style("Config doctor", _ANSI_HEADING, enabled=color)]
         lines.extend(_format_mapping_lines(payload, indent=2, color=color))
