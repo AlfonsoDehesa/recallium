@@ -2,7 +2,7 @@
 
 Recollectium v1.0 is here! 🎉
 
-This release provides working embedding-powered semantic memory for agents, exposed through a pretty CLI, JSON CLI, MCP stdio, MCP HTTP, and an HTTP API.
+This release provides working embedding-powered semantic memory for agents, exposed through a pretty CLI, JSON CLI, MCP stdio, MCP HTTP, and an HTTP API. It gives agents a local place to remember useful context across sessions, search it semantically, and keep workspace knowledge separate from user-level memory. The goal is simple: durable agent memory that runs on your machine, fits into real developer workflows, and is ready to plug into the tools agents already use.
 
 ## Unreleased
 
