@@ -120,7 +120,7 @@ configured endpoint by calling `/v1/health`, `/v1/version`, and
 Core. See `docs/opencode-adapter-contract.md` for the adapter contract and
 workspace UID rules.
 
-The API is local-first and unauthenticated in Phase 1. Binding to a non-local interface can expose memory contents and memory-changing operations. Remote or split-machine access should use private networking with external access controls; see [`../SECURITY.md`](../SECURITY.md).
+The v1.0.0 API is local-first and unauthenticated. Binding to a non-local interface can expose memory contents and memory-changing operations. Remote or split-machine access should use private networking with external access controls; see [`../SECURITY.md`](../SECURITY.md).
 
 ## Envelope shapes
 

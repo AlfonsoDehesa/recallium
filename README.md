@@ -109,9 +109,9 @@ Read [SECURITY.md](SECURITY.md) before changing service host settings or exposin
 
 ## Project status
 
-Recollectium Core is in final v1.0 release preparation. Core is implemented; remaining release work is public wiki/docs polish and the final release sweep. OpenCode plugin implementation is planned after v1.
+Recollectium Core is at v1.0.0. Core includes the CLI, Python API, local HTTP API, MCP stdio, managed MCP service, local embeddings, service lifecycle, install, upgrade, uninstall, logging, and adapter discovery contract. OpenCode plugin implementation is a post-v1.0.0 adapter target.
 
-See [ROADMAP.md](ROADMAP.md) for the current release plan.
+See [ROADMAP.md](ROADMAP.md) for current and post-v1.0.0 roadmap work.
 
 ## Contributing
 
