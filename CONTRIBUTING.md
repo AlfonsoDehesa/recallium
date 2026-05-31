@@ -321,7 +321,7 @@ Recollectium v1 services are unauthenticated and localhost-first. If a PR change
 
 A SQLite schema change includes new tables, columns, indexes, constraints, or data-shape changes to existing rows.
 
-Recollectium uses an internal migration runner under `src/recollectium/migrations/versions/`. Do not assume Alembic is required for ordinary Phase 1 migrations.
+Recollectium uses an internal migration runner under `src/recollectium/migrations/versions/`. Do not assume Alembic is required for current SQLite schema migrations.
 
 If a PR changes the SQLite schema, include a migration plan in the PR. The plan must state:
 
@@ -407,23 +407,25 @@ CI is defined in `.github/workflows/`. If a PR changes how Recollectium builds, 
 
 ### Release procedure
 
-Releases are created automatically when a version tag is pushed. Maintainers should do the release from a clean `main` checkout after the release-prep PR is merged.
+Releases are created automatically when a version tag is pushed. Maintainers should do the tag and release from a clean `main` checkout after the release-prep PR is merged.
 
-The release-prep PR is a normal PR with a release-specific scope. It should do exactly these things unless the release gate uncovers a required fix:
+The release-prep PR is the single PR for the release sweep. It is a normal PR with a release-specific scope and should contain the Phase A audit, any fixes required by that audit, and the version and changelog preparation for the target release:
 
+- Confirm every item in the release gate below or fix the gap in the release-prep PR.
 - Bump `version` in `pyproject.toml`.
 - Move the curated `CHANGELOG.md` entries into the target release section.
-- Update docs only for gaps found during the release gate.
+- Update docs for gaps found during the release gate.
 
 Release steps:
 
 1. Choose the target version and confirm the intended tag, such as `v1.0.0`.
-2. Run the release gate below from an up-to-date `main` checkout.
-3. Fix any release-blocking gaps before opening the release-prep PR.
-4. Open the release-prep PR with the normal PR template and list the status of every gate.
-5. Wait for review and CI to pass.
-6. Merge the release-prep PR.
-7. Update local `main` and verify the checkout is clean:
+2. Open the release-prep PR against `main` with the normal PR template and list the status of every gate.
+3. Complete the release gate below in the release-prep PR. Fix any release-blocking gaps in that same PR.
+4. Bump the version and prepare the changelog in the release-prep PR after the audit scope is known.
+5. Run the required quality gates in the release-prep PR before merge and record the results in the PR.
+6. Wait for review and CI to pass on the release-prep PR.
+7. Merge the release-prep PR.
+8. Update local `main` and verify the checkout is clean:
 
    ```bash
    git checkout main
@@ -431,15 +433,16 @@ Release steps:
    git status --short
    ```
 
-8. Tag and push the release:
+9. Confirm CI is green on `main` for the merge commit before tagging. Do not tag if local `main` differs from the reviewed release-prep merge commit.
+10. Tag and push the release:
 
    ```bash
    git tag v1.0.0
    git push origin v1.0.0
    ```
 
-9. Wait for `.github/workflows/release.yml` to finish. The workflow publishes the matching `CHANGELOG.md` section as the curated release body and lets GitHub append generated release notes for merged PR detail.
-10. Complete the post-release checks below.
+11. Wait for `.github/workflows/release.yml` to finish. The workflow publishes the matching `CHANGELOG.md` section as the curated release body and lets GitHub append generated release notes for merged PR detail.
+12. Complete the post-release checks below.
 
 ### Release gate
 
@@ -494,7 +497,7 @@ Every item in this gate must be confirmed before the release-prep PR is merged.
 
 #### Quality readiness
 
-Run the full PR code gate from `main` after the release-prep PR is merged:
+Run the full PR code gate in the release-prep PR before merge:
 
 ```bash
 uv run ruff format .
@@ -511,7 +514,8 @@ Confirm:
 - [ ] Pyright reports zero errors and zero warnings.
 - [ ] Pytest passes.
 - [ ] Coverage is 100 percent, or accepted misses are documented in the release notes.
-- [ ] CI is green on `main` before tagging.
+- [ ] CI is green on the release-prep PR before merge.
+- [ ] After merge, local `main` is clean and CI is green for the merge commit before tagging.
 
 ### Post-release checks
 

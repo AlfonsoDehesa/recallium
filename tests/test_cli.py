@@ -3217,7 +3217,7 @@ def test_cli_uninstall_removes_powershell_completion_from_structured_metadata(
         "before\n"
         "# >>> recollectium completion >>>\n"
         "if (Get-Command recollectium -ErrorAction SilentlyContinue) {\n"
-        "    Invoke-Expression (& recollectium completion --source powershell)\n"
+        "    Invoke-Expression ((& recollectium completion --source powershell) -join [Environment]::NewLine)\n"
         "}\n"
         "# <<< recollectium completion <<<\n"
         "after\n",
@@ -4048,7 +4048,10 @@ def test_cli_completion_powershell_prints_human_readable_instructions(
     assert exit_code == 0
     assert stderr == ""
     assert "$PROFILE.CurrentUserCurrentHost" in stdout
-    assert "recollectium completion powershell --source" in stdout
+    assert (
+        "Invoke-Expression ((& recollectium completion --source powershell) -join [Environment]::NewLine)"
+        in stdout
+    )
     assert "recollectium completion --install powershell" in stdout
     assert "$PROFILE.CurrentUserAllHosts" in stdout
 
@@ -4249,6 +4252,7 @@ def test_cli_completion_install_powershell_uses_current_user_current_host_profil
     content = profile.read_text(encoding="utf-8")
     assert "Get-Command recollectium" in content
     assert "recollectium completion --source powershell" in content
+    assert "-join [Environment]::NewLine" in content
     assert "Register-ArgumentCompleter" not in content
     assert "recollectium completion --complete-line" not in content
 
@@ -4288,7 +4292,7 @@ def test_cli_completion_install_powershell_reports_current_managed_block(
     profile.write_text(
         "# >>> recollectium completion >>>\n"
         "if (Get-Command recollectium -ErrorAction SilentlyContinue) {\n"
-        "    Invoke-Expression (& recollectium completion --source powershell)\n"
+        "    Invoke-Expression ((& recollectium completion --source powershell) -join [Environment]::NewLine)\n"
         "}\n"
         "# <<< recollectium completion <<<\n",
         encoding="utf-8",

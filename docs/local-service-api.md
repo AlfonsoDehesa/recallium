@@ -65,7 +65,7 @@ Running response shape:
   },
   "versions": {
     "service_api_version": "1",
-    "recollectium_version": "0.x.y"
+    "recollectium_version": "1.0.0"
   },
   "paths": {
     "config": "/home/user/.config/recollectium/config.json",
@@ -84,7 +84,7 @@ Not-running response shape:
   "service": null,
   "versions": {
     "service_api_version": "1",
-    "recollectium_version": "0.x.y"
+    "recollectium_version": "1.0.0"
   },
   "paths": {
     "config": "/home/user/.config/recollectium/config.json",
@@ -120,7 +120,7 @@ configured endpoint by calling `/v1/health`, `/v1/version`, and
 Core. See `docs/opencode-adapter-contract.md` for the adapter contract and
 workspace UID rules.
 
-The API is local-first and unauthenticated in Phase 1. Binding to a non-local interface can expose memory contents and memory-changing operations. Remote or split-machine access should use private networking with external access controls; see [`../SECURITY.md`](../SECURITY.md).
+The v1.0.0 API is local-first and unauthenticated. Binding to a non-local interface can expose memory contents and memory-changing operations. Remote or split-machine access should use private networking with external access controls; see [`../SECURITY.md`](../SECURITY.md).
 
 ## Envelope shapes
 
@@ -172,7 +172,7 @@ Response example:
 {
   "data": {
     "service_api_version": "1",
-    "recollectium_version": "0.x.y"
+    "recollectium_version": "1.0.0"
   }
 }
 ```
@@ -269,7 +269,7 @@ All successful endpoint responses currently return HTTP `200` with a `{"data": .
   - `limit` (positive integer, default `10`)
   - `include_archived` (boolean, default `false`)
 - Side effects: none.
-- Successful response: HTTP `200` with `data` list of search results (`memory`, `score`, `rank`).
+- Successful response: HTTP `200` with `data` list of search results (`memory`, `score`, `rank`, `matched_text`, `snippet`, `chunk_index`).
 
 Example request:
 
@@ -301,7 +301,10 @@ Example response:
         "last_accessed_at": null
       },
       "score": 0.91,
-      "rank": 1
+      "rank": 1,
+      "matched_text": "Alfonso likes tea",
+      "snippet": "Alfonso likes tea",
+      "chunk_index": 0
     }
   ]
 }
@@ -319,7 +322,7 @@ Example response:
   - `limit` (positive integer, default `10`)
   - `include_archived` (boolean, default `false`)
 - Side effects: none.
-- Successful response: HTTP `200` with `data` list of search results (`memory`, `score`, `rank`).
+- Successful response: HTTP `200` with `data` list of search results (`memory`, `score`, `rank`, `matched_text`, `snippet`, `chunk_index`).
 
 Example request:
 
@@ -351,7 +354,10 @@ Example response:
         "last_accessed_at": null
       },
       "score": 0.88,
-      "rank": 1
+      "rank": 1,
+      "matched_text": "Use sqlite for local db",
+      "snippet": "Use sqlite for local db",
+      "chunk_index": 0
     }
   ]
 }
@@ -604,13 +610,22 @@ Memory responses use this JSON object shape:
 }
 ```
 
-Search responses return a list of:
+Search responses return a list of search-result objects. The inner `memory` field holds the full memory object (see Memory object shape above). The search-specific fields are:
+
+- `score` (number): similarity score, higher is better.
+- `rank` (integer): 1-based rank position.
+- `matched_text` (string): the chunk or passage of the memory content that matched the query. Omitted when no chunk data is available.
+- `snippet` (string): a shorter excerpt of the match for display. Omitted when no chunk data is available.
+- `chunk_index` (integer): zero-based index of which chunk within the memory content matched. Omitted when no chunk data is available.
 
 ```json
 {
   "memory": {"id": "..."},
   "score": 0.91,
-  "rank": 1
+  "rank": 1,
+  "matched_text": "Alfonso likes tea",
+  "snippet": "Alfonso likes tea",
+  "chunk_index": 0
 }
 ```
 
@@ -684,9 +699,18 @@ Example response:
       "model": "jinaai/jina-embeddings-v2-small-en",
       "embedding_profile": {
         "provider": "builtin-fastembed",
-        "model": "jinaai/jina-embeddings-v2-small-en"
+        "model": "jinaai/jina-embeddings-v2-small-en",
+        "dimensions": 512,
+        "version": "1",
+        "profile": "builtin-fastembed-jina-v2-small-en-v1",
+        "max_tokens": 8192,
+        "chunk_tokens": 6144,
+        "chunk_overlap_tokens": 512,
+        "query_prompt_policy": "raw"
       },
       "error_message": "runtime re-embedding failed",
+      "created_at": "2026-05-19T10:09:55+00:00",
+      "updated_at": "2026-05-19T10:10:05+00:00",
       "started_at": "2026-05-19T10:10:00+00:00",
       "completed_at": "2026-05-19T10:10:05+00:00"
     }
@@ -719,9 +743,18 @@ Example response:
     "model": "jinaai/jina-embeddings-v2-small-en",
     "embedding_profile": {
       "provider": "builtin-fastembed",
-      "model": "jinaai/jina-embeddings-v2-small-en"
+      "model": "jinaai/jina-embeddings-v2-small-en",
+      "dimensions": 512,
+      "version": "1",
+      "profile": "builtin-fastembed-jina-v2-small-en-v1",
+      "max_tokens": 8192,
+      "chunk_tokens": 6144,
+      "chunk_overlap_tokens": 512,
+      "query_prompt_policy": "raw"
     },
     "error_message": "triggered by search",
+    "created_at": "2026-05-19T10:09:55+00:00",
+    "updated_at": "2026-05-19T10:10:00+00:00",
     "started_at": "2026-05-19T10:10:00+00:00",
     "completed_at": null
   }

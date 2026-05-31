@@ -14,6 +14,12 @@ In v1, Recollectium services are not hardened as public network services:
 - Health, version, and capability checks confirm service compatibility. They are not authentication or authorization controls.
 - The SQLite memory database is not encrypted by Recollectium.
 
+## Supported versions
+
+Only the latest released version of Recollectium receives security updates.
+For the v1.0.0 release, this is the only supported version. Older versions
+are not patched for security issues.
+
 ## Supported security model for v1
 
 The recommended deployment is simple:

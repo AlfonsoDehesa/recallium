@@ -67,21 +67,10 @@ health, version, and capability validation described below. Because Recollectium
 v1 services are unauthenticated, that endpoint should only be reachable through
 private networking and external access controls.
 
-Discovery returns JSON that includes:
-
-- service type
-- process ID
-- endpoint
-- API prefix
-- health URL
-- version URL
-- capabilities URL
-- Recollectium version
-- service API version
-- config path
-- runtime directory
-- PID file path
-- discovery file path
+Discovery returns JSON with a top-level `status` field (`"running"` or `"not_running"`)
+and nested `service`, `versions`, and `paths` objects. See
+`docs/local-service-api.md` for the complete running and not-running response
+shapes.
 
 Adapter behavior:
 
