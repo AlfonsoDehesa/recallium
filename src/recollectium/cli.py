@@ -2562,7 +2562,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     # service start
-    start_parser = service_sub.add_parser("start", help="start a Recollectium service")
+    start_parser = service_sub.add_parser(
+        "start",
+        help="start a Recollectium service",
+        description=(
+            "Start a managed Recollectium API or MCP HTTP service in the background. "
+            "The service writes owned PID and discovery state files, and API services "
+            "use the configured host and port unless overridden elsewhere."
+        ),
+    )
     start_parser.add_argument(
         "type",
         choices=["api", "mcp"],
@@ -2570,10 +2578,24 @@ def _build_parser() -> argparse.ArgumentParser:
     )
 
     # service stop
-    service_sub.add_parser("stop", help="stop the running Recollectium service")
+    service_sub.add_parser(
+        "stop",
+        help="stop the running Recollectium service",
+        description=(
+            "Stop the managed Recollectium service if it is running. The command "
+            "cleans up stale Recollectium-owned PID and discovery files when applicable."
+        ),
+    )
 
     # service status
-    service_sub.add_parser("status", help="show running service details")
+    service_sub.add_parser(
+        "status",
+        help="show running service details",
+        description=(
+            "Report managed service state as running, stale, or not running. Output "
+            "includes service details in JSON by default or human-readable text when requested."
+        ),
+    )
 
     # service discover
     service_sub.add_parser(
@@ -2588,7 +2610,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # service restart
     restart_parser = service_sub.add_parser(
-        "restart", help="restart the running service"
+        "restart",
+        help="restart the running service",
+        description=(
+            "Restart the existing managed Recollectium service, preserving its service type. "
+            "If no running service exists, --type selects the API or MCP service to start."
+        ),
     )
     restart_parser.add_argument(
         "--type",
@@ -2804,6 +2831,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "modifying any file."
         ),
     )
+    # Internal dynamic-completion protocol flags used by generated shell hooks;
+    # hidden from public help because users should invoke completion via shell setup.
     action_group.add_argument(
         "--complete-line",
         help=argparse.SUPPRESS,
