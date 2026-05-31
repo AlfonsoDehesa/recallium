@@ -1,6 +1,6 @@
 # Changelog
 
-Recollectium keeps human-written release notes here. Each release section uses the same three categories so readers can scan quickly and the release workflow can publish a predictable GitHub Release body.
+This is the first public release of Recollectium, and it is a big one: a local-first memory engine for agents, ready to install, run, integrate, and build on.
 
 ## Unreleased
 
