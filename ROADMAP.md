@@ -39,34 +39,44 @@ Completed:
 - [x] Public docs and wiki release pass: focused README with banner and wiki routing, reorganized CONTRIBUTING.md, clarified SECURITY.md, GitHub Wiki pages for every release surface, and release checklist coverage for wiki maintenance.
 - [x] Configurable CLI output: `cli_output` defaults to human-readable rendering for terminal use, JSON remains available for automation, and `--json` / `--human-readable` override the config per invocation.
 - [x] TTY-aware CLI color: human-readable CLI output uses Rich-backed ANSI color on TTY streams while pipes, captured output, and JSON mode stay uncolored.
+- [x] Release PR opened for v1.0.0 preparation as PR #41.
+- [x] A1.1 surface parity confirmed: CLI functionality is reachable through API and MCP where required, including metadata, read filters, and embedding operations.
+- [x] A1.2 configuration parity confirmed: `recollectium config get/set/unset` covers configurable keys in `config.json`.
+- [x] A1.3 CLI failure contracts confirmed: non-argparse failures emit structured JSON on stderr and stdout JSON contracts stay clean.
+- [x] A1.4 structured logging completed across service endpoints, exception handlers, MCP tools, and update lifecycle paths.
+- [x] A2.1 README audit completed for install overview, quick start, local access and security guidance, and wiki routing.
+- [x] A2.2 GitHub Wiki audit completed for the long-form user and integrator manual.
+- [x] A2.3 local service API docs confirmed against the running service.
+- [x] A2.4 OpenAPI JSON confirmed against the served FastAPI contract.
+- [x] A2.5 OpenCode adapter contract updated for discovery JSON payload wording, compatibility, remote Core, and workspace UID behavior.
+- [x] A2.6 Security documentation updated for supported versions, local access assumptions, vulnerability reporting, and security posture.
 
 Remaining release blockers:
 
-### Final release sweep
+### Phase A release sweep
 
-Release goal: no embarrassing loose ends before tagging.
+Release goal: finish the open pre-release checklist items before tagging.
 
-- [ ] Run the full release checklist in `CONTRIBUTING.md`.
-- [ ] Confirm all CLI help text is accurate.
-- [ ] Confirm README is current.
-- [ ] Confirm API docs match the running service.
-- [ ] Confirm OpenAPI JSON matches FastAPI output.
-- [ ] Confirm config docs list every config key.
-- [ ] Confirm install docs match actual installer behavior.
-- [ ] Confirm uninstall docs are accurate.
-- [ ] Confirm roadmap reflects what is done and what is next.
-- [ ] Run `uv run ruff format .`.
-- [ ] Run `uv run ruff check .`.
-- [ ] Run `uv run pyright`.
-- [ ] Run `uv run pytest`.
-- [ ] Run coverage and keep it at 100 percent or explicitly document accepted misses.
-- [ ] Bump version.
-- [ ] Add changelog entry.
-- [ ] Open the release PR.
-- [ ] Merge the release PR.
-- [ ] Tag main.
-- [ ] Push the tag.
-- [ ] Confirm GitHub Release is created.
+- [ ] A2.8 Confirm `CONTRIBUTING.md` reflects the current contributor and release process.
+- [ ] A2.9 Confirm install docs match actual installer behavior.
+- [ ] A2.10 Confirm uninstall docs are accurate.
+- [ ] A2.11 Sweep repo and wiki for stale pre-release, "prior to v1", "upcoming", and Phase 1 hedging where it should use v1.0.0 present-tense wording.
+- [ ] A3 Confirm `CHANGELOG.md` has the required sections and release-notable entries.
+- [ ] A4 Confirm CLI help and shell completion coverage across supported shells.
+- [ ] A5 Confirm install, upgrade, uninstall, and service behavior on Linux, macOS, and Windows, including release-candidate artifact install methods.
+- [ ] A6 Confirm migration readiness and any required re-embedding documentation.
+- [ ] A7 Run the required release quality gates from the appropriate release state: formatting, lint, type checking, tests, coverage, and CI.
+- [ ] A8 Confirm the v1.0.0 target version and that no release-blocking gaps remain.
+
+### Phase B, C, and D release work
+
+- [ ] Bump `version` in `pyproject.toml` to `1.0.0`.
+- [ ] Prepare `CHANGELOG.md` for `v1.0.0` and restore a fresh `Unreleased` section.
+- [ ] Complete the PR template with gate status, obtain review approval, and wait for CI.
+- [ ] Merge PR #41 to `main` after approval.
+- [ ] Tag `main` as `v1.0.0` and push the tag.
+- [ ] Confirm the GitHub Release is created with the curated changelog section.
+- [ ] Verify published package install paths after release: `pip`, `pipx`, `uv tool`, version output, init, and bootstrap installer paths.
 
 ## Phase 1.5 (post-1.0.0 follow-up): Post-release polish
 
